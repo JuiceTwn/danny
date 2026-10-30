@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { buildApp } from "../src/app.js";
 import { DemoModel, type ModelClient } from "../src/brain/model.js";
+import { Vault } from "../src/lib/vault.js";
 import { createRegistry } from "../src/tools/builtin.js";
 import { loadConfig } from "../src/config.js";
 import { createDb } from "../src/db/client.js";
@@ -10,6 +11,7 @@ import { hashPassword } from "../src/lib/crypto.js";
 import { APP_URL, OWNER_URL } from "./env.js";
 
 export const ORIGIN = "http://app.test";
+export const TEST_DATA_KEYS = "1:" + Buffer.alloc(32, 7).toString("base64");
 
 export async function setupApp(model: ModelClient = new DemoModel(), tools = createRegistry()) {
   const config = loadConfig({
@@ -18,12 +20,15 @@ export async function setupApp(model: ModelClient = new DemoModel(), tools = cre
     APP_ORIGINS: ORIGIN,
     MARKETING_ORIGINS: "http://www.test",
     APP_URL: ORIGIN,
+    DATA_KEYS: TEST_DATA_KEYS,
   } as NodeJS.ProcessEnv);
   const runtime = createDb(APP_URL, 5);
   const owner = createDb(OWNER_URL, 2); // table owner: for seeding and for checking what is really in the database
-  const app = await buildApp({ config, db: runtime.db, model, tools });
+  const vault = new Vault(config.dataKeys);
+  const app = await buildApp({ config, db: runtime.db, model, tools, vault });
   return {
     app,
+    vault,
     runtime,
     owner,
     async close() {

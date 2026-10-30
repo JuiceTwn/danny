@@ -3,6 +3,7 @@ import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
 import { approvals, auditLog, conversations, memory, messages } from "../db/schema.js";
 import { checkBudget, costMicros, recordSpend } from "../lib/spend.js";
+import type { Vault } from "../lib/vault.js";
 import type { Block, ModelClient, Msg, ToolResultBlock } from "./model.js";
 import type { ToolCtx, ToolRegistry } from "../tools/registry.js";
 
@@ -13,7 +14,7 @@ export type ChatEvent =
   | { type: "done" }
   | { type: "error"; code: "kill_switch" | "cap_reached" | "model_failed" | "too_many_steps"; message: string };
 
-export type BrainDeps = { db: Db; config: Config; model: ModelClient; tools: ToolRegistry };
+export type BrainDeps = { db: Db; config: Config; model: ModelClient; tools: ToolRegistry; vault: Vault };
 
 const MAX_STEPS = 6;
 const HISTORY = 40;
@@ -48,10 +49,10 @@ export async function runTurn(
   emit: (e: ChatEvent) => void,
   isClosed: () => boolean = () => false,
 ) {
-  const { db, config, model, tools } = deps;
+  const { db, config, model, tools, vault } = deps;
   const { workspaceId, userId } = who;
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, workspaceId, fn);
-  const ctx: ToolCtx = { workspaceId, userId, db, tenant };
+  const ctx: ToolCtx = { workspaceId, userId, db, vault, tenant };
 
   const setup = await tenant(async (tx) => {
     const budget = await checkBudget(tx, workspaceId);
@@ -59,12 +60,12 @@ export async function runTurn(
     let [conv] = await tx.select().from(conversations).where(eq(conversations.userId, userId)).limit(1);
     conv ??= (await tx.insert(conversations).values({ workspaceId, userId }).returning())[0]!;
     const past = await tx.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(desc(messages.id)).limit(HISTORY);
-    const mem = await tx.select({ content: memory.content }).from(memory).orderBy(desc(memory.createdAt)).limit(50);
-    await tx.insert(messages).values({ workspaceId, conversationId: conv.id, role: "user", content: text });
+    const mem = (await tx.select({ c: memory.contentEnc }).from(memory).orderBy(desc(memory.createdAt)).limit(50)).map((m) => ({ content: vault.open(workspaceId, m.c) }));
+    await tx.insert(messages).values({ workspaceId, conversationId: conv.id, role: "user", contentEnc: vault.sealJson(workspaceId, text) });
     return {
       blocked: null,
       convId: conv.id,
-      history: trimHistory(past.reverse().map((r) => ({ role: r.role as Msg["role"], content: r.content as Msg["content"] }))),
+      history: trimHistory(past.reverse().map((r) => ({ role: r.role as Msg["role"], content: vault.openJson<Msg["content"]>(workspaceId, r.contentEnc) }))),
       mem,
     } as const;
   });
@@ -80,7 +81,7 @@ export async function runTurn(
       : "");
   const convo: Msg[] = [...setup.history, { role: "user", content: text }];
   const save = (rows: Msg[]) =>
-    tenant((tx) => tx.insert(messages).values(rows.map((m) => ({ workspaceId, conversationId: setup.convId, role: m.role, content: m.content }))));
+    tenant((tx) => tx.insert(messages).values(rows.map((m) => ({ workspaceId, conversationId: setup.convId, role: m.role, contentEnc: vault.sealJson(workspaceId, m.content) }))));
 
   for (let step = 0; step < MAX_STEPS; step++) {
     if (isClosed()) return;
@@ -142,7 +143,7 @@ async function runTool(
     const id = await ctx.tenant(async (tx) => {
       const [a] = await tx
         .insert(approvals)
-        .values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind: tool.name, title, payload: parsed.data as object })
+        .values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind: tool.name, title, payloadEnc: ctx.vault.sealJson(ctx.workspaceId, parsed.data) })
         .returning({ id: approvals.id });
       await tx.insert(auditLog).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, action: "approval.request", detail: { id: a!.id, tool: tool.name } });
       return a!.id;
@@ -167,7 +168,7 @@ async function runTool(
   }
 }
 
-export async function history(db: Db, workspaceId: string, userId: string, limit: number) {
+export async function history(db: Db, vault: Vault, workspaceId: string, userId: string, limit: number) {
   return withTenant(db, workspaceId, async (tx) => {
     const [conv] = await tx.select().from(conversations).where(eq(conversations.userId, userId)).limit(1);
     if (!conv) return [];
@@ -175,9 +176,10 @@ export async function history(db: Db, workspaceId: string, userId: string, limit
     // Only what the user actually saw: plain text, no tool plumbing.
     return rows
       .reverse()
-      .map((r) => ({
+      .map((r) => ({ r, content: vault.openJson<string | Block[]>(workspaceId, r.contentEnc) }))
+      .map(({ r, content }) => ({
         role: r.role,
-        text: typeof r.content === "string" ? r.content : (r.content as Block[]).filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join(""),
+        text: typeof content === "string" ? content : content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join(""),
         at: r.createdAt,
       }))
       .filter((m) => m.text.length > 0);

@@ -13,6 +13,8 @@ if [ ! -f .env ]; then
     echo "POSTGRES_PASSWORD=$(rand)"
     echo "DANNY_OWNER_PASSWORD=$(rand)"
     echo "DANNY_APP_PASSWORD=$(rand)"
+    echo "# Encrypts everything users write to Danny. BACK THIS UP: without it, stored data cannot be read."
+    echo "DATA_KEYS=1:$(head -c 32 /dev/urandom | base64)"
     echo "ANTHROPIC_API_KEY="
     echo "MODEL=claude-haiku-5-5"
     if [ -n "$DOMAIN" ]; then
@@ -28,7 +30,8 @@ if [ ! -f .env ]; then
     echo "MARKETING_ORIGINS="
   } > .env
   chmod 600 .env
-  echo "Wrote .env. Add ANTHROPIC_API_KEY to it when you have one (without it, Danny runs in demo mode)."
+  echo "Wrote .env. Back up DATA_KEYS somewhere safe and separate: if it is lost, encrypted data cannot be recovered."
+  echo "Add ANTHROPIC_API_KEY to it when you have one (without it, Danny runs in demo mode)."
 fi
 
 if [ -n "$DOMAIN" ]; then

@@ -80,7 +80,7 @@ describe("chat", () => {
     const r = await chat(u.c, "Marlene prefers texts, not calls");
     expect(r.events).toContainEqual({ type: "tool", name: "remember", status: "ran" });
     const rows = await ctx.owner.db.select().from(memory).where(eq(memory.userId, u.userId));
-    expect(rows.map((m) => m.content)).toEqual(["Marlene prefers texts"]);
+    expect(rows.map((m) => ctx.vault.open(u.workspaceId, m.contentEnc))).toEqual(["Marlene prefers texts"]);
 
     script = scripted([text("Texting her.")]);
     await chat(u.c, "how should I reach Marlene?");

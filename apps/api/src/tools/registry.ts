@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Db, Tx } from "../db/client.js";
+import type { Vault } from "../lib/vault.js";
 
 /**
  * internal       changes only Danny's own records (remember). Runs immediately.
@@ -13,6 +14,7 @@ export type ToolCtx = {
   workspaceId: string;
   userId: string;
   db: Db;
+  vault: Vault;
   /** Run database work inside this workspace, with row-level security applied. */
   tenant: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 };

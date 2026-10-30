@@ -22,6 +22,27 @@
       "when": 1793321373269,
       "tag": "0002_admin_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793322393368,
+      "tag": "0003_drop_plaintext_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793322401771,
+      "tag": "0004_add_encrypted_columns_and_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793322402716,
+      "tag": "0005_rls_connections",
+      "breakpoints": true
     }
   ]
 }

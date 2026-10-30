@@ -160,18 +160,18 @@ describe("tenant isolation", () => {
 
     // Unfiltered select as B sees only B.
     const asB = await withTenant(ctx.runtime.db, b.workspaceId, (tx) => tx.select().from(memory));
-    expect(asB.map((r) => r.content)).toEqual(["B only"]);
+    expect(asB.map((r) => ctx.vault.open(b.workspaceId, r.contentEnc))).toEqual(["B only"]);
     // No workspace context at all: nothing.
     expect(await ctx.runtime.db.select().from(memory)).toHaveLength(0);
     // Writing a row into someone else's workspace is rejected by the policy.
     await expect(
-      withTenant(ctx.runtime.db, b.workspaceId, (tx) => tx.insert(memory).values({ workspaceId: a.workspaceId, userId: b.userId, content: "planted" })),
+      withTenant(ctx.runtime.db, b.workspaceId, (tx) => tx.insert(memory).values({ workspaceId: a.workspaceId, userId: b.userId, contentEnc: ctx.vault.seal(a.workspaceId, "planted") })),
     ).rejects.toThrow();
     // Updating A's rows from B's context touches nothing.
-    const hit = await withTenant(ctx.runtime.db, b.workspaceId, (tx) => tx.update(memory).set({ content: "hacked" }).returning());
-    expect(hit.map((r) => r.content)).toEqual(["hacked"]); // B's own row only
+    const hit = await withTenant(ctx.runtime.db, b.workspaceId, (tx) => tx.update(memory).set({ contentEnc: ctx.vault.seal(b.workspaceId, "hacked") }).returning());
+    expect(hit.map((r) => ctx.vault.open(b.workspaceId, r.contentEnc))).toEqual(["hacked"]); // B's own row only
     const aStill = await withTenant(ctx.runtime.db, a.workspaceId, (tx) => tx.select().from(memory));
-    expect(aStill.map((r) => r.content)).toEqual(["A only"]);
+    expect(aStill.map((r) => ctx.vault.open(a.workspaceId, r.contentEnc))).toEqual(["A only"]);
   });
 
   it("the audit log can be added to but never edited or deleted by the app", async () => {

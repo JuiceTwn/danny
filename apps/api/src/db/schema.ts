@@ -103,9 +103,8 @@ export const memory = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    content: text("content").notNull(),
+    contentEnc: bytea("content_enc").notNull(), // encrypted with the workspace key (see lib/vault.ts)
     createdAt: createdAt(),
-    forgottenAt: timestamp("forgotten_at", { withTimezone: true }),
   },
   (t) => [index("memory_ws_idx").on(t.workspaceId, t.createdAt)],
 );
@@ -124,7 +123,7 @@ export const messages = pgTable(
     workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     conversationId: uuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
     role: text("role").notNull(), // user | assistant
-    content: jsonb("content").notNull(),
+    contentEnc: bytea("content_enc").notNull(), // encrypted JSON
     createdAt: createdAt(),
   },
   (t) => [index("messages_conv_idx").on(t.conversationId, t.id)],
@@ -138,7 +137,7 @@ export const approvals = pgTable(
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(), // e.g. email, post, note. Free text until connectors exist.
     title: text("title").notNull(),
-    payload: jsonb("payload").notNull().default(sql`'{}'::jsonb`),
+    payloadEnc: bytea("payload_enc").notNull(), // encrypted JSON: the draft itself
     status: text("status").notNull().default("pending"), // pending | approved | changes_requested | dropped
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     // Honesty field: stays null until a connector really executes the action.
@@ -177,4 +176,19 @@ export const spendLedger = pgTable(
   (t) => [index("spend_ws_day_idx").on(t.workspaceId, t.day)],
 );
 
-export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger"] as const;
+// Accounts a workspace has linked. The secret is encrypted before it is stored and never returned by the API.
+export const connections = pgTable(
+  "connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    label: text("label").notNull().default(""),
+    secretEnc: bytea("secret_enc").notNull(),
+    status: text("status").notNull().default("active"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("connections_ws_idx").on(t.workspaceId, t.provider)],
+);
+
+export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger", "connections"] as const;

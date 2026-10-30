@@ -6,7 +6,9 @@ import { ZodError } from "zod";
 import type { Config } from "./config.js";
 import type { ModelClient } from "./brain/model.js";
 import type { Db } from "./db/client.js";
+import type { Vault } from "./lib/vault.js";
 import type { ToolRegistry } from "./tools/registry.js";
+import { connectionRoutes } from "./routes/connections.js";
 import { chatRoutes } from "./routes/chat.js";
 import { adminRoutes } from "./routes/admin.js";
 import { approvalRoutes } from "./routes/approvals.js";
@@ -15,7 +17,7 @@ import { inviteRequestRoutes } from "./routes/invite-requests.js";
 import { memoryRoutes } from "./routes/memory.js";
 import { settingsRoutes } from "./routes/settings.js";
 
-export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry };
+export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault };
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -68,6 +70,7 @@ export async function buildApp(deps: Deps) {
     });
     await r.register(chatRoutes, deps);
     await r.register(memoryRoutes, deps);
+    await r.register(connectionRoutes, deps);
     await r.register(approvalRoutes, deps);
     await r.register(settingsRoutes, deps);
     await r.register(adminRoutes, deps);

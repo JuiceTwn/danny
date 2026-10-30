@@ -3,7 +3,7 @@ import { z } from "zod";
 import { history, runTurn, type BrainDeps, type ChatEvent } from "../brain/run.js";
 import type { Deps } from "../app.js";
 
-export const chatRoutes: FastifyPluginAsync<Deps & Pick<BrainDeps, "model" | "tools">> = async (app, deps) => {
+export const chatRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
   // One turn at a time per workspace. This also keeps parallel requests from running past the spend cap.
   // In-memory, so it holds for a single server process.
   const busy = new Set<string>();
@@ -36,7 +36,7 @@ export const chatRoutes: FastifyPluginAsync<Deps & Pick<BrainDeps, "model" | "to
   app.get("/v1/chat/history", async (req) => {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }).parse(req.query);
     const { workspaceId, userId } = req.auth!;
-    return { messages: await history(deps.db, workspaceId, userId, limit) };
+    return { messages: await history(deps.db, deps.vault, workspaceId, userId, limit) };
   });
 
   app.get("/v1/tools", async () => ({

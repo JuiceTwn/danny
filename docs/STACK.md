@@ -24,6 +24,17 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 - `audit_log` and `spend_ledger` are append-only for the app role.
 - The owner's usage view reads through one `SECURITY DEFINER` function that returns only money and counts.
 
+## Encryption
+
+- **At rest, in the application.** Memory, chat messages, approval drafts and connection secrets are encrypted with AES-256-GCM before they reach the database. A stolen dump or backup shows only bytes.
+- **One key per workspace**, derived from a master key in `DATA_KEYS`. The database never holds the master key.
+- **Bound to the workspace.** A value copied into another workspace's row fails to decrypt, so it does not leak there.
+- **Rotation.** Add a new key version to `DATA_KEYS`; new writes use it and old data still opens. Keep old keys until everything has been re-sealed.
+- **Connection secrets** (linked accounts, API keys) are write-only through the API: nothing returns them. Only server-side tool code can read one.
+- **Not encrypted:** account emails, approval titles, timestamps and the audit log's action names. These stay readable so the app can list and search them. Passwords are hashed (argon2id), not encrypted.
+- **Limits.** The server holds the key while it runs, so this protects data at rest and in backups, not against someone with live access to the running server. Everything also travels over HTTPS.
+- **Lost key = lost data.** Back up `DATA_KEYS` separately from the database.
+
 ## What is deliberately not here yet
 
 - Chat and the model tool loop (next slice).

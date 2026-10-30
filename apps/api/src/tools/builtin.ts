@@ -9,7 +9,7 @@ export const remember = defineTool({
   input: z.object({ fact: z.string().trim().min(1).max(500) }),
   async run(ctx, { fact }) {
     await ctx.tenant(async (tx) => {
-      const [row] = await tx.insert(memory).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, content: fact }).returning({ id: memory.id });
+      const [row] = await tx.insert(memory).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, contentEnc: ctx.vault.seal(ctx.workspaceId, fact) }).returning({ id: memory.id });
       await tx.insert(auditLog).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, action: "memory.add", detail: { id: row!.id, via: "chat" } });
     });
     return "Remembered.";
@@ -29,7 +29,7 @@ export const requestApproval = defineTool({
   }),
   async run(ctx, { kind, title, draft }) {
     const id = await ctx.tenant(async (tx) => {
-      const [a] = await tx.insert(approvals).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind, title, payload: { draft } }).returning({ id: approvals.id });
+      const [a] = await tx.insert(approvals).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind, title, payloadEnc: ctx.vault.sealJson(ctx.workspaceId, { draft }) }).returning({ id: approvals.id });
       await tx.insert(auditLog).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, action: "approval.request", detail: { id: a!.id, kind, via: "chat" } });
       return a!.id;
     });
