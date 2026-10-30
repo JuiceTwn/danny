@@ -219,6 +219,7 @@ describe("chat", () => {
       ["learn_preference", "internal"],
       ["list_preferences", "read"],
       ["forget_preference", "internal"],
+      ["get_weather", "read"],
       ["search_email", "read"],
       ["read_email", "read"],
       ["send_email", "external_write"],

@@ -24,6 +24,8 @@ export type ToolCtx = {
   tenant: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
   /** Live web search for this user. Checks the spend cap and records the cost. Absent when the model cannot search. */
   search?: (question: string) => Promise<Searched>;
+  /** For tools that call a public web service directly. Tests replace it. */
+  fetchFn?: typeof fetch;
 };
 
 export type Tool<S extends z.ZodType = z.ZodType> = {

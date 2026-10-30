@@ -7,6 +7,7 @@ import type { PushPayload, PushSender, PushSub } from "../src/lib/push.js";
 import { inQuietHours, nextQuietEnd } from "../src/lib/time.js";
 import { safeNote } from "../src/lib/style.js";
 import { todaysWeather } from "../src/lib/weather.js";
+import { withTenant } from "../src/db/client.js";
 import { createRegistry } from "../src/tools/builtin.js";
 import { seedOwner, setupApp, signUp, type Client, type Ctx } from "./helpers.js";
 
@@ -496,6 +497,31 @@ describe("learning how to help", () => {
     await u.c.req("POST", "/v1/chat", { message: "short please" });
     expect((await u.c.del("/v1/style/notes")).body.removed).toBe(1);
     expect((await u.c.get("/v1/style")).body).toMatchObject({ instruction: "Call me Jo.", notes: [] });
+  });
+});
+
+describe("get_weather in chat", () => {
+  const reg = createRegistry();
+  const hits: string[] = [];
+  const fx = (async (url: string) => {
+    hits.push(String(url));
+    if (String(url).includes("geocoding")) return new Response(JSON.stringify({ results: [{ name: "Austin", latitude: 30.3, longitude: -97.7 }] }), { status: 200 });
+    return new Response(JSON.stringify({ daily: { weather_code: [0], temperature_2m_max: [88.2], temperature_2m_min: [70.1], precipitation_probability_max: [5] } }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const run = (u: { workspaceId: string; userId: string }, input: unknown) => {
+    const t = reg.get("get_weather")!;
+    return t.run!({ workspaceId: u.workspaceId, userId: u.userId, db: ctx.runtime.db, vault: ctx.vault, google: null, fetchFn: fx, tenant: (fn: any) => withTenant(ctx.runtime.db, u.workspaceId, fn) } as any, t.input.parse(input));
+  };
+
+  it("uses the saved place and units, asks where they are if unknown, and takes another place when asked", async () => {
+    const u = await signUp(ctx, owner, "Cold");
+    expect(await run(u, {})).toMatch(/don't know where they are/);
+    await u.c.req("PUT", "/v1/style/location", { text: "Austin, TX" });
+    await u.c.patch("/v1/profile", { units: "imperial" });
+    expect(await run(u, {})).toBe("Austin: clear, high 88°F, low 70°F");
+    expect(hits.at(-2)).toContain("name=Austin");
+    expect(await run(u, { place: "Oslo" })).toContain("Austin"); // the fake always answers Austin; the lookup went for Oslo
+    expect(hits.at(-2)).toContain("name=Oslo");
   });
 });
 

@@ -3,6 +3,7 @@ import { approvals, auditLog, memory } from "../db/schema.js";
 import { defineTool, ToolRegistry } from "./registry.js";
 import { gmailTools } from "./gmail.js";
 import { calendarTools } from "./calendar.js";
+import { weatherTools } from "./weather.js";
 import { styleTools } from "./style.js";
 import { interestTools } from "./interests.js";
 import { goalTools } from "./goals.js";
@@ -45,6 +46,6 @@ export const requestApproval = defineTool({
 
 export function createRegistry() {
   const r = new ToolRegistry().register(remember).register(requestApproval);
-  for (const t of [...taskTools, ...goalTools, ...interestTools, ...styleTools, ...gmailTools, ...calendarTools]) r.register(t);
+  for (const t of [...taskTools, ...goalTools, ...interestTools, ...styleTools, ...weatherTools, ...gmailTools, ...calendarTools]) r.register(t);
   return r;
 }
