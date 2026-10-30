@@ -12,6 +12,7 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 | Validation | Zod | Every request body, query and param is parsed. |
 | Passwords | argon2id (`@node-rs/argon2`) | OWASP-minimum parameters. |
 | Sessions | Opaque random token in an HttpOnly cookie, SHA-256 hashed in the database | Revocable, and a database leak does not leak usable sessions. |
+| Web app | Svelte 5 + Vite + TypeScript, one responsive interface | The same build is the phone PWA and the desktop app: sidebar on wide screens, bottom tabs on phones. 72 KB of JavaScript. Served by the API on the same origin, so cookies and the origin check stay simple. |
 | Jobs (next) | pg-boss | Queue inside Postgres, so no Redis to run. |
 | Model API (next) | `@anthropic-ai/sdk`, streaming, SSE to the browser | |
 

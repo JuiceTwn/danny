@@ -33,3 +33,8 @@ Write one file with `defineTool({ name, description, kind, input, run })` and re
 ## Deploying
 
 From the repo root on a server with Docker: `./setup.sh app.example.com`, or `./setup.sh` for plain HTTP.
+
+## The web app
+
+`apps/web` is the interface (Svelte + Vite). Build it with `npm run build -w @danny/web`; the API serves it from `WEB_DIR`.
+For development run the API on :8787 and `npm run dev -w @danny/web` on :5173 (it proxies `/v1` to the API).

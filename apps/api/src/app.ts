@@ -1,6 +1,9 @@
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import type { Config } from "./config.js";
@@ -34,11 +37,29 @@ export async function buildApp(deps: Deps) {
   });
 
   await app.register(helmet, {
-    // JSON API: nothing here should ever be rendered, so lock it down hard.
-    contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
+    // No inline scripts, no outside hosts. The app talks only to its own origin.
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        imgSrc: ["'self'", "data:"],
+        fontSrc: ["'self'", "data:"],
+        connectSrc: ["'self'"],
+        manifestSrc: ["'self'"],
+        workerSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+        ...(config.cookieSecure ? { upgradeInsecureRequests: [] } : {}),
+      },
+    },
   });
   await app.register(cookie);
-  await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute" });
+  // Rate limits protect the API. Static files for the app itself are not counted.
+  await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute", allowList: (req) => !req.url.startsWith("/v1/") });
 
   app.setErrorHandler((err: Error & { statusCode?: number }, req, reply) => {
     if (err instanceof ZodError) {
@@ -75,6 +96,25 @@ export async function buildApp(deps: Deps) {
     await r.register(settingsRoutes, deps);
     await r.register(adminRoutes, deps);
   });
+
+  const webDir = config.webDir ?? resolve(process.cwd(), "../web/dist");
+  if (existsSync(resolve(webDir, "index.html"))) {
+    await app.register(fastifyStatic, {
+      root: webDir,
+      wildcard: false,
+      setHeaders: (res, path) => {
+        // Built assets have hashed names and never change. Everything else (index.html, sw.js) must be re-checked.
+        res.header("cache-control", path.includes("/assets/") ? "public, max-age=31536000, immutable" : "no-cache");
+      },
+    });
+    // Links into the app (like /accept?token=...) get the app. Unknown API paths stay a JSON 404.
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method === "GET" && !req.url.startsWith("/v1/") && !/\.[a-z0-9]+(\?|$)/i.test(req.url)) {
+        return reply.header("cache-control", "no-cache").sendFile("index.html");
+      }
+      return reply.code(404).send({ error: "not_found" });
+    });
+  }
 
   return app;
 }

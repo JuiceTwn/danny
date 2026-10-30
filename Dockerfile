@@ -2,18 +2,23 @@ FROM node:22-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
 RUN npm ci
 COPY apps/api apps/api
-RUN npm run build -w @danny/api
+COPY apps/web apps/web
+RUN npm run build -w @danny/api && npm run build -w @danny/web
 
 FROM node:22-slim
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
 RUN npm ci --omit=dev -w @danny/api && npm cache clean --force
 COPY --from=build /app/apps/api/dist apps/api/dist
+COPY --from=build /app/apps/web/dist apps/web/dist
 COPY apps/api/drizzle apps/api/drizzle
+ENV WEB_DIR=/app/apps/web/dist
 USER node
 WORKDIR /app/apps/api
 EXPOSE 8787

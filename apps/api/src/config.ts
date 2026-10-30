@@ -20,6 +20,8 @@ const schema = z.object({
   MAX_DAILY_CAP_USD: z.coerce.number().default(50),
   // Master encryption key(s). Required. Generate one: openssl rand -base64 32  ->  "1:<that>"
   DATA_KEYS: z.string().min(1, "DATA_KEYS is required"),
+  // Built web app (apps/web/dist). If the folder is missing, only the API is served.
+  WEB_DIR: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   MODEL: z.string().default("claude-haiku-5-5"),
   // Placeholders. Check against Anthropic's current pricing before real traffic.
@@ -50,6 +52,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     defaultDailyCapMicros: Math.round(c.DEFAULT_DAILY_CAP_USD * 1_000_000),
     maxDailyCapMicros: Math.round(c.MAX_DAILY_CAP_USD * 1_000_000),
     dataKeys: c.DATA_KEYS,
+    webDir: c.WEB_DIR,
     anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
     model: c.MODEL,
     price: { inputPerMtokUsd: c.PRICE_INPUT_PER_MTOK_USD, outputPerMtokUsd: c.PRICE_OUTPUT_PER_MTOK_USD },

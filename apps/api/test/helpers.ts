@@ -13,7 +13,7 @@ import { APP_URL, OWNER_URL } from "./env.js";
 export const ORIGIN = "http://app.test";
 export const TEST_DATA_KEYS = "1:" + Buffer.alloc(32, 7).toString("base64");
 
-export async function setupApp(model: ModelClient = new DemoModel(), tools = createRegistry()) {
+export async function setupApp(model: ModelClient = new DemoModel(), tools = createRegistry(), env: Record<string, string> = {}) {
   const config = loadConfig({
     NODE_ENV: "test",
     DATABASE_URL: APP_URL,
@@ -21,6 +21,7 @@ export async function setupApp(model: ModelClient = new DemoModel(), tools = cre
     MARKETING_ORIGINS: "http://www.test",
     APP_URL: ORIGIN,
     DATA_KEYS: TEST_DATA_KEYS,
+    ...env,
   } as NodeJS.ProcessEnv);
   const runtime = createDb(APP_URL, 5);
   const owner = createDb(OWNER_URL, 2); // table owner: for seeding and for checking what is really in the database

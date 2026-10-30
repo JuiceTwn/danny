@@ -22,3 +22,5 @@ jobs:
       - run: npm run typecheck -w @danny/api
       - run: npm test -w @danny/api
       - run: npm run build -w @danny/api
+      - run: npm run check -w @danny/web
+      - run: npm run build -w @danny/web
