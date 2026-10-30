@@ -10,6 +10,9 @@ export class FakeGoogle {
   grantedScopes = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
   refreshToken = "refresh-1";
   messages = new Map<string, Msg>();
+  events: Record<string, unknown>[] = [];
+  calendarQueries: URLSearchParams[] = [];
+  createdEvents: { sendUpdates: string | null; body: Record<string, any> }[] = [];
   // injected faults
   sendMode: "ok" | "400" | "500" | "network" = "ok";
   invalidGrant = false;
@@ -59,6 +62,19 @@ export class FakeGoogle {
         return json(200, { access_token: this.mint(), expires_in: 3600, scope: this.grantedScopes });
       }
       return json(400, { error: "unsupported_grant_type" });
+    }
+
+    if (url.origin === "https://www.googleapis.com" && url.pathname === "/calendar/v3/calendars/primary/events") {
+      const auth = new Headers(init?.headers).get("authorization")?.replace("Bearer ", "");
+      if (!auth || !this.validAccess.has(auth)) return json(401, { error: { status: "UNAUTHENTICATED" } });
+      if (method === "GET") {
+        this.calendarQueries.push(url.searchParams);
+        return json(200, { items: this.events });
+      }
+      if (method === "POST") {
+        this.createdEvents.push({ sendUpdates: url.searchParams.get("sendUpdates"), body: JSON.parse(body) });
+        return json(200, { id: `ev-${this.createdEvents.length}` });
+      }
     }
 
     if (url.origin === "https://gmail.googleapis.com") {

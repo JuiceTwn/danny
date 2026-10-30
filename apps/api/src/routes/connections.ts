@@ -17,7 +17,10 @@ export const connectionRoutes: FastifyPluginAsync<Deps> = async (app, { db, vaul
         .from(connections)
         .orderBy(desc(connections.createdAt)),
     );
-    return { items, google: { configured: google !== null } };
+    // Whether the Google login can use the calendar. Only a yes or no leaves here, never the secret.
+    const full = await withTenant(db, workspaceId, (tx) => tx.select({ id: connections.id, secretEnc: connections.secretEnc }).from(connections).where(eq(connections.provider, "google")));
+    const cal = new Set(full.filter((c) => vault.openJson<GoogleSecret>(workspaceId, c.secretEnc).calendar === true).map((c) => c.id));
+    return { items: items.map((i) => (i.provider === "google" ? { ...i, calendar: cal.has(i.id) } : i)), google: { configured: google !== null } };
   });
 
   app.post("/v1/connections", async (req, reply) => {

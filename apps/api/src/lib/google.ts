@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 // Least privilege: read mail, and send mail. No modify, no delete, no compose. Danny cannot remove anything from the mailbox.
 export const GMAIL_READ = "https://www.googleapis.com/auth/gmail.readonly";
 export const GMAIL_SEND = "https://www.googleapis.com/auth/gmail.send";
-export const SCOPES = [GMAIL_READ, GMAIL_SEND];
+// Calendar is optional: Danny still works with Gmail alone if the user unticks it. It reads and creates events; it never deletes or edits one.
+export const CALENDAR_EVENTS = "https://www.googleapis.com/auth/calendar.events";
+export const SCOPES = [GMAIL_READ, GMAIL_SEND, CALENDAR_EVENTS];
 
 /**
  * reconnect  the saved login no longer works; the user must connect again
@@ -24,6 +26,7 @@ const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
+const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
 const TIMEOUT_MS = 15_000;
 
 export const pkceChallenge = (verifier: string) => createHash("sha256").update(verifier).digest("base64url");
@@ -103,11 +106,12 @@ export class GoogleService {
     return data.emailAddress;
   }
 
-  async call<T>(conn: { id: string; refreshToken: string }, path: string, init: { method?: string; json?: unknown } = {}): Promise<T> {
+  async call<T>(conn: { id: string; refreshToken: string }, path: string, init: { method?: string; json?: unknown; api?: "gmail" | "calendar" } = {}): Promise<T> {
+    const calendar = init.api === "calendar";
     for (let attempt = 0; attempt < 2; attempt++) {
       const token = await this.accessToken(conn, attempt > 0);
       const res = await this.request(
-        `${API}${path}`,
+        `${calendar ? CALENDAR_API : API}${path}`,
         {
           method: init.method ?? "GET",
           headers: { authorization: `Bearer ${token}`, ...(init.json !== undefined ? { "content-type": "application/json" } : {}) },
@@ -119,20 +123,20 @@ export class GoogleService {
         this.cache.delete(conn.id);
         continue; // the token may have just expired: refresh once and retry
       }
-      return this.parse<T>(res);
+      return this.parse<T>(res, calendar ? "Calendar" : "Gmail");
     }
-    throw new GmailError("Gmail rejected the saved login. Reconnect Gmail in Settings.", "reconnect");
+    throw new GmailError(`${calendar ? "Calendar" : "Gmail"} rejected the saved login. Reconnect Google in Settings.`, "reconnect");
   }
 
-  private async parse<T>(res: Response): Promise<T> {
+  private async parse<T>(res: Response, product: "Gmail" | "Calendar" = "Gmail"): Promise<T> {
     if (res.ok) return (await res.json()) as T;
     const body = (await res.json().catch(() => ({}))) as { error?: { errors?: { reason?: string }[]; status?: string } };
     const reason = `${body.error?.errors?.[0]?.reason ?? ""} ${body.error?.status ?? ""}`;
-    if (res.status === 401) throw new GmailError("Gmail rejected the saved login. Reconnect Gmail in Settings.", "reconnect");
-    if (res.status === 429 || (res.status === 403 && /rate|quota/i.test(reason))) throw new GmailError("Gmail is rate limiting. Try again in a minute.", "failed");
-    if (res.status === 403) throw new GmailError("Gmail refused that. Reconnect Gmail and allow both permissions.", "failed");
-    if (res.status === 404) throw new GmailError("Gmail couldn't find that message.", "failed");
-    if (res.status >= 500) throw new GmailError("Gmail had an error on its side.", "unknown");
-    return Promise.reject(new GmailError("Gmail rejected that request.", "failed"));
+    if (res.status === 401) throw new GmailError(`${product} rejected the saved login. Reconnect Google in Settings.`, "reconnect");
+    if (res.status === 429 || (res.status === 403 && /rate|quota/i.test(reason))) throw new GmailError(`${product} is rate limiting. Try again in a minute.`, "failed");
+    if (res.status === 403) throw new GmailError(`${product} refused that. Reconnect Google and allow every permission.`, "failed");
+    if (res.status === 404) throw new GmailError(`${product} couldn't find that.`, "failed");
+    if (res.status >= 500) throw new GmailError(`${product} had an error on its side.`, "unknown");
+    return Promise.reject(new GmailError(`${product} rejected that request.`, "failed"));
   }
 }

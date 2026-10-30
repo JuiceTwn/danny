@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+Danny works for you without being asked.
+
+- **Goals.** Tell Danny you're looking into a new job, a move, a purchase, and he saves it with your criteria (`add_goal`, `list_goals`, `update_goal`). Goals show on the Tasks page with Pause, Done and Stop watching. Encrypted like everything else.
+- **Watching.** A goal can be checked on the web every 6 to 168 hours. Danny only speaks up, in chat and by push, when a check finds something new (it is told what it reported last time). Max 5 watched goals; push stays quiet during quiet hours.
+- **Web search.** `search_web` in chat, plus the searches above. Results are framed as untrusted text. Every search goes through the kill switch and daily cap and is billed per search (`PRICE_SEARCH_USD`, default 0.01) plus tokens.
+- **Morning briefing.** Opt-in in Settings, at a time you pick in your timezone, once a day: calendar, top tasks, goal movement and up to three news items on what you care about.
+- **Calendar.** `list_calendar` reads events; `create_event` makes an approval card and only adds the event (and invites any guests) after your tap. Optional Google permission (`calendar.events`): reconnect Google to add it. Existing logins keep working without it.
+- Token savings from earlier in this branch: prompt caching, a stepped history window, clipped old tool results. The model and its price are shown in the status bar and Settings. Reminder notifications now lead with the task.
+- Migration `0012` adds `goals`, three briefing columns on `users`, and two read-only scheduler functions.
+
+Tested against a real Postgres: 117 tests. Not tested: the live Anthropic web-search tool (`web_search_20250305`) and Google Calendar API, which need real keys. Check your first goal check and briefing by hand.
+
+---
+
+## Earlier in this branch
+
 Self-healing deployment.
 
 - `deploy/bootstrap.sh`: one command turns a fresh Ubuntu/Debian server into a running Danny. Checks the server and DNS first and stops with a plain sentence if something is wrong. Installs Docker, adds swap on small servers, sets the firewall, turns on automatic security updates, runs `setup.sh`, installs the watchdog and nightly backup, and runs the doctor. Safe to re-run.

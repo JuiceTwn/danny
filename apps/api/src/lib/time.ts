@@ -58,3 +58,13 @@ export function nextQuietEnd(date: Date, tz: string) {
   }
   return at;
 }
+
+/** Midnight at the start of the local day containing `date`, and midnight after it. */
+export function localDayBounds(date: Date, tz: string) {
+  const p = parts(date, tz);
+  const next = new Date(Date.UTC(p.y, p.mo - 1, p.d + 1));
+  return {
+    start: zonedToUtc(p.y, p.mo, p.d, 0, 0, tz),
+    end: zonedToUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, 0, tz),
+  };
+}

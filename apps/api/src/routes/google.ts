@@ -6,7 +6,7 @@ import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, connections } from "../db/schema.js";
 import type { GoogleSecret } from "../lib/gmail.js";
-import { GMAIL_READ, GMAIL_SEND, GmailError, pkceChallenge } from "../lib/google.js";
+import { CALENDAR_EVENTS, GMAIL_READ, GMAIL_SEND, GmailError, pkceChallenge } from "../lib/google.js";
 
 const COOKIE = "danny_oauth";
 const PATH = "/v1/connections/google";
@@ -46,7 +46,7 @@ export const googleRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, g
       req.log.warn({ kind: e instanceof GmailError ? e.kind : "unexpected" }, "google connect failed");
       return back("error");
     }
-    // Google lets people untick permissions on the consent screen. Danny needs both, or he would half work.
+    // Google lets people untick permissions on the consent screen. Danny needs both mail permissions, or he would half work. Calendar is optional.
     const granted = tokens.scope.split(" ");
     if (!granted.includes(GMAIL_READ) || !granted.includes(GMAIL_SEND)) {
       await google.revoke(tokens.refreshToken ?? tokens.accessToken);
@@ -59,7 +59,7 @@ export const googleRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, g
       const prev = await tx.delete(connections).where(eq(connections.provider, "google")).returning({ id: connections.id, secretEnc: connections.secretEnc });
       const [c] = await tx
         .insert(connections)
-        .values({ workspaceId, provider: "google", label: email, secretEnc: vault.sealJson(workspaceId, { refreshToken } satisfies GoogleSecret) })
+        .values({ workspaceId, provider: "google", label: email, secretEnc: vault.sealJson(workspaceId, { refreshToken, calendar: granted.includes(CALENDAR_EVENTS) } satisfies GoogleSecret) })
         .returning({ id: connections.id });
       await tx.insert(auditLog).values({ workspaceId, userId, action: "connection.add", detail: { id: c!.id, provider: "google" } });
       return prev;

@@ -3,8 +3,9 @@ import { connections } from "../db/schema.js";
 import { GmailError } from "./google.js";
 import type { ToolCtx } from "../tools/registry.js";
 
-export type GoogleSecret = { refreshToken: string };
-type Conn = { id: string; label: string; refreshToken: string };
+/** `calendar` is true when the user ticked the calendar permission. Logins saved before calendar existed have no flag. */
+export type GoogleSecret = { refreshToken: string; calendar?: boolean };
+type Conn = { id: string; label: string; refreshToken: string; calendar: boolean };
 
 const NOT_CONNECTED = "Gmail isn't connected. Tell the user to connect it in Settings.";
 const RECONNECT = "Gmail needs to be reconnected. Tell the user to reconnect it in Settings.";
@@ -14,13 +15,14 @@ async function activeConnection(ctx: ToolCtx): Promise<Conn> {
   if (!row) throw new GmailError(NOT_CONNECTED, "failed");
   if (row.status !== "active") throw new GmailError(RECONNECT, "reconnect");
   const secret = JSON.parse(ctx.vault.open(ctx.workspaceId, row.secretEnc)) as GoogleSecret;
-  return { id: row.id, label: row.label, refreshToken: secret.refreshToken };
+  return { id: row.id, label: row.label, refreshToken: secret.refreshToken, calendar: secret.calendar === true };
 }
 
 /** One Gmail API call for this workspace's connected account. */
-async function gmail<T>(ctx: ToolCtx, path: string, init?: { method?: string; json?: unknown }): Promise<T> {
+export async function google<T>(ctx: ToolCtx, path: string, init?: { method?: string; json?: unknown; api?: "gmail" | "calendar" }): Promise<T> {
   if (!ctx.google) throw new GmailError(NOT_CONNECTED, "failed");
   const conn = await activeConnection(ctx);
+  if (init?.api === "calendar" && !conn.calendar) throw new GmailError("Calendar isn't connected. Tell the user to reconnect Google in Settings and leave the calendar permission ticked.", "failed");
   try {
     return await ctx.google.call<T>(conn, path, init);
   } catch (e) {
@@ -86,16 +88,16 @@ export function parseMail(m: ApiMessage): Mail {
 }
 
 export async function searchMail(ctx: ToolCtx, query: string, max: number): Promise<MailSummary[]> {
-  const list = await gmail<{ messages?: { id: string }[] }>(ctx, `/messages?${new URLSearchParams({ q: query, maxResults: String(max) })}`);
+  const list = await google<{ messages?: { id: string }[] }>(ctx, `/messages?${new URLSearchParams({ q: query, maxResults: String(max) })}`);
   const ids = (list.messages ?? []).map((m) => m.id);
   const meta = await Promise.all(
-    ids.map((id) => gmail<ApiMessage>(ctx, `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`)),
+    ids.map((id) => google<ApiMessage>(ctx, `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`)),
   );
   return meta.map((m) => ({ id: m.id, from: clip(oneLine(header(m, "From")), 100), subject: clip(oneLine(header(m, "Subject")), 150), date: header(m, "Date"), snippet: clip(oneLine(m.snippet ?? ""), 200) }));
 }
 
 export async function readMail(ctx: ToolCtx, id: string): Promise<Mail> {
-  return parseMail(await gmail<ApiMessage>(ctx, `/messages/${id}?format=full`));
+  return parseMail(await google<ApiMessage>(ctx, `/messages/${id}?format=full`));
 }
 
 // ---- Sending ----
@@ -146,12 +148,12 @@ export async function sendMail(ctx: ToolCtx, o: Omit<Outgoing, "inReplyTo" | "re
   let inReplyTo: string | undefined;
   let references: string | undefined;
   if (o.replyToId) {
-    const orig = await gmail<ApiMessage>(ctx, `/messages/${o.replyToId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References`);
+    const orig = await google<ApiMessage>(ctx, `/messages/${o.replyToId}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References`);
     thread = orig.threadId;
     inReplyTo = header(orig, "Message-ID") || undefined;
     references = [header(orig, "References"), inReplyTo].filter(Boolean).join(" ") || undefined;
   }
   const raw = Buffer.from(buildMime({ ...o, inReplyTo, references })).toString("base64url");
-  const sent = await gmail<{ id: string }>(ctx, "/messages/send", { method: "POST", json: { raw, ...(thread ? { threadId: thread } : {}) } });
+  const sent = await google<{ id: string }>(ctx, "/messages/send", { method: "POST", json: { raw, ...(thread ? { threadId: thread } : {}) } });
   return sent.id;
 }

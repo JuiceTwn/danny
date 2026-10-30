@@ -9,13 +9,14 @@ You make a Google "OAuth client" once, give its ID and secret to the server, the
 Google moves these screens around. If a name below differs, look for the nearest match.
 
 1. Go to <https://console.cloud.google.com> and create a project (any name).
-2. **APIs & Services > Library**: search for **Gmail API** and enable it.
+2. **APIs & Services > Library**: search for **Gmail API** and enable it. For calendar, also enable **Google Calendar API**.
 3. **OAuth consent screen** (now called Google Auth Platform):
    - User type: **External**.
    - App name and support email: anything you recognise.
-   - **Scopes**: add exactly these two and nothing else:
+   - **Scopes**: add exactly these and nothing else:
      - `https://www.googleapis.com/auth/gmail.readonly`
      - `https://www.googleapis.com/auth/gmail.send`
+     - `https://www.googleapis.com/auth/calendar.events` (optional: Danny reads your events and adds one only after you approve. Without it Gmail works as before. If you already connected Gmail, reconnect to add it.)
    - **Test users**: add the Gmail address you will connect.
 4. **Credentials > Create credentials > OAuth client ID**:
    - Application type: **Web application**.

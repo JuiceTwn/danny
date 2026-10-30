@@ -40,7 +40,7 @@ type Fired = { taskId: string; text: string; title: string; label: string; subs:
 
 export type ReminderDeps = { db: Db; vault: Vault; push: PushSender; log?: FastifyBaseLogger; health?: Health };
 /** The scheduler also does Danny's own work (goal checks, briefings) when it is given a model and config. */
-export type SchedulerDeps = ReminderDeps & Partial<Pick<BackgroundDeps, "config" | "model">>;
+export type SchedulerDeps = ReminderDeps & Partial<Pick<BackgroundDeps, "config" | "model" | "google">>;
 
 /** Fire every reminder that is due as of `now`. Returns how many fired. Safe to run from more than one process. */
 export async function runDueReminders({ db, vault, push, log }: ReminderDeps, now = new Date()) {
@@ -103,7 +103,7 @@ export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
     try {
       await runDueReminders(deps);
       if (deps.config && deps.model) {
-        const bg = { db: deps.db, vault: deps.vault, push: deps.push, log: deps.log, config: deps.config, model: deps.model };
+        const bg = { db: deps.db, vault: deps.vault, push: deps.push, log: deps.log, config: deps.config, model: deps.model, google: deps.google };
         await runDueBriefings(bg);
         await runDueGoalChecks(bg);
       }

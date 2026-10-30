@@ -215,6 +215,8 @@ describe("chat", () => {
       ["search_email", "read"],
       ["read_email", "read"],
       ["send_email", "external_write"],
+      ["list_calendar", "read"],
+      ["create_event", "external_write"],
       ["send_test_email", "external_write"],
     ]);
   });

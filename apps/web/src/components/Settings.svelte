@@ -50,7 +50,7 @@
   const GOOGLE_RESULTS: Record<string, string> = {
     connected: "Gmail connected.",
     denied: "You cancelled, so nothing was connected.",
-    scopes: "Danny needs both permissions, read and send. Try again and leave both ticked.",
+    scopes: "Danny needs both Gmail permissions, read and send. Try again and leave both ticked.",
     error: "Couldn't connect Gmail. Try again.",
   };
   async function loadConnections() {
@@ -205,7 +205,7 @@
     </section>
 
     <section>
-      <h2 class="display">Gmail</h2>
+      <h2 class="display">Gmail and Calendar</h2>
       {#if googleMsg}<p class="mono" role="status">{googleMsg}</p>{/if}
       {#if !googleLoaded}
         <p class="mono">Checking…</p>
@@ -213,6 +213,12 @@
         <p>Gmail isn't set up on this server yet. The server needs a Google client ID and secret (see docs/GMAIL_SETUP.md).</p>
       {:else if gmail && gmail.status === "active"}
         <p>Connected as <strong class="mono who">{gmail.label}</strong>. Danny can read your mail. He sends only after you tap Send on a card, and he can't delete anything.</p>
+        {#if gmail.calendar}
+          <p>Calendar is on. Danny can read your events and add one only after you tap Approve.</p>
+        {:else}
+          <p>Calendar is off. To turn it on, reconnect and leave the calendar permission ticked.</p>
+          {#if isAdmin}<a class="btn wide" href="/v1/connections/google/start">Reconnect to add Calendar</a>{/if}
+        {/if}
         {#if isAdmin}
           {#if confirmGmail}
             <div class="row">
