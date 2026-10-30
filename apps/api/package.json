@@ -12,8 +12,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx scripts/migrate.ts",
-    "create-owner": "tsx scripts/create-owner.ts"
+    "db:migrate": "tsx src/cli/migrate.ts",
+    "create-owner": "tsx src/cli/create-owner.ts",
+    "start:migrate": "node dist/cli/migrate.js",
+    "start:create-owner": "node dist/cli/create-owner.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

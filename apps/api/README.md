@@ -21,5 +21,15 @@ Routes (all JSON, session cookie, same-origin check on writes):
 | `POST /v1/auth/accept-invite`, `login`, `logout` · `GET /v1/me` | |
 | `GET/POST /v1/memory`, `DELETE /v1/memory/:id` | |
 | `GET/POST /v1/approvals`, `POST /v1/approvals/:id/decision` | recorded, never executed |
+| `POST /v1/chat` (streams events), `GET /v1/chat/history`, `GET /v1/tools` | the model loop; see `src/tools/registry.ts` for how to add a tool |
 | `GET/PATCH /v1/settings` | daily spend cap and kill switch |
 | `GET /v1/admin/invite-requests`, `POST .../:id/approve`, `POST /v1/admin/invites`, `GET /v1/admin/usage` | owner only |
+
+## Adding a tool
+
+Write one file with `defineTool({ name, description, kind, input, run })` and register it in `src/tools/builtin.ts`.
+`kind: "external_write"` tools never run from chat: the loop turns the call into an approval card.
+
+## Deploying
+
+From the repo root on a server with Docker: `./setup.sh app.example.com`, or `./setup.sh` for plain HTTP.

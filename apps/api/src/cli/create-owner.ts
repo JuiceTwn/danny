@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
-import { loadConfig } from "../src/config.js";
-import { createDb } from "../src/db/client.js";
-import { memberships, users, workspaces } from "../src/db/schema.js";
-import { hashPassword } from "../src/lib/crypto.js";
+import { loadConfig } from "../config.js";
+import { createDb } from "../db/client.js";
+import { memberships, users, workspaces } from "../db/schema.js";
+import { hashPassword } from "../lib/crypto.js";
 
 // First account on a fresh server. Usage: npm run create-owner -- you@example.com 'a long password' 'Your Name'
 const [email, password, name = ""] = process.argv.slice(2);

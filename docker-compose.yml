@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: danny
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./setup.sh first}
+      DANNY_OWNER_PASSWORD: ${DANNY_OWNER_PASSWORD:?}
+      DANNY_APP_PASSWORD: ${DANNY_APP_PASSWORD:?}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./deploy/db-init.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d danny"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://danny_app:${DANNY_APP_PASSWORD}@db:5432/danny
+      MIGRATE_DATABASE_URL: postgres://danny_owner:${DANNY_OWNER_PASSWORD}@db:5432/danny
+      TRUST_PROXY: "true"
+    expose: ["8787"]
+    ports: ["127.0.0.1:8787:8787"]
+
+  # Automatic HTTPS. Only started when setup.sh was given a domain: docker compose --profile https up -d
+  caddy:
+    profiles: ["https"]
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+
+volumes:
+  dbdata:
+  caddydata:
