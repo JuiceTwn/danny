@@ -15,6 +15,7 @@ Danny picks the model for each request.
 
 Fixed:
 
+- `./setup.sh` with no domain wrote a config the API refused to start with (production mode with insecure cookies). Plain HTTP cookies are now allowed in production only when `APP_URL` is `http://localhost`. Checked by running the production build with the exact `.env` the script writes.
 - The owner's "Spend by person" screen showed zeros on any real deployment. The owner-only database functions run as the table owner, and row-level security applies to the owner too; the tests missed it because they migrated as a superuser. Migration 0010 gives the owner role read access to the two tables those functions read (the app role is unchanged), and the tests now migrate as a non-superuser owner like production.
 
 Danny works on his own.

@@ -59,8 +59,10 @@ export type Config = ReturnType<typeof loadConfig>;
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const c = schema.parse(env);
   const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
-  if (c.NODE_ENV === "production" && c.COOKIE_SECURE !== "true") {
-    throw new Error("COOKIE_SECURE must be true in production");
+  // Plain-HTTP cookies are fine for one computer talking to itself (setup.sh with no domain), and nowhere else.
+  const onThisComputer = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(c.APP_URL);
+  if (c.NODE_ENV === "production" && c.COOKIE_SECURE !== "true" && !onThisComputer) {
+    throw new Error("COOKIE_SECURE must be true in production, unless APP_URL is http://localhost");
   }
   const prices = { ...DEFAULT_PRICES };
   for (const part of list(c.MODEL_PRICES)) {
