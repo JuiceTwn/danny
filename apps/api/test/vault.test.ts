@@ -97,7 +97,7 @@ describe("what the database really holds", () => {
     const b = await signUp(ctx, owner, "MoveB");
     const made = await a.c.post("/v1/memory", { content: "belongs to A" });
     // an attacker with raw database access moves A's row under B's workspace
-    await ctx.owner.db.update(memory).set({ workspaceId: b.workspaceId }).where(eq(memory.id, made.body.item.id));
+    await ctx.owner.db.update(memory).set({ workspaceId: b.workspaceId, userId: b.userId }).where(eq(memory.id, made.body.item.id));
     const res = await b.c.get("/v1/memory");
     expect(res.status).toBe(500); // fails to decrypt instead of leaking
     expect(JSON.stringify(res.body)).not.toContain("belongs to A");

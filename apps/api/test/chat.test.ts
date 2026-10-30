@@ -203,6 +203,8 @@ describe("chat", () => {
     expect(tools.map((t: any) => [t.name, t.kind])).toEqual([
       ["remember", "internal"],
       ["request_approval", "internal"],
+      ["recall", "read"],
+      ["forget_memory", "internal"],
       ["add_task", "internal"],
       ["list_tasks", "read"],
       ["whats_next", "read"],

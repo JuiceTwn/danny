@@ -45,6 +45,7 @@ export const users = pgTable(
     units: text("units").notNull().default("metric"), // metric | imperial, for weather
     learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
     lastLearnedAt: timestamp("last_learned_at", { withTimezone: true }),
+    lastTidiedAt: timestamp("last_tidied_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -119,7 +120,17 @@ export const memory = pgTable(
     workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     contentEnc: bytea("content_enc").notNull(), // encrypted with the workspace key (see lib/vault.ts)
+    kind: text("kind").notNull().default("fact"), // fact | preference | person | plan | place
+    subjectEnc: bytea("subject_enc"), // who or what it is about ("Marlene"), when it is about someone or somewhere
+    pinned: boolean("pinned").notNull().default(false), // always in Danny's prompt
+    expiresAt: timestamp("expires_at", { withTimezone: true }), // time-bound facts ("moving in March") stop being used after this
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    // Tidying archives instead of deleting, so it can be undone for two weeks. Forgetting by hand deletes for real.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    archivedReason: text("archived_reason"), // merged | expired
+    previousEnc: bytea("previous_enc"), // the wording before Danny shortened it, for undo
     createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("memory_ws_idx").on(t.workspaceId, t.createdAt)],
 );
@@ -139,6 +150,7 @@ export const messages = pgTable(
     conversationId: uuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
     role: text("role").notNull(), // user | assistant
     contentEnc: bytea("content_enc").notNull(), // encrypted JSON
+    uiEnc: bytea("ui_enc"), // encrypted JSON: the cards and quick replies shown under an assistant message
     createdAt: createdAt(),
   },
   (t) => [index("messages_conv_idx").on(t.conversationId, t.id)],
