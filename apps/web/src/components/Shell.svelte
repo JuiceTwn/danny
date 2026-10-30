@@ -94,7 +94,8 @@
   .tabbar { display: none; }
 
   @media (max-width: 859px) {
-    .app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    /* minmax(0, ...) so a wide child (like six tabs plus a badge) can never stretch the whole layout past the screen */
+    .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
     .rail { display: none; }
     .main { padding-top: var(--safe-top); }
     .top { padding: 10px 16px; padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); min-height: 56px; }
@@ -102,8 +103,10 @@
     .brand.small { display: flex; }
     .topstatus { display: block; }
     .topstatus :global(.spend) { display: none; }
-    .tabbar { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border-top: 1px solid var(--line); background: var(--panel); padding-bottom: var(--safe-bottom); }
-    .tab { position: relative; min-height: 56px; display: flex; align-items: center; justify-content: center; gap: 6px; background: none; border: 0; border-top: 4px solid transparent; font: 600 1.1rem/1 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .tabbar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top: 1px solid var(--line); background: var(--panel); padding-bottom: var(--safe-bottom); }
+    .tab { position: relative; min-width: 0; min-height: 56px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 2px; background: none; border: 0; border-top: 4px solid transparent; font: 600 1.1rem/1 var(--display); text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+    /* The count sits on the tab's corner instead of taking width from the label */
+    .tab .badge { position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; font-size: .7rem; }
     .tab.on { color: var(--paper); border-top-color: var(--run); }
     .offline { padding-left: 16px; }
   }

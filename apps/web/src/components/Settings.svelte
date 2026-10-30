@@ -175,7 +175,7 @@
       <form class="capform" onsubmit={saveCap}>
         <div class="field">
           <label for="cap">Cap in US dollars</label>
-          <input id="cap" class="input" type="number" min="0" step="0.5" inputmode="decimal" bind:value={cap} />
+          <input id="cap" class="input" type="number" min="0" step="any" inputmode="decimal" bind:value={cap} />
         </div>
         <button class="btn" disabled={saving}>Save</button>
       </form>
@@ -194,7 +194,7 @@
       <form class="capform" onsubmit={saveMonthCap}>
         <div class="field">
           <label for="mcap">Cap in US dollars</label>
-          <input id="mcap" class="input" type="number" min="0" step="1" inputmode="decimal" bind:value={monthCap} />
+          <input id="mcap" class="input" type="number" min="0" step="any" inputmode="decimal" bind:value={monthCap} />
         </div>
         <button class="btn" disabled={saving}>Save</button>
       </form>
