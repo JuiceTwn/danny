@@ -29,6 +29,7 @@ export type ChatEvent =
 export type BrainDeps = { db: Db; config: Config; model: ModelClient; tools: ToolRegistry; vault: Vault; google: GoogleService | null; fetchFn?: typeof fetch };
 
 const MAX_STEPS = 6;
+const CONTEXT_MESSAGES = 3; // earlier things the user said that help pick which notes to show
 // History is a window that moves in steps, not one message at a time. The start only changes every HISTORY_STEP
 // messages, so the start of the prompt stays identical between turns and the provider's cache keeps hitting.
 const HISTORY_KEEP = 20;
@@ -117,7 +118,10 @@ export async function runTurn(
     const [{ n: total } = { n: 0 }] = await tx.select({ n: sql<number>`count(*)::int` }).from(messages).where(eq(messages.conversationId, conv.id));
     const past = await tx.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(asc(messages.id)).offset(windowStart(total));
     const [u] = await tx.select({ timezone: users.timezone, voice: users.voice, autoMemory: users.autoMemory }).from(users).where(eq(users.id, userId));
-    const mem = await forPrompt(tx, vault, workspaceId, userId, text);
+    const history = trimHistory(past.map((r) => compactOld({ role: r.role as Msg["role"], content: vault.openJson<Msg["content"]>(workspaceId, r.contentEnc) })));
+    // What they said just before this, so "what about her?" still finds the note about the person they were talking about.
+    const said = history.flatMap((m) => (m.role === "user" && typeof m.content === "string" ? [m.content] : [])).slice(-CONTEXT_MESSAGES);
+    const mem = await forPrompt(tx, vault, workspaceId, userId, text, said);
     const style = styleBlock(await readStyle(tx, vault, workspaceId, userId));
     await tx.insert(messages).values({ workspaceId, conversationId: conv.id, role: "user", contentEnc: vault.sealJson(workspaceId, text) });
     return {
@@ -127,7 +131,7 @@ export async function runTurn(
       voice: u?.voice ?? "foreman",
       autoMemory: u?.autoMemory ?? true,
       style,
-      history: trimHistory(past.map((r) => compactOld({ role: r.role as Msg["role"], content: vault.openJson<Msg["content"]>(workspaceId, r.contentEnc) }))),
+      history,
       mem,
     } as const;
   });

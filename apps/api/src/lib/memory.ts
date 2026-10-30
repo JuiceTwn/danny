@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
 import { auditLog, memory } from "../db/schema.js";
+import { emptyQuery, queryOf, score, words, type Candidate } from "./match.js";
 import type { Actor } from "./tasks.js";
 import type { Vault } from "./vault.js";
 
@@ -21,6 +22,7 @@ export type MemoryView = {
   subject: string | null;
   pinned: boolean;
   source: Source;
+  usedAt: string | null;
   expiresAt: string | null;
   expired: boolean;
   createdAt: string;
@@ -38,6 +40,7 @@ const view = (vault: Vault, ws: string, r: Row, now = new Date()): MemoryView =>
   subject: r.subjectEnc ? vault.open(ws, r.subjectEnc) : null,
   pinned: r.pinned,
   source: r.source === "auto" || r.source === "app" ? r.source : "chat",
+  usedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
   expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
   expired: !!r.expiresAt && r.expiresAt <= now,
   createdAt: r.createdAt.toISOString(),
@@ -47,16 +50,26 @@ const view = (vault: Vault, ws: string, r: Row, now = new Date()): MemoryView =>
   previous: r.previousEnc ? vault.open(ws, r.previousEnc) : null,
 });
 
-// ---- Matching. Plain word overlap: nothing leaves the server, nothing is billed, and it is plenty for a few hundred short notes.
+// ---- Matching. Word overlap with light stemming and a few related-word groups (see match.ts): nothing leaves the server, nothing is billed.
 
-const STOP = new Set("the and for are but not you your with that this from have has had was were will would can could should about they them their then than into out one all any our his her she him its who what when where which while also just very more most some such only over under after before been being does did doing there here these those how why".split(" "));
-export const words = (s: string) => [...new Set((s.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter((w) => !STOP.has(w)))];
+export { words };
 const inter = (a: string[], b: string[]) => a.filter((w) => b.includes(w)).length;
 /** Share of the smaller set found in the other: 1 means one note is contained in the other. */
 export const containment = (a: string[], b: string[]) => (a.length && b.length ? inter(a, b) / Math.min(a.length, b.length) : 0);
 export const jaccard = (a: string[], b: string[]) => (a.length || b.length ? inter(a, b) / (a.length + b.length - inter(a, b)) : 0);
 
 const text = (m: MemoryView) => `${m.subject ?? ""} ${m.fact}`;
+const candidate = (m: MemoryView): Candidate => ({ text: text(m), subject: m.subject, kind: m.kind, updatedAt: m.updatedAt, usedAt: m.usedAt, expiresAt: m.expiresAt });
+/** The notes that relate to what was said, best first. Pinned notes win ties. */
+function related(all: MemoryView[], message: string, context: string[] = []) {
+  const q = queryOf(message, context);
+  const now = Date.now();
+  return all
+    .map((m) => ({ m, s: score(candidate(m), q, now) }))
+    .filter((x) => x.s > 0)
+    .sort((x, y) => y.s - x.s || Number(y.m.pinned) - Number(x.m.pinned) || y.m.updatedAt.localeCompare(x.m.updatedAt))
+    .map((x) => x.m);
+}
 const NEAR_DUPLICATE = 0.8;
 const SIMILAR = 0.5;
 
@@ -83,20 +96,13 @@ export const lineOf = (m: MemoryView) => {
  * What goes in the prompt for this message: the pinned core, plus the few notes that match what was just said. Everything else
  * is one `recall` away. With only a handful of notes, all of them go in. Marks what it used.
  */
-export async function forPrompt(tx: Tx, vault: Vault, ws: string, userId: string, message: string) {
+export async function forPrompt(tx: Tx, vault: Vault, ws: string, userId: string, message: string, context: string[] = []) {
   const all = live(await readAll(tx, vault, ws, userId));
   let chosen: MemoryView[];
   if (all.length <= SMALL) chosen = all;
   else {
-    const q = words(message);
     const pinned = all.filter((m) => m.pinned).slice(0, CORE_MAX);
-    const scored = all
-      .filter((m) => !m.pinned)
-      .map((m) => ({ m, s: inter(q, words(text(m))) + (m.subject && q.includes(words(m.subject)[0] ?? "~") ? 2 : 0) }))
-      .filter((x) => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, RELEVANT_MAX)
-      .map((x) => x.m);
+    const scored = related(all.filter((m) => !m.pinned), message, context).slice(0, RELEVANT_MAX);
     chosen = [...pinned, ...scored];
   }
   if (chosen.length) await tx.update(memory).set({ lastUsedAt: new Date() }).where(inArray(memory.id, chosen.map((m) => m.id)));
@@ -112,14 +118,8 @@ export async function forBriefing(tx: Tx, vault: Vault, ws: string, userId: stri
 export async function recall(a: Actor, query: string, limit = 8): Promise<MemoryView[]> {
   return a.tenant(async (tx) => {
     const all = live(await readAll(tx, a.vault, a.workspaceId, a.userId));
-    const q = words(query);
-    if (!q.length) return [...all.filter((m) => m.pinned), ...all.filter((m) => !m.pinned)].slice(0, limit);
-    return all
-      .map((m) => ({ m, s: inter(q, words(text(m))) }))
-      .filter((x) => x.s > 0)
-      .sort((x, y) => y.s - x.s || Number(y.m.pinned) - Number(x.m.pinned))
-      .slice(0, limit)
-      .map((x) => x.m);
+    if (emptyQuery(queryOf(query))) return [...all.filter((m) => m.pinned), ...all.filter((m) => !m.pinned)].slice(0, limit);
+    return related(all, query).slice(0, limit);
   });
 }
 
