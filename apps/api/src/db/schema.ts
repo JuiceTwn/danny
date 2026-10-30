@@ -27,6 +27,7 @@ export const users = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     email: text("email").notNull(), // always stored lowercased
     name: text("name").notNull().default(""),
+    timezone: text("timezone").notNull().default("America/Toronto"), // IANA name; reminders and quiet hours use it
     passwordHash: text("password_hash").notNull(),
     isOwner: boolean("is_owner").notNull().default(false), // server owner: can see usage and approve invites
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
@@ -191,4 +192,36 @@ export const connections = pgTable(
   (t) => [index("connections_ws_idx").on(t.workspaceId, t.provider)],
 );
 
-export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger", "connections"] as const;
+// A to-do. A reminder is just a task with remind_at set; nudges re-set it until the user acts.
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    titleEnc: bytea("title_enc").notNull(),
+    status: text("status").notNull().default("open"), // open | done
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    remindAt: timestamp("remind_at", { withTimezone: true }), // next time to nudge; null = nothing scheduled
+    nudgeCount: integer("nudge_count").notNull().default(0),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("tasks_ws_idx").on(t.workspaceId, t.status, t.remindAt)],
+);
+
+// One row per browser or phone that agreed to notifications. The keys are encrypted like any other secret.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    subEnc: bytea("sub_enc").notNull(), // encrypted JSON: { endpoint, keys }
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("push_ws_endpoint_uq").on(t.workspaceId, t.endpoint)],
+);
+
+export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger", "connections", "tasks", "push_subscriptions"] as const;

@@ -110,7 +110,7 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
   app.get("/v1/me", async (req, reply) => {
     const auth = await loadSession(deps, req);
     if (!auth) return reply.code(401).send({ error: "unauthorized" });
-    const [u] = await db.select({ id: users.id, email: users.email, name: users.name }).from(users).where(eq(users.id, auth.userId));
+    const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone }).from(users).where(eq(users.id, auth.userId));
     return { user: u, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner };
   });
 };

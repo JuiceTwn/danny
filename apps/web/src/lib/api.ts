@@ -59,8 +59,9 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
   }
 }
 
-export type Me = { user: { id: string; email: string; name: string }; workspaceId: string; role: string; isOwner: boolean };
+export type Me = { user: { id: string; email: string; name: string; timezone: string }; workspaceId: string; role: string; isOwner: boolean };
 export type Settings = { dailyCapUsd: number; killSwitch: boolean; spentTodayUsd: number };
 export type Approval = { id: string; kind: string; title: string; payload: Record<string, unknown>; status: string; createdAt: string; decidedAt: string | null; executed: boolean };
 export type MemoryItem = { id: string; content: string; createdAt: string };
 export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string };
+export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; createdAt: string };

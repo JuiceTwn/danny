@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { api } from "../lib/api";
+  import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
   import { usd } from "../lib/router.svelte";
 
@@ -12,6 +14,26 @@
   $effect(() => {
     if (s && cap === "") cap = String(s.dailyCapUsd);
   });
+
+  let notify = $state<PushState | "checking">("checking");
+  let notifyBusy = $state(false);
+  onMount(() => {
+    pushState().then((x) => (notify = x)).catch(() => (notify = "unsupported"));
+  });
+  async function toggleNotify() {
+    notifyBusy = true;
+    error = "";
+    try {
+      if (notify === "on") await disablePush();
+      else await enablePush();
+      notify = await pushState();
+    } catch {
+      notify = await pushState().catch(() => "unsupported" as const);
+      error = notify === "denied" ? "Notifications are blocked for this site in your browser settings." : "Couldn't change notifications. Try again.";
+    } finally {
+      notifyBusy = false;
+    }
+  }
 
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
@@ -74,6 +96,22 @@
         <button class="btn" disabled={saving}>Save</button>
       </form>
       {#if msg}<p class="mono" role="status">{msg}</p>{/if}
+    </section>
+
+    <section>
+      <h2 class="display">Notifications</h2>
+      {#if notify === "checking"}
+        <p class="mono">Checking…</p>
+      {:else if notify === "unconfigured"}
+        <p>Push isn't set up on this server yet. Reminders still show up in your chat.</p>
+      {:else if notify === "unsupported"}
+        <p>{ios && !app.installed ? "On iPhone, add Danny to your Home Screen first (see Install below), then come back here." : "This browser can't receive notifications. Reminders still show up in your chat."}</p>
+      {:else if notify === "denied"}
+        <p>Notifications are blocked for this site. Allow them in your browser settings, then come back.</p>
+      {:else}
+        <p>{notify === "on" ? "Reminders will buzz this device. Quiet hours are 10pm to 7am: repeat nudges wait until morning." : "Get reminders on this device, even when Danny is closed."}</p>
+        <button class="btn {notify === 'on' ? '' : 'primary'} wide" disabled={notifyBusy} onclick={toggleNotify}>{notify === "on" ? "Turn off" : "Turn on"}</button>
+      {/if}
     </section>
 
     <section>

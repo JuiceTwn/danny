@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { approvals, auditLog, memory } from "../db/schema.js";
 import { defineTool, ToolRegistry } from "./registry.js";
+import { taskTools } from "./tasks.js";
 
 export const remember = defineTool({
   name: "remember",
@@ -38,5 +39,7 @@ export const requestApproval = defineTool({
 });
 
 export function createRegistry() {
-  return new ToolRegistry().register(remember).register(requestApproval);
+  const r = new ToolRegistry().register(remember).register(requestApproval);
+  for (const t of taskTools) r.register(t);
+  return r;
 }

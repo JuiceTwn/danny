@@ -13,7 +13,8 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 | Passwords | argon2id (`@node-rs/argon2`) | OWASP-minimum parameters. |
 | Sessions | Opaque random token in an HttpOnly cookie, SHA-256 hashed in the database | Revocable, and a database leak does not leak usable sessions. |
 | Web app | Svelte 5 + Vite + TypeScript, one responsive interface | The same build is the phone PWA and the desktop app: sidebar on wide screens, bottom tabs on phones. 72 KB of JavaScript. Served by the API on the same origin, so cookies and the origin check stay simple. |
-| Jobs (next) | pg-boss | Queue inside Postgres, so no Redis to run. |
+| Jobs | A 30-second timer inside the API that reads due reminders from Postgres (`SELECT ... FOR UPDATE SKIP LOCKED`) | No queue library and no Redis for now. Safe with more than one process. pg-boss can replace it when there is background work that needs retries. |
+| Push | `web-push` (VAPID) | Reminders reach installed PWAs. iPhone needs the app added to the Home Screen first. |
 | Model API (next) | `@anthropic-ai/sdk`, streaming, SSE to the browser | |
 
 ## How multi-tenancy works
@@ -36,9 +37,20 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 - **Limits.** The server holds the key while it runs, so this protects data at rest and in backups, not against someone with live access to the running server. Everything also travels over HTTPS.
 - **Lost key = lost data.** Back up `DATA_KEYS` separately from the database.
 
+## Reminders
+
+- A reminder is a task with `remind_at`. The first nudge goes at that time. If the user does nothing it comes back after 10 minutes, 30 minutes and 2 hours, then stops; the task stays on the list.
+- Repeat nudges wait out quiet hours (10pm to 7am in the user's timezone). The first nudge goes exactly when asked.
+- Every nudge is also written to the chat, so it is there when push is off. No model call is involved, so reminders cost nothing in API spend.
+- The scheduler finds due tasks across workspaces through `due_reminders()`, a read-only `SECURITY DEFINER` function that returns ids and a timezone, never a title. Workspaces with the kill switch on are skipped.
+- Push endpoints are only accepted from real push services (Google, Mozilla, Apple, Windows), because the server posts to whatever address a subscription carries.
+
+## Row-level security and the owner role
+
+Tenant tables use `FORCE ROW LEVEL SECURITY`, which applies to the table owner too. `admin_usage()` and `due_reminders()` run as the owner, so the owner role has a read-only `owner_read` policy on `spend_ledger` and `tasks`. Tests run migrations as a non-superuser owner (`danny_owner`), like production, so a missing policy fails the suite.
+
 ## What is deliberately not here yet
 
-- Chat and the model tool loop (next slice).
 - Email sending. The owner receives the invite link and passes it on.
 - Billing, push notifications, connectors. Approvals are recorded, never executed, and the API says so in every response.
 

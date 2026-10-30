@@ -41,6 +41,14 @@ else
   PROFILE=()
 fi
 
+# Reminders reach the phone through web push, which needs a key pair. Made once, kept in .env.
+if ! grep -q '^VAPID_PRIVATE_KEY=.' .env; then
+  docker compose build api
+  docker compose run --rm --no-deps -T api node dist/cli/vapid.js >> .env
+  if [ -n "$DOMAIN" ]; then echo "VAPID_SUBJECT=https://$DOMAIN" >> .env; else echo "VAPID_SUBJECT=mailto:you@example.com" >> .env; fi
+  echo "Added VAPID keys to .env (needed for push reminders). Set VAPID_SUBJECT to your real contact email or site if you change it."
+fi
+
 docker compose "${PROFILE[@]}" up -d --build
 docker compose exec -T api node dist/cli/migrate.js
 echo

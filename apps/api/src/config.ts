@@ -27,6 +27,12 @@ const schema = z.object({
   // Placeholders. Check against Anthropic's current pricing before real traffic.
   PRICE_INPUT_PER_MTOK_USD: z.coerce.number().default(1),
   PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(5),
+  // Web push. Generate once: npx web-push generate-vapid-keys. Without them reminders still land in the chat.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:admin@localhost"),
+  // Checks for due reminders every 30 seconds. Turn off only for tests or a second, read-only process.
+  SCHEDULER: z.enum(["true", "false"]).default("true"),
 });
 
 export type Config = ReturnType<typeof loadConfig>;
@@ -55,6 +61,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     webDir: c.WEB_DIR,
     anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
     model: c.MODEL,
+    vapid: c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY ? { publicKey: c.VAPID_PUBLIC_KEY, privateKey: c.VAPID_PRIVATE_KEY, subject: c.VAPID_SUBJECT } : null,
+    scheduler: c.SCHEDULER === "true" && c.NODE_ENV !== "test",
     price: { inputPerMtokUsd: c.PRICE_INPUT_PER_MTOK_USD, outputPerMtokUsd: c.PRICE_OUTPUT_PER_MTOK_USD },
   };
 }

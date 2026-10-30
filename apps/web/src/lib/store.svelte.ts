@@ -43,11 +43,20 @@ export async function installApp() {
 export async function boot() {
   try {
     app.me = await api<Me>("GET", "/v1/me");
+    syncTimezone(app.me);
     await refresh();
   } catch {
     app.me = null;
   }
   app.loaded = true;
+}
+
+// Reminders, quiet hours and "tomorrow" follow the user's clock, so follow the device when it travels.
+function syncTimezone(me: Me) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (tz && tz !== me.user.timezone) {
+    api("PATCH", "/v1/profile", { timezone: tz }).then(() => (me.user.timezone = tz)).catch(() => {});
+  }
 }
 
 export async function refresh() {

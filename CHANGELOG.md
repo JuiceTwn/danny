@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Tasks and reminders, built for people who lose track of things.
+
+- Tasks: Danny adds them from chat (`add_task`), lists them, marks them done, snoozes them, and answers "what's next" with one task. A Tasks tab in the app does the same.
+- Reminders that come back: first nudge at the time asked, then 10 min, 30 min and 2 h later if ignored, then stop. Repeat nudges wait out quiet hours (10pm to 7am).
+- Web push notifications (Done and Snooze buttons on the notification), plus every reminder is written into the chat. Needs VAPID keys; `setup.sh` makes them.
+- Timezone follows the device, so reminders and quiet hours use the user's clock.
+- Fixed: the owner's usage view showed $0 for everyone when the database owner was not a superuser (as in the Docker setup), because row-level security also applies to the table owner. The same issue would have stopped reminders from ever firing. Tests now migrate as a non-superuser owner so this is caught.
+
+Not yet verified: web push to a real phone, the Docker image and `setup.sh` (no Docker daemon was available), iOS install flow.
+
 ## 1.0.0
 
 First complete version of Danny: a multi-tenant API and a responsive web app (PWA and desktop-install from one build).

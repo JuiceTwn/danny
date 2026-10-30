@@ -38,3 +38,33 @@ self.addEventListener("fetch", (e) => {
     ),
   );
 });
+
+// Reminders. The server sends { title, body, taskId }. Done and Snooze work from the notification itself.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { /* plain text push */ }
+  e.waitUntil(
+    self.registration.showNotification(d.title || "Danny", {
+      body: d.body || "",
+      tag: d.taskId || "danny",
+      renotify: true,
+      icon: "/icons/icon-192.png",
+      data: { taskId: d.taskId || null },
+      actions: d.taskId ? [{ action: "done", title: "Done" }, { action: "snooze", title: "Snooze 10 min" }] : [],
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const { taskId } = e.notification.data || {};
+  const post = (path, body) => fetch(path, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+  if (taskId && e.action === "done") return e.waitUntil(post(`/v1/tasks/${taskId}/done`).catch(() => {}));
+  if (taskId && e.action === "snooze") return e.waitUntil(post(`/v1/tasks/${taskId}/snooze`, { minutes: 10 }).catch(() => {}));
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => {
+      const open = all.find((c) => "focus" in c);
+      return open ? open.focus() : self.clients.openWindow("/#/tasks");
+    }),
+  );
+});

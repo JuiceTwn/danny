@@ -1,5 +1,5 @@
-export type Route = "chat" | "waiting" | "memory" | "settings" | "owner";
-const ROUTES: Route[] = ["chat", "waiting", "memory", "settings", "owner"];
+export type Route = "chat" | "tasks" | "waiting" | "memory" | "settings" | "owner";
+const ROUTES: Route[] = ["chat", "tasks", "waiting", "memory", "settings", "owner"];
 
 const parse = (): Route => {
   const r = location.hash.replace(/^#\//, "") as Route;
@@ -23,3 +23,7 @@ export const fmtDay = (iso: string) => {
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 };
 export const usd = (n: number) => `$${n.toFixed(2)}`;
+export const fmtWhen = (iso: string) => {
+  const d = new Date(iso);
+  return `${fmtDay(iso)} ${fmtTime(iso)}${d.getTime() < Date.now() ? " (past)" : ""}`;
+};

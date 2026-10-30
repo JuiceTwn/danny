@@ -200,6 +200,15 @@ describe("chat", () => {
   it("lists tools with their kind so the app can show what Danny can do", async () => {
     const u = await signUp(ctx, owner, "Tools");
     const tools = (await u.c.get("/v1/tools")).body.tools;
-    expect(tools.map((t: any) => [t.name, t.kind])).toEqual([["remember", "internal"], ["request_approval", "internal"], ["send_email", "external_write"]]);
+    expect(tools.map((t: any) => [t.name, t.kind])).toEqual([
+      ["remember", "internal"],
+      ["request_approval", "internal"],
+      ["add_task", "internal"],
+      ["list_tasks", "read"],
+      ["whats_next", "read"],
+      ["complete_task", "internal"],
+      ["snooze_task", "internal"],
+      ["send_email", "external_write"],
+    ]);
   });
 });
