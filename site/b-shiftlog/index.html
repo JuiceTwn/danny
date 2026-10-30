@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Danny — One assistant. You're the boss.</title>
+<meta name="description" content="Danny keeps track of the work, drafts what needs doing, and asks before anything goes out.">
+<link rel="stylesheet" href="../base.css">
+<style>
+.wrap{max-width:1400px;margin:0 auto;padding:0 24px}
+.mast{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 0;border-bottom:4px solid var(--paper)}
+.mast nav{display:flex;gap:24px}
+.mast nav a{font:500 .8125rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;text-decoration:none;padding:14px 0}
+.mast nav a:hover{color:var(--run)}
+.meta{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}
+h1{font-size:clamp(4rem,15.5vw,15rem);padding-top:28px;letter-spacing:-.005em}
+h1 .hl{display:inline-block;background:var(--run);color:var(--graphite);padding:0 .08em;margin-left:-.04em}
+.lead{display:grid;grid-template-columns:5fr 7fr;gap:32px;padding:40px 0 64px;border-bottom:4px solid var(--paper)}
+.lead p.big{font-size:1.5rem;max-width:28ch}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+/* log */
+.log{border:2px solid var(--paper);font-family:var(--mono);font-size:.9375rem;min-height:23.5rem;background:var(--panel)}
+.log-h{display:flex;justify-content:space-between;padding:10px 14px;border-bottom:2px solid var(--paper);background:var(--paper);color:var(--graphite)}
+.log-h span{font:500 .8125rem/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.row{display:grid;grid-template-columns:4.2rem 7.5rem 1fr auto;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:baseline;opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s}
+.row.in{opacity:1;transform:none}
+.row .tm{color:var(--muted)} .row .vb{text-transform:uppercase;letter-spacing:.06em;color:var(--paper);font-weight:500}
+.row .tx{font-family:var(--body);font-size:1.0625rem;color:#c9d0c8}
+.st{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;padding:3px 6px;color:var(--graphite)}
+.st.ok{background:var(--run)} .st.need{background:var(--need)}
+.wait{padding:14px;color:var(--need);text-transform:uppercase;letter-spacing:.06em;font-size:.8125rem}
+.wait::after{content:"";display:inline-block;width:.6em;height:1em;background:var(--need);margin-left:6px;vertical-align:-2px;animation:blink 1.1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+/* numbered parts */
+.part{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,8fr);align-items:end;gap:24px;padding:32px 0;border-bottom:1px solid var(--paper);transition:background .15s,color .15s}
+.part:hover{background:var(--paper);color:var(--graphite)}
+.part:hover .num{color:var(--graphite)} .part:hover p{color:#3a423d}
+.num{font-size:clamp(7rem,22vw,20rem);color:var(--line);line-height:.78;padding-left:8px;transition:color .15s}
+.part h2{font-size:clamp(3rem,8vw,7.5rem)}
+.part p{max-width:40ch;color:#c9d0c8;margin-top:14px;font-size:1.25rem}
+.fine{display:grid;grid-template-columns:5fr 7fr;gap:32px;padding:56px 0;border-bottom:4px solid var(--paper)}
+.fine h2{font-size:clamp(2.8rem,6vw,5.5rem)}
+.fine li{padding:16px 0;border-top:1px solid var(--line);font-size:1.375rem;display:flex;gap:16px;align-items:baseline}
+.fine li b{font:500 .8125rem/1 var(--mono);color:var(--need);letter-spacing:.06em;text-transform:uppercase;min-width:6.5rem}
+.fine li:last-child{border-bottom:1px solid var(--line)}
+.get{display:grid;grid-template-columns:5fr 7fr;gap:32px;padding:56px 0}
+.get h2{font-size:clamp(2.8rem,6vw,5.5rem);margin-bottom:20px}
+.link{background:none;border:0;padding:12px 0;color:var(--muted);text-decoration:underline;cursor:pointer;font:500 .8125rem/1 var(--mono);text-transform:uppercase;letter-spacing:.06em}
+footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;padding:20px 0 48px;border-top:4px solid var(--paper)}
+@media (max-width:860px){
+  .lead,.fine,.get,.part{grid-template-columns:1fr}
+  .row{grid-template-columns:3.6rem 1fr auto}.row .vb{display:none}
+  .mast nav a:not(:last-child){display:none}
+  .num{font-size:9rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="mast">
+  <a class="brand" href="#" aria-label="Danny home"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg>Danny</a>
+  <nav><a href="#parts">What he does</a><a href="#fine">The fine print</a><a href="#get">Get the app</a></nav>
+</div>
+<div class="meta"><span class="mono">Shift log · a day with Danny</span><span class="mono">Invite only</span></div>
+
+<h1 class="display">One assistant.<br><span class="hl">You're the boss.</span></h1>
+
+<section class="lead">
+  <div>
+    <p class="big">Danny keeps track of the work, drafts what needs doing, and asks before anything goes out.</p>
+    <div class="cta"><a class="btn primary" href="#get">Get Danny</a><a class="btn" href="#fine">How it stays in check</a></div>
+  </div>
+  <div class="log" aria-label="Example shift log">
+    <div class="log-h"><span>Example day</span><span>Justin · Ontario</span></div>
+    <div id="rows"></div>
+    <div class="wait" id="wait" style="display:none">Waiting on you</div>
+  </div>
+</section>
+
+<div id="parts">
+  <article class="part"><div class="num display">01</div><div><h2 class="display">Remembers.</h2><p>Tell him once. He keeps it. You can see all of it, and make him forget any of it.</p></div></article>
+  <article class="part"><div class="num display">02</div><div><h2 class="display">Drafts.</h2><p>He writes the first version. You mark it up. Next time, closer.</p></div></article>
+  <article class="part"><div class="num display">03</div><div><h2 class="display">Asks first.</h2><p>Anything that leaves the building waits for one tap from you. No tap, no send.</p></div></article>
+</div>
+
+<section class="fine" id="fine">
+  <div><p class="mono" style="margin-bottom:16px">The fine print, up front</p><h2 class="display">Straight talk.</h2></div>
+  <ul>
+    <li><b>Mistakes</b>He gets things wrong sometimes. That's why he asks first.</li>
+    <li><b>Your cap</b>Set a daily spend limit. He stops at the number.</li>
+    <li><b>Your stop</b>One tap and he's idle.</li>
+    <li><b>Your data</b>You see what he remembers. You can delete it.</li>
+    <li><b>Won't claim</b>That he runs on his own, or replaces anyone on your team.</li>
+  </ul>
+</section>
+
+<section class="get" id="get">
+  <div>
+    <h2 class="display">Get it on your phone.</h2>
+    <p style="max-width:30ch;color:#c9d0c8">Invite only for now. Ask, and we'll approve you by hand. Installs from your browser.</p>
+    <form class="invite" style="margin-top:24px" novalidate>
+      <input type="email" name="email" placeholder="you@yourshop.ca" aria-label="Email" required>
+      <button class="btn primary" type="submit">Ask for an invite</button>
+    </form>
+    <p class="invite-msg mono"></p>
+  </div>
+  <div>
+    <p class="mono" style="margin-bottom:12px">Steps for your device</p>
+    <div data-for="ios"><ol class="steps"><li>Open Danny in Safari (iOS 16.4 or later).</li><li>Tap Share.</li><li>Tap Add to Home Screen.</li></ol></div>
+    <div data-for="android"><button class="btn primary" data-install style="margin-bottom:12px">Install Danny</button><ol class="steps"><li>No Install button? Open the browser menu.</li><li>Tap Install app.</li></ol></div>
+    <div data-for="desktop"><ol class="steps"><li>Open Danny in Chrome or Edge.</li><li>Click the install icon in the address bar.</li><li>Click Install.</li></ol></div>
+    <button class="link" data-toggle-all>Not your device? Show all</button>
+    <div class="coming" style="margin-top:16px"><span>iPhone app <b>Coming</b></span><span>Android app <b>Coming</b></span><span>Mac / Windows <b>Coming</b></span></div>
+  </div>
+</section>
+<footer><span class="mono">Danny · working name · Ontario, Canada</span><span class="mono">Privacy · Terms — before invites go out</span></footer>
+</div>
+<script src="../shared.js"></script>
+<script>
+(function(){
+  var data=[
+    ["06:42","Remembered","Marlene prefers texts, not calls.","ok","Kept"],
+    ["07:15","Drafted","Reply to Marlene about Tuesday.","need","Needs you"],
+    ["07:16","Waiting","Nothing sent. Draft is in your queue.","ok","Held"],
+    ["09:03","Remembered","Dave's Roofing is net 30.","ok","Kept"],
+    ["09:40","Drafted","Follow-up to Priya about the logo files.","need","Needs you"],
+    ["12:10","Done","You approved Marlene's reply. Recorded.","ok","Done"]
+  ], box=document.getElementById("rows"), wait=document.getElementById("wait"), started=false;
+  data.forEach(function(r){
+    var d=document.createElement("div");d.className="row";
+    d.innerHTML='<span class="tm">'+r[0]+'</span><span class="vb">'+r[1]+'</span><span class="tx">'+r[2]+'</span><span class="st '+r[3]+'">'+r[4]+'</span>';
+    box.appendChild(d);
+  });
+  function play(){
+    if(started)return;started=true;
+    var rows=box.children,reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
+    Array.prototype.forEach.call(rows,function(el,i){setTimeout(function(){el.classList.add("in")},reduce?0:i*650+300)});
+    setTimeout(function(){wait.style.display="block"},reduce?0:rows.length*650+500);
+  }
+  if("IntersectionObserver" in window){new IntersectionObserver(function(e,o){if(e[0].isIntersecting){play();o.disconnect()}},{threshold:.3}).observe(box.parentNode)}else play();
+})();
+</script>
+</body>
+</html>
