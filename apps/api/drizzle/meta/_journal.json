@@ -120,6 +120,20 @@
       "when": 1793398958192,
       "tag": "0016_memory_rework_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793400743189,
+      "tag": "0017_free_daily_allowance",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793401028227,
+      "tag": "0018_auto_memory",
+      "breakpoints": true
     }
   ]
 }

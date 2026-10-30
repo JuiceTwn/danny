@@ -38,6 +38,7 @@ export type ChatEvent =
   | { type: "approval"; id: string; title: string }
   | { type: "card"; card: Card }
   | { type: "done" }
+  | { type: "memory"; notes: { id: string; fact: string; kind: "added" | "updated" }[] }
   | { type: "error"; code: string; message: string };
 
 /** POST a message and yield server-sent events as they arrive. */
@@ -70,12 +71,24 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
   }
 }
 
-export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean }; workspaceId: string; role: string; isOwner: boolean };
-export type Settings = { dailyCapUsd: number; killSwitch: boolean; spentTodayUsd: number; model: string; demo: boolean; priceInputPerMtokUsd: number; priceOutputPerMtokUsd: number };
+export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean }; workspaceId: string; role: string; isOwner: boolean };
+// Everyone gets the usage percentage. The dollar fields, and the right to change the cap, belong to the server owner only.
+export type Settings = {
+  usedPercent: number;
+  resetsAt: string;
+  killSwitch: boolean;
+  model: string;
+  demo: boolean;
+  canSetCap: boolean;
+  dailyCapUsd?: number;
+  spentTodayUsd?: number;
+  priceInputPerMtokUsd?: number;
+  priceOutputPerMtokUsd?: number;
+};
 export type Approval = { id: string; kind: string; title: string; payload: Record<string, unknown>; status: string; createdAt: string; decidedAt: string | null; executed: boolean; canExecute: boolean; execution: "running" | "done" | "failed" | "unknown" | null; executionNote: string | null };
 export type Connection = { id: string; provider: string; label: string; status: string; createdAt: string; calendar?: boolean };
 export type MemoryKind = "fact" | "preference" | "person" | "plan" | "place";
-export type MemoryItem = { id: string; content: string; kind: MemoryKind; subject: string | null; pinned: boolean; expiresOn: string | null; expired: boolean; createdAt: string; updatedAt: string };
+export type MemoryItem = { id: string; content: string; kind: MemoryKind; subject: string | null; pinned: boolean; source: "chat" | "auto" | "app"; expiresOn: string | null; expired: boolean; createdAt: string; updatedAt: string };
 export type TidiedItem = MemoryItem & { archived: boolean; reason: string | null; previous: string | null };
 export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string; cards?: Card[] };
 export type Goal = { id: string; title: string; notes: string | null; watchQuery: string | null; checkEveryHours: number | null; status: string; lastCheckedAt: string | null; lastFinding: string | null };

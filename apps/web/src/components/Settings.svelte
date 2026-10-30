@@ -4,7 +4,7 @@
   import Connections from "./Connections.svelte";
   import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
-  import { usd } from "../lib/router.svelte";
+  import { resetsIn, usd } from "../lib/router.svelte";
 
   const s = $derived(app.settings);
   let cap = $state("");
@@ -13,7 +13,7 @@
   let error = $state("");
 
   $effect(() => {
-    if (s && cap === "") cap = String(s.dailyCapUsd);
+    if (s?.dailyCapUsd !== undefined && cap === "") cap = String(s.dailyCapUsd);
   });
 
   let briefOn = $state(false);
@@ -39,12 +39,14 @@
   let quietEnd = $state(7);
   let units = $state("metric");
   let learnOn = $state(true);
+  let autoMemOn = $state(true);
   $effect(() => {
     if (app.me) {
       quietStart = app.me.user.quietStart;
       quietEnd = app.me.user.quietEnd;
       units = app.me.user.units;
       learnOn = app.me.user.learnEnabled;
+      autoMemOn = app.me.user.autoMemory;
     }
   });
   const HOURS = Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, "0")}:00`] as const);
@@ -86,7 +88,7 @@
       error = "Couldn't forget those. Try again.";
     }
   }
-  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean };
+  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean };
   const VOICES = [
     ["foreman", "Foreman: short and dry"],
     ["warm", "Warm: friendly and encouraging"],
@@ -126,7 +128,7 @@
     briefBusy = true;
     error = "";
     try {
-      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean }>("PATCH", "/v1/profile", patch);
+      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean }>("PATCH", "/v1/profile", patch);
       if (app.me) {
         app.me.user.briefingEnabled = r.briefingEnabled;
         app.me.user.briefingTime = r.briefingTime;
@@ -137,6 +139,7 @@
         app.me.user.quietEnd = r.quietEnd;
         app.me.user.units = r.units;
         app.me.user.learnEnabled = r.learnEnabled;
+        app.me.user.autoMemory = r.autoMemory;
       }
     } catch {
       error = "Couldn't save that. Try again.";
@@ -173,7 +176,7 @@
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
   const device = ios ? "ios" : /Android/.test(ua) ? "android" : "desktop";
-  const pct = $derived(s && s.dailyCapUsd > 0 ? Math.min(100, (s.spentTodayUsd / s.dailyCapUsd) * 100) : 0);
+  const pct = $derived(s?.usedPercent ?? 0);
 
   async function toggle() {
     if (!s) return;
@@ -222,26 +225,35 @@
       <h2 class="display">Model</h2>
       {#if s}
         <p class="mono big">{s.demo ? "None (demo mode)" : s.model}</p>
-        <p class="mono">{usd(s.priceInputPerMtokUsd)} per million tokens in, {usd(s.priceOutputPerMtokUsd)} out</p>
-        <p>Each message sends your recent chat and memory along with it, so a short reply still costs more than its length. Change it with the MODEL setting on the server.</p>
+        {#if s.canSetCap}
+          <p class="mono">{usd(s.priceInputPerMtokUsd ?? 0)} per million tokens in, {usd(s.priceOutputPerMtokUsd ?? 0)} out</p>
+          <p>Each message sends your recent chat and memory along with it, so a short reply still costs more than its length. Change it with the MODEL setting on the server.</p>
+        {:else}
+          <p>Each message sends your recent chat and memory along with it, so a short reply uses more than its length suggests.</p>
+        {/if}
       {/if}
     </section>
 
     <section>
-      <h2 class="display">Daily spend cap</h2>
-      <p>Danny stops for the day when he hits this number. It resets at midnight UTC.</p>
+      <h2 class="display">Daily usage</h2>
       {#if s}
-        <div class="meter" role="img" aria-label="{usd(s.spentTodayUsd)} of {usd(s.dailyCapUsd)} used today"><b style:width="{pct}%"></b></div>
-        <p class="mono">{usd(s.spentTodayUsd)} used of {usd(s.dailyCapUsd)}</p>
+        <div class="meter" role="img" aria-label="{s.usedPercent}% of today's usage"><b style:width="{pct}%"></b></div>
+        <p class="mono">{s.usedPercent}% used · resets in {resetsIn(s.resetsAt)}</p>
+        <p>{s.usedPercent >= 100 ? "You've used all of today's allowance. Danny is back at midnight UTC." : "Danny stops for the day when the bar is full. It resets at midnight UTC."}</p>
+        {#if s.canSetCap}
+          <p class="mono">{usd(s.spentTodayUsd ?? 0)} used of {usd(s.dailyCapUsd ?? 0)}</p>
+        {/if}
       {/if}
-      <form class="capform" onsubmit={saveCap}>
-        <div class="field">
-          <label for="cap">Cap in US dollars</label>
-          <input id="cap" class="input" type="number" min="0" step="0.5" inputmode="decimal" bind:value={cap} />
-        </div>
-        <button class="btn" disabled={saving}>Save</button>
-      </form>
-      {#if msg}<p class="mono" role="status">{msg}</p>{/if}
+      {#if s?.canSetCap}
+        <form class="capform" onsubmit={saveCap}>
+          <div class="field">
+            <label for="cap">Your daily limit in US dollars (owner only)</label>
+            <input id="cap" class="input" type="number" min="0" step="0.5" inputmode="decimal" bind:value={cap} />
+          </div>
+          <button class="btn" disabled={saving}>Save</button>
+        </form>
+        {#if msg}<p class="mono" role="status">{msg}</p>{/if}
+      {/if}
     </section>
 
     <section>
@@ -333,6 +345,12 @@
         <p class="mono">Nothing yet.</p>
       {/if}
       <button class="btn {learnOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ learnEnabled: !learnOn })}>{learnOn ? "Stop him learning from how I use him" : "Let him learn from how I use him"}</button>
+    </section>
+
+    <section>
+      <h2 class="display">Remembering</h2>
+      <p>{autoMemOn ? "After you tell him something about your life or work, Danny quietly keeps what's worth keeping, without being asked. You see it in the chat with an Undo, and in the Memory tab." : "Danny only remembers what you ask him to. Nothing is saved on his own."}</p>
+      <button class="btn {autoMemOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ autoMemory: !autoMemOn })}>{autoMemOn ? "Only remember what I ask" : "Let him remember on his own"}</button>
     </section>
 
     <section>

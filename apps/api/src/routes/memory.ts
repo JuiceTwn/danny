@@ -6,7 +6,7 @@ import { addMemory, forgetMemory, KINDS, patchMemory, readAll, recentlyTidied, r
 import type { Actor } from "../lib/tasks.js";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2027-03-31");
-const api = (m: MemoryView) => ({ id: m.id, content: m.fact, kind: m.kind, subject: m.subject, pinned: m.pinned, expiresOn: m.expiresAt?.slice(0, 10) ?? null, expired: m.expired, createdAt: m.createdAt, updatedAt: m.updatedAt });
+const api = (m: MemoryView) => ({ id: m.id, content: m.fact, kind: m.kind, subject: m.subject, pinned: m.pinned, source: m.source, expiresOn: m.expiresAt?.slice(0, 10) ?? null, expired: m.expired, createdAt: m.createdAt, updatedAt: m.updatedAt });
 
 export const memoryRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault }) => {
   const actor = (req: { auth?: { workspaceId: string; userId: string } }): Actor => {

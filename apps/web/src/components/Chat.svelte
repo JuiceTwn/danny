@@ -7,7 +7,8 @@
   import { app, refresh } from "../lib/store.svelte";
   import { fmtDay, fmtTime, go } from "../lib/router.svelte";
 
-  type Row = { id: number; kind: "user" | "danny" | "note" | "problem" | "approval"; text: string; at: string; code?: string; cards?: Card[] };
+  type Noticed = { id: string; fact: string; kind: "added" | "updated"; undone?: boolean };
+  type Row = { id: number; kind: "user" | "danny" | "note" | "problem" | "approval"; text: string; at: string; code?: string; cards?: Card[]; noticed?: Noticed[] };
 
   let rows = $state<Row[]>([]);
   let input = $state("");
@@ -72,26 +73,11 @@
     const turnCards: Card[] = [];
     const mark = rows.length; // rows from here on belong to this turn
     controller = new AbortController();
-    try {
-      for await (const ev of chatStream(text, controller.signal)) {
-        if (ev.type === "text") {
-          live ??= push("danny", "");
-          live.text += ev.text;
-        } else {
-          live = null;
-          if (ev.type === "tool" && ev.name === "remember" && ev.status === "ran") push("note", "Saved to memory.");
-          else if (ev.type === "approval") push("approval", ev.title);
-          else if (ev.type === "card") turnCards.push(ev.card);
-          else if (ev.type === "error") push("problem", ev.message, { code: ev.code });
-        }
-        await toBottom();
-      }
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        const busyErr = (err as { status?: number }).status === 429;
-        push("problem", busyErr ? "Danny is still on your last message." : "Couldn't reach Danny. Check your connection and try again.");
-      }
-    } finally {
+    // Everything that ends a turn. It runs on "done", so the box is free again while the quiet memory pass finishes, and not twice.
+    let settled = false;
+    const settle = async () => {
+      if (settled) return;
+      settled = true;
       // Cards sit under the last thing Danny said this turn.
       if (turnCards.length) {
         const last = rows.slice(mark).reverse().find((r) => r.kind === "danny");
@@ -104,6 +90,41 @@
       await toBottom();
       void refresh();
       boxEl?.focus();
+    };
+    try {
+      for await (const ev of chatStream(text, controller.signal)) {
+        if (ev.type === "text") {
+          live ??= push("danny", "");
+          live.text += ev.text;
+        } else {
+          live = null;
+          if (ev.type === "tool" && ev.name === "remember" && ev.status === "ran") push("note", "Saved to memory.");
+          else if (ev.type === "approval") push("approval", ev.title);
+          else if (ev.type === "card") turnCards.push(ev.card);
+          else if (ev.type === "done") await settle();
+          else if (ev.type === "memory") push("note", "", { noticed: ev.notes.map((n) => ({ ...n })) });
+          else if (ev.type === "error") push("problem", ev.message, { code: ev.code });
+        }
+        await toBottom();
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        const busyErr = (err as { status?: number }).status === 429;
+        push("problem", busyErr ? "Danny is still on your last message." : "Couldn't reach Danny. Check your connection and try again.");
+      }
+    } finally {
+      await settle();
+    }
+  }
+
+  // Undo for something Danny noticed on his own: a new note is forgotten, an updated one gets its old wording back.
+  async function undo(n: Noticed) {
+    try {
+      if (n.kind === "added") await api("DELETE", `/v1/memory/${n.id}`);
+      else await api("POST", `/v1/memory/${n.id}/restore`, {});
+      n.undone = true;
+    } catch {
+      push("problem", "Couldn't undo that one. You can fix it in the Memory tab.");
     }
   }
 
@@ -147,7 +168,21 @@
             {/if}
           </div>
         {:else if r.kind === "note"}
-          <div class="row note"><div class="who mono">Noted</div><p class="text">{r.text}</p></div>
+          <div class="row note">
+            <div class="who mono">{r.noticed ? "Noticed" : "Noted"}</div>
+            {#if r.noticed}
+              <ul class="noticed">
+                {#each r.noticed as n (n.id)}
+                  <li>
+                    <span class:undone={n.undone}>{n.kind === "added" ? "Remembered" : "Updated"}: {n.fact}</span>
+                    {#if n.undone}<span class="mono">undone</span>{:else}<button type="button" class="btn small" onclick={() => undo(n)} aria-label="Undo: {n.fact}">Undo</button>{/if}
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="text">{r.text}</p>
+            {/if}
+          </div>
         {:else if r.kind === "approval"}
           <div class="row approval">
             <div class="who mono need">Needs you</div>
@@ -223,4 +258,7 @@
     .thinking { padding-left: 0; }
     .bar .btn { min-width: 78px; padding: 0 16px; }
   }
+  .noticed { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: .9375rem; color: var(--muted); }
+  .noticed li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .noticed .undone { text-decoration: line-through; opacity: .6; }
 </style>

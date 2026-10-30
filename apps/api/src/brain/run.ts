@@ -3,6 +3,7 @@ import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
 import { approvals, auditLog, conversations, messages, users } from "../db/schema.js";
 import { arrange, CardSchema, validCards, type Card } from "../lib/cards.js";
+import { autoRemember, type Noticed } from "../lib/automemory.js";
 import { forPrompt } from "../lib/memory.js";
 import { localIso } from "../lib/time.js";
 import { readStyle, styleBlock } from "../lib/style.js";
@@ -21,11 +22,14 @@ export type ChatEvent =
   | { type: "approval"; id: string; title: string }
   | { type: "card"; card: Card }
   | { type: "done" }
+  // Sent after "done", once the quiet pass has saved something the user did not ask for, so they can see it and undo it.
+  | { type: "memory"; notes: Noticed[] }
   | { type: "error"; code: "kill_switch" | "cap_reached" | "model_failed" | "too_many_steps"; message: string };
 
 export type BrainDeps = { db: Db; config: Config; model: ModelClient; tools: ToolRegistry; vault: Vault; google: GoogleService | null; fetchFn?: typeof fetch };
 
 const MAX_STEPS = 6;
+const CONTEXT_MESSAGES = 3; // earlier things the user said that help pick which notes to show
 // History is a window that moves in steps, not one message at a time. The start only changes every HISTORY_STEP
 // messages, so the start of the prompt stays identical between turns and the provider's cache keeps hitting.
 const HISTORY_KEEP = 20;
@@ -46,7 +50,7 @@ Voice: {{VOICE}}
 ${FORMAT}
 You keep track of the work and draft what needs doing. You do not send, post or change anything yourself.
 Anything that leaves this chat goes through request_approval first. After you call it, say it is waiting on their tap. Never say something was sent.
-When the user tells you something worth keeping about their life or work, save it with remember: one short fragment at a time, and update the old note (replaces) instead of adding a second when something changes. Things to do, goals, topics they follow and how they like to be helped have their own tools, so do not also save those as memories.
+When the user tells you something worth keeping about their life or work, save it with remember: one short fragment at a time, and update the old note (replaces) instead of adding a second when something changes. Things to do, goals, topics they follow and how they like to be helped have their own tools, so do not also save those as memories. A quiet pass after each message also keeps facts you miss, so do not announce or apologise for saving, and do not repeat a fact back just to show you kept it.
 If you don't know, say so. You will get things wrong sometimes. That is why the user approves first.
 
 The user's brain does not hold reminders well. You are their external memory.
@@ -70,7 +74,7 @@ Reminders reach them by notification and in this chat, and come back a few times
 
 export const BLOCKED_MESSAGE = {
   kill_switch: "Danny is stopped. Turn him back on in settings.",
-  cap_reached: "Daily spend cap reached. Raise it in settings or wait until tomorrow (UTC).",
+  cap_reached: "You've used all of today's allowance. It resets at midnight UTC.",
 } as const;
 
 // The model API needs history to start at a plain user message, never at a stray tool result.
@@ -89,6 +93,8 @@ export async function runTurn(
   text: string,
   emit: (e: ChatEvent) => void,
   isClosed: () => boolean = () => false,
+  // Called as soon as the reply is done, before the quiet memory pass, so the caller can take the next message.
+  onSettled: () => void = () => {},
 ) {
   const { db, config, model, tools, vault, google } = deps;
   const { workspaceId, userId } = who;
@@ -111,8 +117,11 @@ export async function runTurn(
     conv ??= (await tx.insert(conversations).values({ workspaceId, userId }).returning())[0]!;
     const [{ n: total } = { n: 0 }] = await tx.select({ n: sql<number>`count(*)::int` }).from(messages).where(eq(messages.conversationId, conv.id));
     const past = await tx.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(asc(messages.id)).offset(windowStart(total));
-    const [u] = await tx.select({ timezone: users.timezone, voice: users.voice }).from(users).where(eq(users.id, userId));
-    const mem = await forPrompt(tx, vault, workspaceId, userId, text);
+    const [u] = await tx.select({ timezone: users.timezone, voice: users.voice, autoMemory: users.autoMemory }).from(users).where(eq(users.id, userId));
+    const history = trimHistory(past.map((r) => compactOld({ role: r.role as Msg["role"], content: vault.openJson<Msg["content"]>(workspaceId, r.contentEnc) })));
+    // What they said just before this, so "what about her?" still finds the note about the person they were talking about.
+    const said = history.flatMap((m) => (m.role === "user" && typeof m.content === "string" ? [m.content] : [])).slice(-CONTEXT_MESSAGES);
+    const mem = await forPrompt(tx, vault, workspaceId, userId, text, said);
     const style = styleBlock(await readStyle(tx, vault, workspaceId, userId));
     await tx.insert(messages).values({ workspaceId, conversationId: conv.id, role: "user", contentEnc: vault.sealJson(workspaceId, text) });
     return {
@@ -120,8 +129,9 @@ export async function runTurn(
       convId: conv.id,
       timezone: u?.timezone ?? "America/Toronto",
       voice: u?.voice ?? "foreman",
+      autoMemory: u?.autoMemory ?? true,
       style,
-      history: trimHistory(past.map((r) => compactOld({ role: r.role as Msg["role"], content: vault.openJson<Msg["content"]>(workspaceId, r.contentEnc) }))),
+      history,
       mem,
     } as const;
   });
@@ -163,6 +173,7 @@ export async function runTurn(
       ),
     );
 
+  let savedByDanny = false; // he already chose to remember something this turn
   for (let step = 0; step < MAX_STEPS; step++) {
     if (isClosed()) return;
     if (step > 0) {
@@ -194,11 +205,19 @@ export async function runTurn(
     const calls = res.content.filter((b) => b.type === "tool_use");
     if (res.stopReason !== "tool_use" || calls.length === 0) {
       await save([assistant], arrange(cards));
-      return emit({ type: "done" });
+      emit({ type: "done" });
+      onSettled();
+      if (setup.autoMemory && !savedByDanny && !isClosed()) {
+        const reply = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+        const notes = await autoRemember({ db, config, model }, ctx, { message: text, reply, today: localIso(now, setup.timezone).slice(0, 10) });
+        if (notes.length) emit({ type: "memory", notes });
+      }
+      return;
     }
 
     const results: ToolResultBlock[] = [];
     for (const call of calls) {
+      if (call.name === "remember") savedByDanny = true;
       results.push(await runTool(deps, ctx, call, emit));
     }
     const toolMsg: Msg = { role: "user", content: results as Block[] };

@@ -99,7 +99,7 @@
         </form>
       {:else}
         <p>{#if m.subject}<strong>{m.subject}:</strong> {/if}{m.content}</p>
-        <span class="mono">{until(m)}{until(m) ? " · " : ""}{m.kind === "fact" ? "" : `${m.kind} · `}added {new Date(m.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span class="mono">{until(m)}{until(m) ? " · " : ""}{m.kind === "fact" ? "" : `${m.kind} · `}{m.source === "auto" ? "Danny noticed · " : ""}added {new Date(m.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
       {/if}
     </div>
     {#if editing !== m.id}

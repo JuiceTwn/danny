@@ -142,7 +142,10 @@ describe("reminders", () => {
   it("does not fire the same reminder twice, and stops after the last nudge", async () => {
     const u = await signUp(ctx, owner, "Di");
     const id = await dueTask(u.c, "Pay the hydro bill");
-    let t = minutes(6);
+    // A fixed morning, so the later nudges never land in quiet hours whatever time the suite runs.
+    const morning = new Date("2099-01-01T15:00:00Z"); // 10:00 in Toronto
+    await ctx.owner.db.update(tasks).set({ remindAt: morning }).where(eq(tasks.id, id));
+    let t = minutes(1, morning.getTime());
     await runDueReminders(runner(), t);
     await runDueReminders(runner(), t); // same instant: already claimed
     expect((await rowOf(id)).nudgeCount).toBe(1);

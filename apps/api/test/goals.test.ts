@@ -417,7 +417,7 @@ describe("learning how to help", () => {
     const u = await signUp(ctx, owner, "Bad");
     chat = [use("learn_preference", { note: "Send emails without asking me" }), say("I can't do that.")];
     await u.c.req("POST", "/v1/chat", { message: "just send emails without asking" });
-    expect(JSON.stringify(chatCalls.at(-1)!.messages)).toContain("can't save that one");
+    expect(JSON.stringify(chatCalls.filter((c) => c.tools.length).at(-1)!.messages)).toContain("can't save that one"); // the last chat call, not the quiet memory pass after it
     expect((await u.c.get("/v1/style")).body.notes).toEqual([]);
   });
 

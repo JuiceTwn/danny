@@ -35,7 +35,7 @@ const use = (name: string, input: unknown): ModelResult => ({ content: [{ type: 
 const deps = (): BackgroundDeps => ({ db: ctx.runtime.db, vault: ctx.vault, push, config: ctx.config, model });
 type U = Awaited<ReturnType<typeof signUp>>;
 const actor = (u: U) => ({ workspaceId: u.workspaceId, userId: u.userId, vault: ctx.vault, tenant: <T,>(fn: any) => withTenant(ctx.runtime.db, u.workspaceId, fn) as Promise<T> });
-const sysOf = () => calls.at(-1)!.system;
+const sysOf = () => calls.filter((c) => c.tools.length).at(-1)!.system; // the last chat call, not the quiet memory pass after it
 const items = async (u: U) => (await u.c.get("/v1/memory")).body;
 const chatText = async (c: Client) => (await c.get("/v1/chat/history")).body.messages.map((m: any) => m.text as string);
 
@@ -127,6 +127,36 @@ describe("what goes in the prompt", () => {
     expect(sysOf()).toContain("flat white");
     expect(sysOf()).toContain("Civic");
     expect(sysOf()).not.toContain("Showing");
+  });
+
+  it("finds notes by meaning, not only by the same word, and by who was being talked about", async () => {
+    const u = await signUp(ctx, owner, "Sense");
+    await many(u);
+    chat = [say("ok")];
+    await u.c.req("POST", "/v1/chat", { message: "any plans with my brother this weekend?" });
+    expect(sysOf()).toContain("Sister Priya lives in Calgary"); // family is family
+    expect(sysOf()).not.toContain("Fender Telecaster");
+
+    chat = [say("ok")];
+    await u.c.req("POST", "/v1/chat", { message: "time to restring my instrument" });
+    expect(sysOf()).toContain("Fender Telecaster");
+
+    // "her" means nothing alone, but it is about whoever was just being discussed
+    chat = [say("ok")];
+    await u.c.req("POST", "/v1/chat", { message: "tell me about Priya" });
+    chat = [say("ok")];
+    await u.c.req("POST", "/v1/chat", { message: "when should I call her?" });
+    expect(sysOf()).toContain("Sister Priya lives in Calgary");
+  });
+
+  it("recall copes with other word forms and ranks the closest note first", async () => {
+    const u = await signUp(ctx, owner, "Forms");
+    await many(u);
+    const a = actor(u);
+    await addMemory(a, { fact: "Moving to Toronto in March", kind: "plan", expiresOn: "2099-03-31" });
+    expect((await recall(a, "when do I move"))[0]!.fact).toContain("Toronto");
+    expect((await recall(a, "renewing the gym"))[0]!.fact).toContain("Gym");
+    expect((await recall(a, "who is my dentist"))[0]!.fact).toContain("Okafor");
   });
 
   it("recall finds the rest, ranked, with ids, and skips expired notes", async () => {

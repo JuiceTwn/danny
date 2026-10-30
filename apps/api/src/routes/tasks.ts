@@ -13,7 +13,7 @@ const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${St
 const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, 24 hour");
 
-type PrefRow = { briefingEnabled: boolean; briefingMinute: number; wrapupEnabled: boolean; wrapupMinute: number; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean };
+type PrefRow = { briefingEnabled: boolean; briefingMinute: number; wrapupEnabled: boolean; wrapupMinute: number; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean };
 export const prefsView = (u: PrefRow) => ({
   briefingEnabled: u.briefingEnabled,
   briefingTime: hhmm(u.briefingMinute),
@@ -24,8 +24,9 @@ export const prefsView = (u: PrefRow) => ({
   quietEnd: u.quietEnd,
   units: u.units,
   learnEnabled: u.learnEnabled,
+  autoMemory: u.autoMemory,
 });
-export const prefColumns = { briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute, wrapupEnabled: users.wrapupEnabled, wrapupMinute: users.wrapupMinute, voice: users.voice, quietStart: users.quietStart, quietEnd: users.quietEnd, units: users.units, learnEnabled: users.learnEnabled };
+export const prefColumns = { briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute, wrapupEnabled: users.wrapupEnabled, wrapupMinute: users.wrapupMinute, voice: users.voice, quietStart: users.quietStart, quietEnd: users.quietEnd, units: users.units, learnEnabled: users.learnEnabled, autoMemory: users.autoMemory };
 
 const when = z.iso.datetime({ offset: true });
 
@@ -110,6 +111,7 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
         quietEnd: z.number().int().min(0).max(23).optional(),
         units: z.enum(["metric", "imperial"]).optional(),
         learnEnabled: z.boolean().optional(),
+        autoMemory: z.boolean().optional(),
       })
       .parse(req.body);
     if (body.timezone !== undefined && !isValidTimezone(body.timezone)) return reply.code(400).send({ error: "invalid_request", message: "Unknown timezone." });
@@ -124,6 +126,7 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
     if (body.quietEnd !== undefined) set.quietEnd = body.quietEnd;
     if (body.units !== undefined) set.units = body.units;
     if (body.learnEnabled !== undefined) set.learnEnabled = body.learnEnabled;
+    if (body.autoMemory !== undefined) set.autoMemory = body.autoMemory;
     if (Object.keys(set).length) {
       await db.update(users).set(set).where(eq(users.id, userId));
       const { timezone: _tz, ...prefs } = body;

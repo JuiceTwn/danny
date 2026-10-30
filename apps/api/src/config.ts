@@ -16,7 +16,10 @@ const schema = z.object({
   COOKIE_SECURE: z.enum(["true", "false"]).default("false"),
   TRUST_PROXY: z.enum(["true", "false"]).default("false"),
   SESSION_DAYS: z.coerce.number().int().default(30),
-  DEFAULT_DAILY_CAP_USD: z.coerce.number().default(2),
+  // What everyone but the server owner gets each day. Only the owner can change their own cap, so this is the free allowance.
+  DEFAULT_DAILY_CAP_USD: z.coerce.number().default(1),
+  // Where the server owner's own cap starts. They can change it in Settings.
+  OWNER_DAILY_CAP_USD: z.coerce.number().default(5),
   MAX_DAILY_CAP_USD: z.coerce.number().default(50),
   // Master encryption key(s). Required. Generate one: openssl rand -base64 32  ->  "1:<that>"
   DATA_KEYS: z.string().min(1, "DATA_KEYS is required"),
@@ -63,6 +66,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     trustProxy: c.TRUST_PROXY === "true",
     sessionDays: c.SESSION_DAYS,
     defaultDailyCapMicros: Math.round(c.DEFAULT_DAILY_CAP_USD * 1_000_000),
+    ownerDailyCapMicros: Math.round(c.OWNER_DAILY_CAP_USD * 1_000_000),
     maxDailyCapMicros: Math.round(c.MAX_DAILY_CAP_USD * 1_000_000),
     dataKeys: c.DATA_KEYS,
     webDir: c.WEB_DIR,
