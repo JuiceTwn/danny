@@ -101,6 +101,12 @@ touch -d '20 days ago' "$T/backups/danny-20260101-000000.sql.gz"; touch -d '2 da
 "$S/backup.sh" >/dev/null
 check "retention: deletes backups older than 14 days, keeps recent ones" test ! -e "$T/backups/danny-20260101-000000.sql.gz" -a -e "$T/backups/danny-20260120-000000.sql.gz"
 
+reset
+DANNY_BACKUP_TS=20261030-120000 "$S/backup.sh" >/dev/null
+first="$T/backups/danny-20261030-120000.sql.gz"; sum1="$(sha256sum "$first" | cut -d' ' -f1)"
+DANNY_BACKUP_TS=20261030-120000 "$S/backup.sh" >/dev/null
+check "two backups in the same second both survive, and the first is untouched" test "$(find "$T/backups" -name 'danny-*.sql.gz' | wc -l)" -eq 2 -a "$(sha256sum "$first" | cut -d' ' -f1)" = "$sum1"
+
 echo "restore"
 reset
 "$S/restore.sh" "$T/nope.gz" --yes >/dev/null 2>&1; rc=$?
