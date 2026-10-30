@@ -17,12 +17,17 @@ export type ModelResult = {
   content: (TextBlock | ToolUseBlock)[];
   stopReason: string | null;
   /** inputTokens is only the uncached part. Cached reads and writes are billed at different rates. */
-  usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
+  usage: Usage;
 };
+export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; searches?: number };
+export type SearchRequest = { model: string; system: string; prompt: string; maxSearches: number; maxTokens: number };
+export type SearchResult = { text: string; sources: { title: string; url: string }[]; usage: Usage };
 
 /** The one seam to the model provider. Tests script it; production uses AnthropicModel. */
 export interface ModelClient {
   complete(req: ModelRequest, onText: (delta: string) => void): Promise<ModelResult>;
+  /** One question answered from the live web. Absent on models that cannot search. */
+  search?(req: SearchRequest): Promise<SearchResult>;
 }
 
 export class AnthropicModel implements ModelClient {
@@ -30,6 +35,42 @@ export class AnthropicModel implements ModelClient {
   constructor(apiKey: string) {
     this.client = new Anthropic({ apiKey });
   }
+  async search(req: SearchRequest): Promise<SearchResult> {
+    const res = await this.client.messages.create({
+      model: req.model,
+      max_tokens: req.maxTokens,
+      system: req.system,
+      messages: [{ role: "user", content: req.prompt }],
+      tools: [{ type: SEARCH_TOOL, name: "web_search", max_uses: req.maxSearches } as unknown as Anthropic.ToolUnion],
+    });
+    const seen = new Set<string>();
+    const sources: SearchResult["sources"] = [];
+    let text = "";
+    for (const b of res.content as unknown as { type: string; text?: string; content?: unknown }[]) {
+      if (b.type === "text") text += b.text ?? "";
+      else if (b.type === "web_search_tool_result" && Array.isArray(b.content)) {
+        for (const r of b.content as { url?: string; title?: string }[]) {
+          if (r.url && !seen.has(r.url) && sources.length < 8) {
+            seen.add(r.url);
+            sources.push({ title: r.title ?? r.url, url: r.url });
+          }
+        }
+      }
+    }
+    const u = res.usage as typeof res.usage & { server_tool_use?: { web_search_requests?: number } };
+    return {
+      text: text.trim(),
+      sources,
+      usage: {
+        inputTokens: u.input_tokens,
+        outputTokens: u.output_tokens,
+        cacheReadTokens: u.cache_read_input_tokens ?? 0,
+        cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
+        searches: u.server_tool_use?.web_search_requests ?? 0,
+      },
+    };
+  }
+
   async complete(req: ModelRequest, onText: (delta: string) => void): Promise<ModelResult> {
     // Prompt caching: tools and system are stable, so they are cached as a unit. A second breakpoint on the
     // last message lets each step of a turn, and the next turn, re-read the conversation so far at a tenth of the price.
@@ -62,6 +103,8 @@ export class AnthropicModel implements ModelClient {
     };
   }
 }
+
+const SEARCH_TOOL = "web_search_20250305";
 
 /** Used when no API key is set, so the rest of the app can still be tried. Costs nothing. */
 export class DemoModel implements ModelClient {

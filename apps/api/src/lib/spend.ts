@@ -6,11 +6,11 @@ export const todayUtc = () => new Date().toISOString().slice(0, 10);
 
 /** Cached reads cost 0.1x the input price, cache writes 1.25x. */
 export function costMicros(
-  usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number },
-  price: { inputPerMtokUsd: number; outputPerMtokUsd: number },
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; searches?: number },
+  price: { inputPerMtokUsd: number; outputPerMtokUsd: number; searchUsd?: number },
 ) {
   const input = usage.inputTokens + (usage.cacheReadTokens ?? 0) * 0.1 + (usage.cacheWriteTokens ?? 0) * 1.25;
-  return Math.ceil(input * price.inputPerMtokUsd + usage.outputTokens * price.outputPerMtokUsd);
+  return Math.ceil(input * price.inputPerMtokUsd + usage.outputTokens * price.outputPerMtokUsd + (usage.searches ?? 0) * (price.searchUsd ?? 0) * 1_000_000);
 }
 
 export async function spentToday(tx: Tx, workspaceId: string) {

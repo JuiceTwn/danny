@@ -20,7 +20,7 @@ const app = await buildApp({ config, db, model, tools: createRegistry(), vault, 
 if (!config.anthropicApiKey) app.log.warn("ANTHROPIC_API_KEY not set: running in demo mode");
 if (!google) app.log.warn("GOOGLE_CLIENT_ID/SECRET not set: Gmail cannot be connected");
 if (!config.vapid) app.log.warn("VAPID keys not set: reminders show in the chat but are not pushed");
-const stopScheduler = config.scheduler ? startScheduler({ db, vault, push, log: app.log, health }) : () => {};
+const stopScheduler = config.scheduler ? startScheduler({ db, vault, push, log: app.log, health, config, model }) : () => {};
 
 const close = async () => {
   stopScheduler();

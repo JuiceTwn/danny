@@ -31,6 +31,10 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     isOwner: boolean("is_owner").notNull().default(false), // server owner: can see usage and approve invites
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    // Morning briefing. Off until the user turns it on, because it spends money while they sleep.
+    briefingEnabled: boolean("briefing_enabled").notNull().default(false),
+    briefingMinute: integer("briefing_minute").notNull().default(450), // minutes after local midnight; 450 = 07:30
+    lastBriefingDay: date("last_briefing_day"), // local date of the last briefing, so it goes out once a day
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -211,6 +215,25 @@ export const tasks = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("tasks_ws_idx").on(t.workspaceId, t.status, t.remindAt)],
+);
+
+// Something the user is working toward. Danny keeps it in mind, and can watch the web for it on a schedule.
+export const goals = pgTable(
+  "goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    titleEnc: bytea("title_enc").notNull(),
+    notesEnc: bytea("notes_enc"), // what good looks like: location, industry, budget, deal-breakers
+    watchQueryEnc: bytea("watch_query_enc"), // what to search for when checking
+    lastFindingEnc: bytea("last_finding_enc"), // what the last check reported, so the next one only says what is new
+    checkEveryHours: integer("check_every_hours"), // null = not monitored
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    status: text("status").notNull().default("open"), // open | paused | done
+    createdAt: createdAt(),
+  },
+  (t) => [index("goals_ws_idx").on(t.workspaceId, t.userId, t.status)],
 );
 
 // One row per browser or phone that agreed to notifications. The keys are encrypted like any other secret.

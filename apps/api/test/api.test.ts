@@ -198,7 +198,7 @@ describe("spend cap and kill switch", () => {
   it("defaults, then changes by the admin, and the cap is enforced in one place", async () => {
     const u = await signUp(ctx, owner, "Cap");
     const s = (await u.c.get("/v1/settings")).body;
-    expect(s).toEqual({ dailyCapUsd: 2, killSwitch: false, spentTodayUsd: 0 });
+    expect(s).toMatchObject({ dailyCapUsd: 2, killSwitch: false, spentTodayUsd: 0, model: expect.any(String) });
 
     expect((await u.c.patch("/v1/settings", { dailyCapUsd: 0.5 })).body.dailyCapUsd).toBe(0.5);
     expect((await u.c.patch("/v1/settings", { dailyCapUsd: 9999 })).status).toBe(400);

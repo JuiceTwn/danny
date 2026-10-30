@@ -5,6 +5,7 @@ import { auditLog, conversations, messages, pushSubscriptions, tasks } from "../
 import { inQuietHours, nextQuietEnd } from "./time.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import type { Health } from "./health.js";
+import { runDueBriefings, runDueGoalChecks, type BackgroundDeps } from "./background.js";
 import type { Vault } from "./vault.js";
 
 /**
@@ -38,6 +39,8 @@ type Due = { workspace_id: string; user_id: string; task_id: string; timezone: s
 type Fired = { taskId: string; text: string; title: string; label: string; subs: { id: string; sub: PushSub }[] };
 
 export type ReminderDeps = { db: Db; vault: Vault; push: PushSender; log?: FastifyBaseLogger; health?: Health };
+/** The scheduler also does Danny's own work (goal checks, briefings) when it is given a model and config. */
+export type SchedulerDeps = ReminderDeps & Partial<Pick<BackgroundDeps, "config" | "model">>;
 
 /** Fire every reminder that is due as of `now`. Returns how many fired. Safe to run from more than one process. */
 export async function runDueReminders({ db, vault, push, log }: ReminderDeps, now = new Date()) {
@@ -92,13 +95,18 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
 }
 
 /** Check for due reminders on a timer. Returns a function that stops it. */
-export function startScheduler(deps: ReminderDeps, everyMs = 30_000) {
+export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
   let running = false;
   const timer = setInterval(async () => {
     if (running) return;
     running = true;
     try {
       await runDueReminders(deps);
+      if (deps.config && deps.model) {
+        const bg = { db: deps.db, vault: deps.vault, push: deps.push, log: deps.log, config: deps.config, model: deps.model };
+        await runDueBriefings(bg);
+        await runDueGoalChecks(bg);
+      }
       deps.health?.tick();
     } catch (err) {
       deps.log?.error({ err }, "scheduler tick failed");

@@ -32,6 +32,7 @@ export async function setupApp(model: ModelClient = new DemoModel(), tools = cre
   const app = await buildApp({ config, db: runtime.db, model, tools, vault, push, google, health });
   return {
     app,
+    config,
     vault,
     runtime,
     owner,

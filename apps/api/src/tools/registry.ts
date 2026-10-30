@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Db, Tx } from "../db/client.js";
 import type { GmailErrorKind, GoogleService } from "../lib/google.js";
+import type { Searched } from "../lib/search.js";
 import type { Vault } from "../lib/vault.js";
 
 /**
@@ -21,6 +22,8 @@ export type ToolCtx = {
   google: GoogleService | null;
   /** Run database work inside this workspace, with row-level security applied. */
   tenant: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
+  /** Live web search for this user. Checks the spend cap and records the cost. Absent when the model cannot search. */
+  search?: (question: string) => Promise<Searched>;
 };
 
 export type Tool<S extends z.ZodType = z.ZodType> = {

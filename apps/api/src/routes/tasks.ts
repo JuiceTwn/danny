@@ -8,6 +8,11 @@ import { isAllowedPushEndpoint } from "../lib/push.js";
 import { completeTask, createTask, deleteTask, listTasks, snoozeTask, TaskError, type Actor } from "../lib/tasks.js";
 import { isValidTimezone } from "../lib/time.js";
 
+export const briefingView = (u: { briefingEnabled: boolean; briefingMinute: number }) => ({
+  briefingEnabled: u.briefingEnabled,
+  briefingTime: `${String(Math.floor(u.briefingMinute / 60)).padStart(2, "0")}:${String(u.briefingMinute % 60).padStart(2, "0")}`,
+});
+
 const when = z.iso.datetime({ offset: true });
 
 export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, push }) => {
@@ -78,10 +83,26 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
   // ---- The user's own timezone: reminders, quiet hours and "tomorrow" all follow it ----
 
   app.patch("/v1/profile", async (req, reply) => {
-    const { userId } = req.auth!;
-    const { timezone } = z.object({ timezone: z.string().max(64) }).parse(req.body);
-    if (!isValidTimezone(timezone)) return reply.code(400).send({ error: "invalid_request", message: "Unknown timezone." });
-    await db.update(users).set({ timezone }).where(eq(users.id, userId));
-    return { timezone };
+    const { userId, workspaceId } = req.auth!;
+    const body = z
+      .object({
+        timezone: z.string().max(64).optional(),
+        briefingEnabled: z.boolean().optional(),
+        briefingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, 24 hour").optional(),
+      })
+      .parse(req.body);
+    if (body.timezone !== undefined && !isValidTimezone(body.timezone)) return reply.code(400).send({ error: "invalid_request", message: "Unknown timezone." });
+    const set: Partial<typeof users.$inferInsert> = {};
+    if (body.timezone !== undefined) set.timezone = body.timezone;
+    if (body.briefingEnabled !== undefined) set.briefingEnabled = body.briefingEnabled;
+    if (body.briefingTime !== undefined) set.briefingMinute = Number(body.briefingTime.slice(0, 2)) * 60 + Number(body.briefingTime.slice(3));
+    if (Object.keys(set).length) {
+      await db.update(users).set(set).where(eq(users.id, userId));
+      if (body.briefingEnabled !== undefined || body.briefingTime !== undefined) {
+        await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "briefing.settings", detail: { enabled: body.briefingEnabled, time: body.briefingTime } }));
+      }
+    }
+    const [u] = await db.select({ timezone: users.timezone, briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute }).from(users).where(eq(users.id, userId));
+    return { timezone: u!.timezone, ...briefingView(u!) };
   });
 };

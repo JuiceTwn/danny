@@ -85,6 +85,13 @@
       "when": 1793374874763,
       "tag": "0011_approvals_execution",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793390738200,
+      "tag": "0012_goals_briefing",
+      "breakpoints": true
     }
   ]
 }
