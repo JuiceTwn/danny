@@ -11,7 +11,9 @@ die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 compose() { (cd "$DANNY_DIR" && docker compose "$@"); }
 
 # Value of KEY in .env, or empty.
-env_get() { [ -f "$DANNY_DIR/.env" ] && grep -E "^$1=" "$DANNY_DIR/.env" | head -1 | cut -d= -f2- || true; }
+env_get() {
+  if [ -f "$DANNY_DIR/.env" ]; then grep -E "^$1=" "$DANNY_DIR/.env" | head -1 | cut -d= -f2- || true; fi
+}
 
 # Ready means the database answers and the reminder scheduler is ticking (see /readyz in the API).
 healthy() { curl -fsS -m 5 "$LOCAL_URL/readyz" >/dev/null 2>&1; }
