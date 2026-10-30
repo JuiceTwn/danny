@@ -26,8 +26,10 @@ check "setup.sh finished" grep -q "Up. Create the first" "$W/setup.out"
 check ".env has a data key, push keys and Gmail placeholders" bash -c "grep -q '^DATA_KEYS=1:' .env && grep -q '^VAPID_PRIVATE_KEY=.' .env && grep -q '^GOOGLE_CLIENT_ID=' .env"
 . "$HERE/../common.sh"
 check "API reports ready (database up, scheduler ticking)" wait_healthy 90
+# shellcheck disable=SC2016  # single quotes on purpose: the inner bash -c expands these, not this shell
 check "container health status is 'healthy' (Dockerfile HEALTHCHECK uses /readyz)" bash -c 'for _ in $(seq 1 30); do [ "$(docker inspect -f "{{.State.Health.Status}}" "$(docker compose ps -q api)")" = healthy ] && exit 0; sleep 2; done; exit 1'
 check "/healthz answers" curl -fsS -m 5 http://127.0.0.1:8787/healthz
+# shellcheck disable=SC2016  # single quotes on purpose: the inner bash -c expands these, not this shell
 check "log rotation is configured on the containers" bash -c 'docker inspect -f "{{.HostConfig.LogConfig.Config}}" "$(docker compose ps -q api)" | grep -q "max-size:10m"'
 
 echo "using it"
