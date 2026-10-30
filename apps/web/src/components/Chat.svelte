@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { api, chatStream, type HistoryMsg } from "../lib/api";
+  import { api, chatStream, type ChatBody, type HistoryMsg, type LastRequest, type RouteInfo } from "../lib/api";
   import { app, refresh } from "../lib/store.svelte";
   import { fmtDay, fmtTime, go } from "../lib/router.svelte";
 
-  type Row = { id: number; kind: "user" | "danny" | "note" | "problem" | "approval"; text: string; at: string; code?: string };
+  type Row = { id: number; kind: "user" | "danny" | "note" | "problem" | "approval"; text: string; at: string; code?: string; route?: RouteInfo };
 
   let rows = $state<Row[]>([]);
   let input = $state("");
@@ -16,6 +16,11 @@
   let nextId = 0;
   let controller: AbortController | null = null;
   let lastSeen = 0;
+
+  /** "claude-sonnet-5-5" -> "Sonnet 5.5" */
+  const niceModel = (m: string) => m.replace(/^claude-/, "").replace(/-(\d+)-(\d+)$/, " $1.$2").replace(/^./, (c) => c.toUpperCase());
+  // The chip and the button sit under the newest answer that came from a model. Older answers can't be redone.
+  const lastRouteId = $derived(rows.findLast((r) => r.route)?.id);
 
   const starters = ["Remember that Marlene prefers texts, not calls", "Draft a reply to a customer asking for a quote", "What do you remember about me?"];
 
@@ -32,8 +37,10 @@
 
   onMount(async () => {
     try {
-      const h = await api<{ messages: HistoryMsg[] }>("GET", "/v1/chat/history?limit=100");
+      const h = await api<{ messages: HistoryMsg[]; lastRequest: LastRequest | null }>("GET", "/v1/chat/history?limit=100");
       rows = h.messages.map((m) => ({ id: nextId++, kind: m.role === "user" ? "user" : "danny", text: m.text, at: m.at }));
+      const last = rows.findLast((r) => r.kind === "danny");
+      if (last && h.lastRequest) last.route = { requestId: h.lastRequest.id, tier: h.lastRequest.tier, model: h.lastRequest.model, reason: "", downshifted: h.lastRequest.downshifted };
       lastSeen = Math.max(0, ...h.messages.map((m) => new Date(m.at).getTime()));
     } catch {
       /* start empty */
@@ -79,21 +86,42 @@
     boxEl.style.height = Math.min(boxEl.scrollHeight, 168) + "px";
   }
 
-  async function send(text: string) {
+  const send = async (text: string) => {
     text = text.trim();
     if (!text || busy) return;
     input = "";
     await tick();
     grow();
+    push("user", text);
+    await run({ message: text });
+  };
+
+  // "Answer better": the same request again, one model size up.
+  const improve = (r: Row) => {
+    if (busy || !r.route) return;
+    push("note", "Trying again on a bigger model.");
+    return run({ retryOf: r.route.requestId });
+  };
+
+  async function run(body: ChatBody) {
     stick = true;
     busy = true;
-    push("user", text);
     let live: Row | null = null;
+    let route: RouteInfo | undefined;
     controller = new AbortController();
     try {
-      for await (const ev of chatStream(text, controller.signal)) {
-        if (ev.type === "text") {
-          live ??= push("danny", "");
+      for await (const ev of chatStream(body, controller.signal)) {
+        if (ev.type === "route") {
+          route = ev;
+        } else if (ev.type === "retry") {
+          // A model call failed and is being tried again. Throw away what it had streamed.
+          if (live) rows = rows.filter((r) => r.id !== live!.id);
+          live = null;
+        } else if (ev.type === "text") {
+          if (!live) {
+            live = push("danny", "");
+            live.route = route;
+          }
           live.text += ev.text;
         } else {
           live = null;
@@ -149,7 +177,16 @@
         {#if r.kind === "user" || r.kind === "danny"}
           <div class="row {r.kind}" aria-live={r.kind === "danny" && busy ? "polite" : undefined}>
             <div class="who mono">{r.kind === "user" ? "You" : "Danny"}<span>{fmtTime(r.at)}</span></div>
-            <p class="text">{r.text}</p>
+            <div class="body">
+              <p class="text">{r.text}</p>
+              {#if r.route && r.id === lastRouteId}
+                <div class="meta mono">
+                  <span>{niceModel(r.route.model)}</span>
+                  {#if r.route.downshifted}<span class="tag off">Near your cap</span>{/if}
+                  {#if r.route.tier !== "opus" && !busy}<button class="better" onclick={() => improve(r)}>Answer better</button>{/if}
+                </div>
+              {/if}
+            </div>
           </div>
         {:else if r.kind === "note"}
           <div class="row note"><div class="who mono">Noted</div><p class="text">{r.text}</p></div>
@@ -202,6 +239,10 @@
   .who.need { color: var(--need); }
   .row.user .who { color: var(--paper); }
   .row.user .text { border-left: 3px solid var(--paper); padding-left: 14px; }
+  .body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+  .better { min-height: 44px; padding: 0 14px; background: none; border: 1px solid var(--line); color: var(--paper); font: 500 .75rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+  .better:hover { border-color: var(--run); color: var(--run); }
   .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.0625rem; line-height: 1.55; }
   .row.note .text { color: var(--muted); }
   .row.approval .text, .row.problem .text { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }

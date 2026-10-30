@@ -8,3 +8,11 @@ export const APP_URL = (() => {
   u.password = "danny_app_test";
   return u.toString();
 })();
+// Migrations run as the table owner, the way setup.sh and docker-compose do it: a role that is NOT a superuser.
+// A superuser would skip row-level security and hide mistakes in anything that runs with the owner's rights.
+export const MIGRATE_URL = (() => {
+  const u = new URL(OWNER_URL);
+  u.username = "danny_owner";
+  u.password = "danny_owner_test";
+  return u.toString();
+})();

@@ -41,6 +41,7 @@ export const workspaces = pgTable("workspaces", {
   name: text("name").notNull(),
   plan: text("plan").notNull().default("invite"),
   dailyCapMicros: bigint("daily_cap_micros", { mode: "number" }).notNull().default(2_000_000), // US$2.00
+  monthlyCapMicros: bigint("monthly_cap_micros", { mode: "number" }).notNull().default(30_000_000), // US$30.00, calendar month in UTC
   killSwitch: boolean("kill_switch").notNull().default(false),
   // Autonomy. Off until an admin turns it on. The limit is on review runs per UTC day, whatever started them.
   agentEnabled: boolean("agent_enabled").notNull().default(false),
@@ -232,4 +233,32 @@ export const goalSteps = pgTable(
   (t) => [index("goal_steps_goal_idx").on(t.goalId, t.position)],
 );
 
-export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger", "connections", "goals", "goal_steps"] as const;
+// One row per request Danny handled (a chat turn, an "answer better", or a self-review): which model the router picked and why,
+// what it really cost, and whether the user pushed it up a tier. Append-only, so the numbers can be trusted when tightening the rules.
+export const requestLog = pgTable(
+  "request_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    source: text("source").notNull().default("chat"), // chat | agent (a review Danny ran on his own)
+    feature: text("feature").notNull(), // chat | quick_chat | reminder | lookup | client_post | email | planning | multi_step | long_attachment
+    tier: text("tier").notNull(), // haiku | sonnet | opus: the tier that actually answered
+    model: text("model").notNull(),
+    reason: text("reason").notNull(), // the rule that picked the tier, e.g. keyword:draft
+    downshifted: boolean("downshifted").notNull().default(false), // pushed down a tier because the user was near a cap
+    escalated: boolean("escalated").notNull().default(false), // moved up to Opus after Sonnet failed twice
+    // Set on the request that re-ran an earlier one because the user tapped "Answer better". The earlier row is the one they were unhappy with.
+    retryOf: uuid("retry_of"),
+    status: text("status").notNull().default("ok"), // ok | failed | blocked
+    failures: integer("failures").notNull().default(0), // model calls that failed along the way
+    calls: integer("calls").notNull().default(0),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    costMicros: bigint("cost_micros", { mode: "number" }).notNull().default(0),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("request_log_ws_idx").on(t.workspaceId, t.at), index("request_log_retry_idx").on(t.retryOf)],
+);
+
+export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger", "connections", "goals", "goal_steps", "request_log"] as const;

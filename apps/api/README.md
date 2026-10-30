@@ -21,11 +21,12 @@ Routes (all JSON, session cookie, same-origin check on writes):
 | `POST /v1/auth/accept-invite`, `login`, `logout` · `GET /v1/me` | |
 | `GET/POST /v1/memory`, `DELETE /v1/memory/:id` | |
 | `GET/POST /v1/approvals`, `POST /v1/approvals/:id/decision` | recorded, never executed |
-| `POST /v1/chat` (streams events), `GET /v1/chat/history`, `GET /v1/tools` | the model loop; see `src/tools/registry.ts` for how to add a tool |
+| `POST /v1/chat` (streams events), `GET /v1/chat/history`, `GET /v1/tools` | the model loop; send `retryOf` for "answer better", `model: "opus"` to ask for Opus, `attachments` for extracted file text. See `src/tools/registry.ts` for how to add a tool |
+| `GET /v1/usage` | your month: spend against the cap, requests by model |
 | `GET/POST /v1/goals`, `PATCH /v1/goals/:id`, `POST /v1/goals/:id/steps`, `PATCH /v1/goals/:id/steps/:stepId` | goals and plans |
 | `POST /v1/agent/run` | "review now": one self-review, under the same cap and daily run limit |
 | `GET/PATCH /v1/settings` | daily spend cap, kill switch, self-review on/off and runs per day |
-| `GET /v1/admin/invite-requests`, `POST .../:id/approve`, `POST /v1/admin/invites`, `GET /v1/admin/usage` | owner only |
+| `GET /v1/admin/invite-requests`, `POST .../:id/approve`, `POST /v1/admin/invites`, `GET /v1/admin/usage`, `GET /v1/admin/routing` | owner only |
 
 ## Working on his own
 

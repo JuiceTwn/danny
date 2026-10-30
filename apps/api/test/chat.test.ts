@@ -67,7 +67,8 @@ describe("chat", () => {
     script = scripted([text("Morning. What's first?", 1000, 200)]);
     const r = await chat(u.c, "hey danny");
     expect(r.raw.headers["content-type"]).toBe("text/event-stream");
-    expect(r.events).toEqual([{ type: "text", text: "Morning. What's first?" }, { type: "done" }]);
+    expect(r.events[0]).toMatchObject({ type: "route", tier: "haiku", model: "claude-haiku-5-5", reason: "short_simple" });
+    expect(r.events.slice(1)).toEqual([{ type: "text", text: "Morning. What's first?" }, { type: "done" }]);
     const hist = (await u.c.get("/v1/chat/history")).body.messages;
     expect(hist.map((m: any) => [m.role, m.text])).toEqual([["user", "hey danny"], ["assistant", "Morning. What's first?"]]);
     // Haiku 5.5: 1000 in x $0.10/Mtok + 200 out x $0.50/Mtok = $0.0002
@@ -160,7 +161,9 @@ describe("chat", () => {
     const u = await signUp(ctx, owner, "Fail");
     script = scripted([async () => { throw new Error("upstream 529"); }]);
     const r = await chat(u.c, "hi");
-    expect(r.events).toEqual([{ type: "error", code: "model_failed", message: expect.any(String) }]);
+    // one retry on the same model, then it gives up; the retry event tells the app to drop anything half-streamed
+    expect(r.events.map((e: any) => e.type)).toEqual(["route", "retry", "error"]);
+    expect(r.events.at(-1)).toMatchObject({ code: "model_failed" });
     expect(await ctx.owner.db.select().from(spendLedger).where(eq(spendLedger.userId, u.userId))).toHaveLength(0);
   });
 

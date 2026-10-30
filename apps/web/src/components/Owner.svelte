@@ -5,9 +5,11 @@
 
   type Req = { id: string; email: string; status: string; createdAt: string };
   type Use = { userId: string; email: string; todayUsd: number; last30DaysUsd: number };
+  type Routing = { userId: string; email: string; monthUsd: number; monthlyCapUsd: number; requests: number; haiku: number; sonnet: number; opus: number; answerBetter: number; downshifted: number; escalated: number };
 
   let requests = $state<Req[]>([]);
   let usage = $state<Use[]>([]);
+  let routing = $state<Routing[]>([]);
   let email = $state("");
   let link = $state<{ email: string; url: string } | null>(null);
   let copied = $state(false);
@@ -17,6 +19,7 @@
     try {
       requests = (await api<{ items: Req[] }>("GET", "/v1/admin/invite-requests")).items;
       usage = (await api<{ users: Use[] }>("GET", "/v1/admin/usage")).users;
+      routing = (await api<{ users: Routing[] }>("GET", "/v1/admin/routing")).users;
     } catch {
       error = "Couldn't load owner data.";
     }
@@ -92,6 +95,21 @@
           <thead><tr><th>Person</th><th>Today</th><th>30 days</th></tr></thead>
           <tbody>
             {#each usage as u (u.userId)}<tr><td>{u.email}</td><td>{usd(u.todayUsd)}</td><td>{usd(u.last30DaysUsd)}</td></tr>{/each}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="display">Models by person, this month</h2>
+      <p class="muted">Answer better is how often they asked for a redo. Down is requests pushed to a smaller model near a cap. Up is requests moved to Opus after Sonnet failed.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Person</th><th>Spent / cap</th><th>Req</th><th>Haiku</th><th>Sonnet</th><th>Opus</th><th>Better</th><th>Down</th><th>Up</th></tr></thead>
+          <tbody>
+            {#each routing as u (u.userId)}
+              <tr><td>{u.email}</td><td>{usd(u.monthUsd)} / {usd(u.monthlyCapUsd)}</td><td>{u.requests}</td><td>{u.haiku}</td><td>{u.sonnet}</td><td>{u.opus}</td><td>{u.answerBetter}</td><td>{u.downshifted}</td><td>{u.escalated}</td></tr>
+            {/each}
           </tbody>
         </table>
       </div>

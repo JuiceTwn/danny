@@ -38,6 +38,26 @@ export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config })
     return createInvite(email, req.auth!.userId);
   });
 
+  // Which models each user's requests went to this month, against their monthly cap. For tightening the routing rules (migration 0009).
+  app.get("/v1/admin/routing", async () => {
+    const rows = await db.execute<Record<string, string>>(sql`select * from admin_routing_usage()`);
+    return {
+      users: rows.map((r) => ({
+        userId: r.user_id,
+        email: r.email,
+        monthUsd: usd(Number(r.month_micros)),
+        monthlyCapUsd: usd(Number(r.monthly_cap_micros)),
+        requests: Number(r.requests),
+        haiku: Number(r.haiku),
+        sonnet: Number(r.sonnet),
+        opus: Number(r.opus),
+        answerBetter: Number(r.answer_better),
+        downshifted: Number(r.downshifted),
+        escalated: Number(r.escalated),
+      })),
+    };
+  });
+
   // Spend per user across all workspaces, via a read-only database function (see migration 0002).
   app.get("/v1/admin/usage", async () => {
     const rows = await db.execute<{ user_id: string; email: string; today_micros: string; month_micros: string }>(sql`select * from admin_usage()`);

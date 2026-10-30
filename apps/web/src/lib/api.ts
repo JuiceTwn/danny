@@ -22,20 +22,28 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
+export type Tier = "haiku" | "sonnet" | "opus";
+/** Which model answered and why. Sent at the start of every answer, and again if Danny had to move up to Opus. */
+export type RouteInfo = { requestId: string; tier: Tier; model: string; reason: string; downshifted: boolean; escalated?: boolean };
 export type ChatEvent =
+  | ({ type: "route" } & RouteInfo & { feature: string })
+  | { type: "retry" }
   | { type: "text"; text: string }
   | { type: "tool"; name: string; status: "ran" | "queued" | "error" }
   | { type: "approval"; id: string; title: string }
   | { type: "done" }
   | { type: "error"; code: string; message: string };
 
-/** POST a message and yield server-sent events as they arrive. */
-export async function* chatStream(message: string, signal: AbortSignal): AsyncGenerator<ChatEvent> {
+export type ChatBody = { message?: string; retryOf?: string; model?: "opus" };
+
+/** POST a message (or an "answer better" retry) and yield server-sent events as they arrive. */
+export async function* chatStream(input: string | ChatBody, signal: AbortSignal): AsyncGenerator<ChatEvent> {
+  const body: ChatBody = typeof input === "string" ? { message: input } : input;
   const res = await fetch("/v1/chat", {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
     signal,
   });
   if (res.status === 401) onUnauthorized();
@@ -62,6 +70,8 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
 export type Me = { user: { id: string; email: string; name: string }; workspaceId: string; role: string; isOwner: boolean };
 export type Settings = {
   dailyCapUsd: number;
+  monthlyCapUsd: number;
+  spentMonthUsd: number;
   killSwitch: boolean;
   spentTodayUsd: number;
   agentEnabled: boolean;
@@ -85,4 +95,5 @@ export type Goal = {
 export type AgentRun = { ran: true; message: string | null; costUsd: number; steps: number } | { ran: false; reason: string };
 export type Approval = { id: string; kind: string; title: string; payload: Record<string, unknown>; status: string; createdAt: string; decidedAt: string | null; executed: boolean };
 export type MemoryItem = { id: string; content: string; createdAt: string };
+export type LastRequest = { id: string; tier: Tier; model: string; feature: string; downshifted: boolean };
 export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string };

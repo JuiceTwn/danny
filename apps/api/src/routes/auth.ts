@@ -77,7 +77,7 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
       const [u] = await tx.insert(users).values({ email: invite.email, name: body.name, passwordHash }).returning({ id: users.id });
       const [w] = await tx
         .insert(workspaces)
-        .values({ name: body.name ? `${body.name}'s Danny` : "My Danny", dailyCapMicros: deps.config.defaultDailyCapMicros })
+        .values({ name: body.name ? `${body.name}'s Danny` : "My Danny", dailyCapMicros: deps.config.defaultDailyCapMicros, monthlyCapMicros: deps.config.defaultMonthlyCapMicros })
         .returning({ id: workspaces.id });
       await tx.insert(memberships).values({ workspaceId: w!.id, userId: u!.id, role: "admin" });
       await tx.update(inviteRequests).set({ status: "approved" }).where(eq(inviteRequests.email, invite.email));

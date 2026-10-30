@@ -14,7 +14,7 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 | Sessions | Opaque random token in an HttpOnly cookie, SHA-256 hashed in the database | Revocable, and a database leak does not leak usable sessions. |
 | Web app | Svelte 5 + Vite + TypeScript, one responsive interface | The same build is the phone PWA and the desktop app: sidebar on wide screens, bottom tabs on phones. 72 KB of JavaScript. Served by the API on the same origin, so cookies and the origin check stay simple. |
 | Jobs | A timer inside the API process (`brain/heartbeat.ts`), with an atomic per-workspace claim in Postgres | One server, so no queue to run. A run is claimed with one `UPDATE`, so two processes can't both start it. Move to pg-boss if jobs ever need retries or fan-out. |
-| Model API | `@anthropic-ai/sdk`, streaming, SSE to the browser | Two models: `MODEL` for chat, `PLANNER_MODEL` for self-review. |
+| Model API | `@anthropic-ai/sdk`, streaming, SSE to the browser | Three tiers chosen per request by `brain/router.ts`: Haiku, Sonnet, Opus. |
 
 ## How multi-tenancy works
 
@@ -35,6 +35,14 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 - **Not encrypted:** account emails, approval titles, timestamps and the audit log's action names. These stay readable so the app can list and search them. Passwords are hashed (argon2id), not encrypted.
 - **Limits.** The server holds the key while it runs, so this protects data at rest and in backups, not against someone with live access to the running server. Everything also travels over HTTPS.
 - **Lost key = lost data.** Back up `DATA_KEYS` separately from the database.
+
+## How a model is chosen
+
+- `brain/router.ts` is plain rules, no model call. Feature first, then (for free text) message length, attachments, keywords and whether tools are needed, then the Haiku prompt limit, then "answer better", then the budget.
+- Quick chat, reminders, lookups: Haiku. Drafts, emails, posts, planning, multi-step or tool work, attachments, and anything unsure: Sonnet. Opus: only if the user asks, or Sonnet has failed twice.
+- Budget has the last word but never refuses early: at 80% of the daily or monthly cap a request drops a tier, at 95% it is Haiku, at 100% Danny stops.
+- Every request writes a `request_log` row (model, reason, tokens, cost, downshifted, escalated, retry_of) next to the `spend_ledger` rows the caps are enforced from.
+- Owner-only database functions (`admin_usage`, `admin_routing_usage`) run as the table owner. Both tables have forced row-level security, so migration 0010 adds a SELECT-only policy for the owner role.
 
 ## How Danny works on his own
 

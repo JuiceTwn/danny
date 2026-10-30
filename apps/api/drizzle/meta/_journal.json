@@ -64,6 +64,20 @@
       "when": 1793400000000,
       "tag": "0008_goals_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0009_request_log_monthly_cap",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793600000000,
+      "tag": "0010_owner_read_for_admin_functions",
+      "breakpoints": true
     }
   ]
 }

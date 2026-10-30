@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+Danny picks the model for each request.
+
+- A router (`brain/router.ts`) chooses Haiku, Sonnet or Opus with fixed rules and no extra model call. By feature first: quick chat, reminders and lookups to Haiku; client posts, emails, planning, multi-step or tool work and attachments to Sonnet. Free-text chat is decided by length, attachments, keywords (draft, plan, email, post...) and whether it needs tools, and defaults up to Sonnet when unsure.
+- Opus only when the user asks for it by name ("use Opus", "Opus: ...", or `model: "opus"`), or after Sonnet has failed twice on a request.
+- "Answer better" button under the newest answer re-runs the request one tier up. It is a follow-up in the same chat, so nothing Danny already did is repeated blindly.
+- Haiku prompts are kept under 100K tokens (it costs more above that): a long prompt goes to Sonnet instead, or, if the budget forces Haiku, the oldest history is trimmed. Haiku's long-prompt rate is in the price table.
+- Every request is logged (`request_log`, append-only): who, feature, model, why, tokens in and out, cost, failures, whether it was moved down for budget or up after failures, and whether it re-ran because the user tapped "Answer better". Blocked and failed requests are logged too.
+- Monthly spend cap per workspace (default US$30) next to the daily one. At 80% of either, requests drop one tier; at 95%, Haiku only. At 100% Danny still stops. Self view at `/v1/usage`; owner view in the Owner tab (`/v1/admin/routing`).
+- Attachments (text already extracted from a file) can be sent with a message. They are labeled as the user's data, and the history shows a count, not the file.
+- `MODEL` and `PLANNER_MODEL` are replaced by `HAIKU_MODEL`, `SONNET_MODEL` and `OPUS_MODEL`. Self-reviews are planning work, so they route to Sonnet.
+
+Fixed:
+
+- The owner's "Spend by person" screen showed zeros on any real deployment. The owner-only database functions run as the table owner, and row-level security applies to the owner too; the tests missed it because they migrated as a superuser. Migration 0010 gives the owner role read access to the two tables those functions read (the app role is unchanged), and the tests now migrate as a non-superuser owner like production.
+
 Danny works on his own.
 
 - Goals and plans: each goal has steps, notes and a next-review time. Encrypted like memory, isolated by row-level security. Limits: 12 active goals, 15 steps each.

@@ -5,7 +5,7 @@ import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, workspaces } from "../db/schema.js";
 import { agentRunsToday } from "../brain/agent.js";
-import { spentToday } from "../lib/spend.js";
+import { spentThisMonth, spentToday } from "../lib/spend.js";
 
 const usd = (micros: number) => micros / 1_000_000;
 
@@ -15,8 +15,11 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
     return withTenant(db, workspaceId, async (tx) => {
       const [ws] = await tx.select().from(workspaces).where(eq(workspaces.id, workspaceId));
       const spent = await spentToday(tx, workspaceId);
+      const month = await spentThisMonth(tx, workspaceId);
       return {
         dailyCapUsd: usd(ws!.dailyCapMicros),
+        monthlyCapUsd: usd(ws!.monthlyCapMicros),
+        spentMonthUsd: usd(month),
         killSwitch: ws!.killSwitch,
         spentTodayUsd: usd(spent),
         // Whether Danny may review goals and draft on his own, and how often.
@@ -38,6 +41,7 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
     const body = z
       .object({
         dailyCapUsd: z.number().min(0).max(usd(config.maxDailyCapMicros)).optional(),
+        monthlyCapUsd: z.number().min(0).max(usd(config.maxMonthlyCapMicros)).optional(),
         killSwitch: z.boolean().optional(),
         agentEnabled: z.boolean().optional(),
         agentRunsPerDay: z.number().int().min(1).max(24).optional(),
@@ -46,6 +50,7 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
     await withTenant(db, workspaceId, async (tx) => {
       const set: Partial<typeof workspaces.$inferInsert> = {};
       if (body.dailyCapUsd !== undefined) set.dailyCapMicros = Math.round(body.dailyCapUsd * 1_000_000);
+      if (body.monthlyCapUsd !== undefined) set.monthlyCapMicros = Math.round(body.monthlyCapUsd * 1_000_000);
       if (body.killSwitch !== undefined) set.killSwitch = body.killSwitch;
       if (body.agentEnabled !== undefined) set.agentEnabled = body.agentEnabled;
       if (body.agentRunsPerDay !== undefined) set.agentRunsPerDay = body.agentRunsPerDay;

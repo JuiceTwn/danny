@@ -1,17 +1,21 @@
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { withTenant } from "../db/client.js";
 import { approvals, auditLog, conversations, memory, messages, workspaces } from "../db/schema.js";
 import { dueGoalCount, listGoals, settleReviewed } from "../lib/goals.js";
+import { logRequest, newMeter } from "../lib/requestlog.js";
 import { checkBudget, costMicros, recordSpend } from "../lib/spend.js";
 import { renderGoals } from "../tools/goals.js";
 import type { ToolCtx } from "../tools/registry.js";
+import { callWithEscalation, newCallState } from "./call.js";
 import type { Block, Msg, ToolResultBlock } from "./model.js";
+import { estimateTokens, route } from "./router.js";
 import { runTool, type BrainDeps } from "./run.js";
 
 export type Trigger = "due" | "approval_decided" | "manual";
 export type AgentResult =
   | { ran: true; message: string | null; costUsd: number; steps: number }
-  | { ran: false; reason: "kill_switch" | "cap_reached" | "disabled" | "run_limit" | "recent" | "nothing_due" | "model_failed" };
+  | { ran: false; reason: "kill_switch" | "cap_reached" | "month_cap_reached" | "disabled" | "run_limit" | "recent" | "nothing_due" | "model_failed" };
 
 const MAX_STEPS = 8;
 const MAX_TOKENS = 4096;
@@ -129,7 +133,8 @@ export async function runAgent(deps: BrainDeps, who: { workspaceId: string; user
           return text ? `${r.role === "user" ? "Boss" : "Danny"}: ${text.slice(0, 400)}` : "";
         })
         .filter(Boolean),
-      leftUsd: b.ok ? (b.capMicros - b.spentMicros) / 1e6 : 0,
+      leftUsd: b.ok ? Math.min(b.capMicros - b.spentMicros, b.monthCapMicros - b.monthMicros) / 1e6 : 0,
+      level: b.ok ? b.level : ("critical" as const),
     };
   });
 
@@ -144,6 +149,11 @@ export async function runAgent(deps: BrainDeps, who: { workspaceId: string; user
   ].join("\n");
 
   const convo: Msg[] = [{ role: "user", content: brief }];
+  // Reviews are planning work, so they go to Sonnet. Near a cap they drop a tier like everything else.
+  const toolDefs = tools.definitions();
+  const decision = route({ feature: "planning", message: "", promptTokens: estimateTokens(AGENT_SYSTEM.length + brief.length + JSON.stringify(toolDefs).length), level: state.level });
+  const callState = newCallState(decision.tier, decision.canEscalate);
+  const meter = newMeter();
   let costTotal = 0;
   let finalText = "";
   let steps = 0;
@@ -157,14 +167,24 @@ export async function runAgent(deps: BrainDeps, who: { workspaceId: string; user
     }
     let res;
     try {
-      res = await model.complete({ model: config.plannerModel, system: AGENT_SYSTEM, messages: convo, tools: tools.definitions(), maxTokens: MAX_TOKENS, effort: "medium" }, () => {});
+      res = await callWithEscalation(
+        model,
+        config.models,
+        callState,
+        (tier, modelId) => ({ model: modelId, system: AGENT_SYSTEM, messages: convo, tools: toolDefs, maxTokens: MAX_TOKENS, effort: tier === "haiku" ? "low" : "medium" }),
+        () => {},
+      );
     } catch {
       failed = true;
       break;
     }
-    const cost = costMicros(res.usage, config.priceFor(config.plannerModel));
+    const cost = costMicros(res.usage, config.priceFor(res.model));
     costTotal += cost;
-    await tenant((tx) => recordSpend(tx, { workspaceId, userId, model: config.plannerModel, ...res.usage, costMicros: cost }));
+    meter.calls++;
+    meter.inputTokens += res.usage.inputTokens;
+    meter.outputTokens += res.usage.outputTokens;
+    meter.costMicros += cost;
+    await tenant((tx) => recordSpend(tx, { workspaceId, userId, model: res.model, ...res.usage, costMicros: cost }));
 
     const calls = res.content.filter((b) => b.type === "tool_use");
     if (res.stopReason !== "tool_use" || calls.length === 0) {
@@ -194,7 +214,19 @@ export async function runAgent(deps: BrainDeps, who: { workspaceId: string; user
       workspaceId,
       userId,
       action: "agent.run",
-      detail: { trigger, model: config.plannerModel, steps: steps + 1, costMicros: costTotal, spoke: message !== null, failed },
+      detail: { trigger, model: config.models[callState.tier], steps: steps + 1, costMicros: costTotal, spoke: message !== null, failed },
+    });
+    await logRequest(tx, {
+      id: randomUUID(),
+      workspaceId,
+      userId,
+      source: "agent",
+      route: decision,
+      tier: callState.tier,
+      model: config.models[callState.tier],
+      state: callState,
+      meter,
+      status: failed ? "failed" : "ok",
     });
     if (message) {
       let convId = state.convId;

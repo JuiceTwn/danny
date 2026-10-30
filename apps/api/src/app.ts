@@ -21,6 +21,7 @@ import { goalRoutes } from "./routes/goals.js";
 import { inviteRequestRoutes } from "./routes/invite-requests.js";
 import { memoryRoutes } from "./routes/memory.js";
 import { settingsRoutes } from "./routes/settings.js";
+import { usageRoutes } from "./routes/usage.js";
 
 export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault };
 
@@ -99,6 +100,7 @@ export async function buildApp(deps: Deps) {
     await r.register(connectionRoutes, deps);
     await r.register(approvalRoutes, deps);
     await r.register(settingsRoutes, deps);
+    await r.register(usageRoutes, deps);
     await r.register(adminRoutes, deps);
   });
 

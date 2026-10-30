@@ -6,18 +6,23 @@
 
   const s = $derived(app.settings);
   let cap = $state("");
+  let monthCap = $state("");
   let saving = $state(false);
   let msg = $state("");
   let error = $state("");
 
   $effect(() => {
     if (s && cap === "") cap = String(s.dailyCapUsd);
+    if (s && monthCap === "") monthCap = String(s.monthlyCapUsd);
   });
 
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
   const device = ios ? "ios" : /Android/.test(ua) ? "android" : "desktop";
   const pct = $derived(s && s.dailyCapUsd > 0 ? Math.min(100, (s.spentTodayUsd / s.dailyCapUsd) * 100) : 0);
+  const monthPct = $derived(s && s.monthlyCapUsd > 0 ? Math.min(100, (s.spentMonthUsd / s.monthlyCapUsd) * 100) : 0);
+  // The same thresholds the server uses: at 80% Danny drops a model size on each request, at 95% he uses only the smallest.
+  const nearness = $derived(Math.max(pct, monthPct) >= 95 ? "critical" : Math.max(pct, monthPct) >= 80 ? "near" : "ok");
 
   async function toggle() {
     if (!s) return;
@@ -78,6 +83,21 @@
       await loadConns();
     } catch {
       error = "Couldn't unlink that.";
+    }
+  }
+
+  async function saveMonthCap(e: SubmitEvent) {
+    e.preventDefault();
+    saving = true;
+    msg = error = "";
+    try {
+      await api("PATCH", "/v1/settings", { monthlyCapUsd: Number(monthCap) });
+      await refresh();
+      msg = "Saved.";
+    } catch {
+      error = "That number isn't allowed. Try something smaller.";
+    } finally {
+      saving = false;
     }
   }
 
@@ -160,6 +180,24 @@
         <button class="btn" disabled={saving}>Save</button>
       </form>
       {#if msg}<p class="mono" role="status">{msg}</p>{/if}
+    </section>
+
+    <section>
+      <h2 class="display">Monthly spend cap</h2>
+      <p>Resets on the 1st (UTC). Danny picks the model for each request: the small one for quick things, a bigger one for drafts and plans. Close to either cap he drops a size instead of stopping, and he only stops at the cap itself.</p>
+      {#if s}
+        <div class="meter" role="img" aria-label="{usd(s.spentMonthUsd)} of {usd(s.monthlyCapUsd)} used this month"><b style:width="{monthPct}%"></b></div>
+        <p class="mono">{usd(s.spentMonthUsd)} used of {usd(s.monthlyCapUsd)} this month</p>
+        {#if nearness === "near"}<p class="error" role="status">Nearing a cap. Danny is using a smaller model than usual.</p>{/if}
+        {#if nearness === "critical"}<p class="error" role="status">Close to a cap. Danny is using the smallest model for everything until it resets.</p>{/if}
+      {/if}
+      <form class="capform" onsubmit={saveMonthCap}>
+        <div class="field">
+          <label for="mcap">Cap in US dollars</label>
+          <input id="mcap" class="input" type="number" min="0" step="1" inputmode="decimal" bind:value={monthCap} />
+        </div>
+        <button class="btn" disabled={saving}>Save</button>
+      </form>
     </section>
 
     <section>
