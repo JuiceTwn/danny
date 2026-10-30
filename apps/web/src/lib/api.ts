@@ -22,10 +22,21 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
+/** The cards Danny can show under a message. The app draws exactly these (see components/Cards.svelte); the server only sends these. */
+export type Card =
+  | { kind: "task"; id: string; title: string; remindAt: string | null; dueAt: string | null }
+  | { kind: "events"; day: string; items: { when: string; title: string; where?: string; others?: number }[] }
+  | { kind: "weather"; place: string; summary: string; high: string; low: string; rain: number | null }
+  | { kind: "list"; title?: string; style: "bullets" | "check" | "steps"; items: { text: string; sub?: string; href?: string }[] }
+  | { kind: "table"; title?: string; columns: string[]; rows: string[][] }
+  | { kind: "place"; name: string; address?: string; note?: string }
+  | { kind: "replies"; options: string[] };
+
 export type ChatEvent =
   | { type: "text"; text: string }
   | { type: "tool"; name: string; status: "ran" | "queued" | "error" }
   | { type: "approval"; id: string; title: string }
+  | { type: "card"; card: Card }
   | { type: "done" }
   | { type: "error"; code: string; message: string };
 
@@ -66,7 +77,7 @@ export type Connection = { id: string; provider: string; label: string; status: 
 export type MemoryKind = "fact" | "preference" | "person" | "plan" | "place";
 export type MemoryItem = { id: string; content: string; kind: MemoryKind; subject: string | null; pinned: boolean; expiresOn: string | null; expired: boolean; createdAt: string; updatedAt: string };
 export type TidiedItem = MemoryItem & { archived: boolean; reason: string | null; previous: string | null };
-export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string };
+export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string; cards?: Card[] };
 export type Goal = { id: string; title: string; notes: string | null; watchQuery: string | null; checkEveryHours: number | null; status: string; lastCheckedAt: string | null; lastFinding: string | null };
 export type ConnectorField = { key: string; label: string; secret: boolean; placeholder?: string };
 export type Connector = {

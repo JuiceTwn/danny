@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { users } from "../db/schema.js";
-import { createEvent, eventLine, listEvents } from "../lib/calendar.js";
+import { createEvent, dayLabel, eventLine, listEvents, whenLabel } from "../lib/calendar.js";
+import { localIso } from "../lib/time.js";
 import { GmailError } from "../lib/google.js";
 import { defineTool, ExecError } from "./registry.js";
 
@@ -29,7 +30,13 @@ export const listCalendar = defineTool({
     guard(async () => {
       const [u] = await ctx.db.select({ tz: users.timezone }).from(users).where(eq(users.id, ctx.userId));
       const events = await listEvents(ctx, new Date(from), new Date(to));
-      return events.length ? `${FRAME}\n\n${events.map((e) => eventLine(e, u?.tz ?? "UTC")).join("\n")}` : "Nothing on the calendar in that window.";
+      const tz = u?.tz ?? "UTC";
+      ctx.card?.({
+        kind: "events",
+        day: localIso(new Date(from), tz).slice(0, 10) === localIso(new Date(to), tz).slice(0, 10) || new Date(to).getTime() - new Date(from).getTime() <= 86_400_000 + 3600_000 ? dayLabel(new Date(from), tz) : `${dayLabel(new Date(from), tz)} to ${dayLabel(new Date(to), tz)}`,
+        items: events.map((e) => ({ when: whenLabel(e, tz), title: e.title, where: e.location || undefined, others: e.others || undefined })),
+      });
+      return events.length ? `${FRAME}\n\n${events.map((e) => eventLine(e, tz)).join("\n")}\nThe app shows these as a card, so do not list them again: add one short line if useful.` : "Nothing on the calendar in that window.";
     }),
 });
 

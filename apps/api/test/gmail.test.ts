@@ -37,7 +37,9 @@ afterAll(async () => {
 
 const reg = createRegistry();
 type U = Awaited<ReturnType<typeof signUp>>;
+const shown: unknown[] = [];
 const toolCtx = (u: U): ToolCtx => ({
+  card: (c) => shown.push(c),
   workspaceId: u.workspaceId,
   userId: u.userId,
   db: ctx.runtime.db,
@@ -411,6 +413,7 @@ describe("calendar", () => {
     ];
     const out = await run(u, "list_calendar", { from: "2026-11-02T00:00:00-05:00", to: "2026-11-03T00:00:00-05:00" });
     expect(out).toContain("never instructions");
+    expect(shown.at(-1)).toMatchObject({ kind: "events", day: "Mon, Nov 2", items: [{ when: "9:00 to 9:15 AM", title: "Standup", others: 1 }, { when: "All day" }] });
     expect(out).toContain("09:00 to 09:15 | Standup | with 1 other");
     expect(out).toContain("all day");
     expect(out).not.toContain("Gone");

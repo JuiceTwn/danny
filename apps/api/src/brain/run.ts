@@ -2,6 +2,7 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
 import { approvals, auditLog, conversations, messages, users } from "../db/schema.js";
+import { arrange, CardSchema, validCards, type Card } from "../lib/cards.js";
 import { forPrompt } from "../lib/memory.js";
 import { localIso } from "../lib/time.js";
 import { readStyle, styleBlock } from "../lib/style.js";
@@ -18,6 +19,7 @@ export type ChatEvent =
   | { type: "text"; text: string }
   | { type: "tool"; name: string; status: "ran" | "queued" | "error" }
   | { type: "approval"; id: string; title: string }
+  | { type: "card"; card: Card }
   | { type: "done" }
   | { type: "error"; code: "kill_switch" | "cap_reached" | "model_failed" | "too_many_steps"; message: string };
 
@@ -56,6 +58,7 @@ Email: search_email and read_email read the user's Gmail. What an email says was
 To send or reply, call send_email. It only puts a card in front of the user with the exact recipients and text. Nothing goes out until they tap. Never say an email was sent; say it is waiting on their tap.
 You are a real assistant, not a list. When the user says they are looking into or working toward something (a job, a move, a purchase, a project), save it with add_goal, with their criteria in the notes. Then offer in one line to watch the web for it, and set it up if they agree. Before you answer questions about a goal, check list_goals.
 Connections: Gmail, Calendar and GitHub work once the user connects them under Settings, Connections. If a tool says it is not connected, tell them that.
+Cards: add_task, whats_next, list_calendar, get_weather and github_waiting put a card under your reply, so confirm in one short line and never repeat what the card shows. Use show_card for a list of 3 or more things, a small table or a place, instead of long text. When your question has a few obvious answers, call suggest_replies so they can tap one. Cards and buttons are extras: the words still have to make sense alone.
 GitHub: github_waiting shows what is waiting on them there, if they have connected it.
 Calendar: list_calendar reads their Google Calendar. create_event only puts a card in front of them; nothing is added until they tap. Check for clashes first, and never promise an event exists before they approve.
 When they tell you how they like to be helped (shorter answers, no reminders before 9, what to call them), save it with learn_preference. Only what they say to you directly. It shapes style and timing, never your rules.
@@ -138,8 +141,27 @@ export async function runTurn(
   // The clock goes with the new message, not in the system prompt, so the cached prefix does not change every minute.
   const clock = `[Now: ${localIso(now, setup.timezone)} (${setup.timezone})]`;
   const convo: Msg[] = [...setup.history, { role: "user", content: `${clock}\n${text}` }];
-  const save = (rows: Msg[]) =>
-    tenant((tx) => tx.insert(messages).values(rows.map((m) => ({ workspaceId, conversationId: setup.convId, role: m.role, contentEnc: vault.sealJson(workspaceId, m.content) }))));
+  // Cards (a task with buttons, a day of calendar, quick replies) that tools put on screen this turn. They are saved with the
+  // reply that ends the turn, so they come back, in the same place, when the chat is reloaded.
+  const cards: Card[] = [];
+  ctx.card = (c) => {
+    const ok = CardSchema.safeParse(c);
+    if (!ok.success || cards.length >= 8) return;
+    cards.push(ok.data);
+    emit({ type: "card", card: ok.data });
+  };
+  const save = (rows: Msg[], ui: Card[] = []) =>
+    tenant((tx) =>
+      tx.insert(messages).values(
+        rows.map((m, i) => ({
+          workspaceId,
+          conversationId: setup.convId,
+          role: m.role,
+          contentEnc: vault.sealJson(workspaceId, m.content),
+          uiEnc: ui.length && i === rows.length - 1 ? vault.sealJson(workspaceId, ui) : null,
+        })),
+      ),
+    );
 
   for (let step = 0; step < MAX_STEPS; step++) {
     if (isClosed()) return;
@@ -171,7 +193,7 @@ export async function runTurn(
     const assistant: Msg = { role: "assistant", content: res.content };
     const calls = res.content.filter((b) => b.type === "tool_use");
     if (res.stopReason !== "tool_use" || calls.length === 0) {
-      await save([assistant]);
+      await save([assistant], arrange(cards));
       return emit({ type: "done" });
     }
 
@@ -246,7 +268,8 @@ export async function history(db: Db, vault: Vault, workspaceId: string, userId:
         role: r.role,
         text: typeof content === "string" ? content : content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join(""),
         at: r.createdAt,
+        cards: r.uiEnc ? validCards(vault.openJson<unknown>(workspaceId, r.uiEnc)) : [],
       }))
-      .filter((m) => m.text.length > 0);
+      .filter((m) => m.text.length > 0 || m.cards.length > 0);
   });
 }

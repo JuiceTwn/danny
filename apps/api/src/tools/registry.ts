@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Db, Tx } from "../db/client.js";
 import type { GmailErrorKind, GoogleService } from "../lib/google.js";
+import type { Card } from "../lib/cards.js";
 import type { Searched } from "../lib/search.js";
 import type { Vault } from "../lib/vault.js";
 
@@ -26,6 +27,8 @@ export type ToolCtx = {
   search?: (question: string) => Promise<Searched>;
   /** For tools that call a public web service directly. Tests replace it. */
   fetchFn?: typeof fetch;
+  /** Show a card under Danny's reply (a task with buttons, a day of calendar, quick replies). Does nothing outside a chat turn. */
+  card?: (card: Card) => void;
 };
 
 export type Tool<S extends z.ZodType = z.ZodType> = {

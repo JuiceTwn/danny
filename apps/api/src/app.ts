@@ -29,8 +29,9 @@ import { goalRoutes } from "./routes/goals.js";
 import { connectorRoutes } from "./routes/connectors.js";
 import { interestRoutes } from "./routes/interests.js";
 import { styleRoutes } from "./routes/style.js";
+import { previewRoutes } from "./routes/preview.js";
 
-export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch };
+export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch; previewFetch?: import("./lib/preview.js").FetchPage };
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -121,6 +122,7 @@ export async function buildApp(deps: Deps) {
     await r.register(connectorRoutes, deps);
     await r.register(interestRoutes, deps);
     await r.register(styleRoutes, deps);
+    await r.register(previewRoutes, deps);
     await r.register(adminRoutes, deps);
   });
 

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { users } from "../db/schema.js";
 import { readStyle } from "../lib/style.js";
-import { todaysWeather } from "../lib/weather.js";
+import { weatherToday } from "../lib/weather.js";
 import { defineTool } from "./registry.js";
 
 export const getWeather = defineTool({
@@ -16,8 +16,10 @@ export const getWeather = defineTool({
     const [u] = await ctx.db.select({ units: users.units }).from(users).where(eq(users.id, ctx.userId));
     const where = place || (await ctx.tenant((tx) => readStyle(tx, ctx.vault, ctx.workspaceId, ctx.userId))).location;
     if (!where) return "I don't know where they are. Ask them, or tell them to set it in Settings under About you.";
-    const line = await todaysWeather(where, u?.units === "imperial" ? "imperial" : "metric", ctx.fetchFn);
-    return line ?? `Couldn't get the weather for ${where}. Try search_web, or check the spelling of the place.`;
+    const w = await weatherToday(where, u?.units === "imperial" ? "imperial" : "metric", ctx.fetchFn);
+    if (!w) return `Couldn't get the weather for ${where}. Try search_web, or check the spelling of the place.`;
+    ctx.card?.({ kind: "weather", place: w.place, summary: w.summary, high: w.high, low: w.low, rain: w.rain });
+    return w.line;
   },
 });
 

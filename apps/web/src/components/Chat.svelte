@@ -1,11 +1,13 @@
 <script lang="ts">
   import Rich from "./Rich.svelte";
   import { onMount, tick } from "svelte";
-  import { api, chatStream, type HistoryMsg } from "../lib/api";
+  import { api, chatStream, type Card, type HistoryMsg, type Task } from "../lib/api";
+  import Cards from "./Cards.svelte";
+  import Preview from "./Preview.svelte";
   import { app, refresh } from "../lib/store.svelte";
   import { fmtDay, fmtTime, go } from "../lib/router.svelte";
 
-  type Row = { id: number; kind: "user" | "danny" | "note" | "problem" | "approval"; text: string; at: string; code?: string };
+  type Row = { id: number; kind: "user" | "danny" | "note" | "problem" | "approval"; text: string; at: string; code?: string; cards?: Card[] };
 
   let rows = $state<Row[]>([]);
   let input = $state("");
@@ -16,6 +18,15 @@
   let stick = true;
   let nextId = 0;
   let controller: AbortController | null = null;
+  // Which tasks are still open, so a task card shows Done once the task is finished, even from the Tasks tab or a notification.
+  let openTasks = $state(new Set<string>());
+  async function loadOpenTasks() {
+    try {
+      openTasks = new Set((await api<{ items: Task[] }>("GET", "/v1/tasks")).items.map((t) => t.id));
+    } catch {
+      /* cards just keep what they show */
+    }
+  }
 
   const starters = ["Remember that Marlene prefers texts, not calls", "Draft a reply to a customer asking for a quote", "What do you remember about me?"];
 
@@ -33,11 +44,12 @@
   onMount(async () => {
     try {
       const h = await api<{ messages: HistoryMsg[] }>("GET", "/v1/chat/history?limit=100");
-      rows = h.messages.map((m) => ({ id: nextId++, kind: m.role === "user" ? "user" : "danny", text: m.text, at: m.at }));
+      rows = h.messages.map((m) => ({ id: nextId++, kind: m.role === "user" ? "user" : "danny", text: m.text, at: m.at, cards: m.cards ?? [] }));
     } catch {
       /* start empty */
     }
     loaded = true;
+    void loadOpenTasks();
     await toBottom();
     boxEl?.focus();
   });
@@ -57,6 +69,8 @@
     busy = true;
     push("user", text);
     let live: Row | null = null;
+    const turnCards: Card[] = [];
+    const mark = rows.length; // rows from here on belong to this turn
     controller = new AbortController();
     try {
       for await (const ev of chatStream(text, controller.signal)) {
@@ -67,6 +81,7 @@
           live = null;
           if (ev.type === "tool" && ev.name === "remember" && ev.status === "ran") push("note", "Saved to memory.");
           else if (ev.type === "approval") push("approval", ev.title);
+          else if (ev.type === "card") turnCards.push(ev.card);
           else if (ev.type === "error") push("problem", ev.message, { code: ev.code });
         }
         await toBottom();
@@ -77,8 +92,15 @@
         push("problem", busyErr ? "Danny is still on your last message." : "Couldn't reach Danny. Check your connection and try again.");
       }
     } finally {
+      // Cards sit under the last thing Danny said this turn.
+      if (turnCards.length) {
+        const last = rows.slice(mark).reverse().find((r) => r.kind === "danny");
+        if (last) last.cards = turnCards;
+        else push("danny", "", { cards: turnCards });
+      }
       busy = false;
       controller = null;
+      void loadOpenTasks();
       await toBottom();
       void refresh();
       boxEl?.focus();
@@ -116,7 +138,13 @@
         {#if r.kind === "user" || r.kind === "danny"}
           <div class="row {r.kind}" aria-live={r.kind === "danny" && busy ? "polite" : undefined}>
             <div class="who mono">{r.kind === "user" ? "You" : "Danny"}<span>{fmtTime(r.at)}</span></div>
-            <div class="text">{#if r.kind === "danny"}<Rich text={r.text} />{:else}{r.text}{/if}</div>
+            <div class="text">{#if r.kind === "danny"}{#if r.text}<Rich text={r.text} />{/if}{:else}{r.text}{/if}</div>
+            {#if r.kind === "danny" && r.text && i >= rows.length - 6 && !r.cards?.some((c) => c.kind === "list" || c.kind === "place")}
+              <Preview text={r.text} />
+            {/if}
+            {#if r.kind === "danny" && r.cards?.length}
+              <Cards cards={r.cards} {openTasks} canReply={!busy && i === rows.length - 1} onreply={(t) => send(t)} onchange={loadOpenTasks} />
+            {/if}
           </div>
         {:else if r.kind === "note"}
           <div class="row note"><div class="who mono">Noted</div><p class="text">{r.text}</p></div>

@@ -28,7 +28,8 @@ export const addTask = defineTool({
   run: (ctx, i) =>
     guard(async () => {
       const t = await createTask(ctx, { title: i.title, dueAt: date(i.due_at), remindAt: date(i.remind_at) });
-      return `Added (${t.id}).${t.remindAt ? ` Will remind at ${t.remindAt}.` : " No reminder set."}`;
+      ctx.card?.({ kind: "task", id: t.id, title: t.title, remindAt: t.remindAt, dueAt: t.dueAt });
+      return `Added (${t.id}).${t.remindAt ? ` Will remind at ${t.remindAt}.` : " No reminder set."} The app shows the task as a card, so confirm in a few words.`;
     }),
 });
 
@@ -53,6 +54,7 @@ export const whatsNext = defineTool({
   run: async (ctx) => {
     const open = await listTasks(ctx);
     const next = pickNext(open);
+    if (next) ctx.card?.({ kind: "task", id: next.id, title: next.title, remindAt: next.remindAt, dueAt: next.dueAt });
     return next ? `Next: ${line(next)}\n${open.length - 1} other open task(s) not shown.` : "Nothing open. The list is clear.";
   },
 });

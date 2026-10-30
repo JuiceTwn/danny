@@ -5,8 +5,10 @@ const CODES: Record<number, string> = {
   95: "thunderstorms", 96: "thunderstorms with hail", 99: "thunderstorms with hail",
 };
 
-/** One plain line about today's weather, or null if the place isn't found or the service is down. */
-export async function todaysWeather(place: string, units: "metric" | "imperial", fetchFn: typeof fetch = fetch): Promise<string | null> {
+export type Weather = { place: string; summary: string; high: string; low: string; rain: number | null; line: string };
+
+/** Today's weather in pieces (for a card) and as one plain line, or null if the place isn't found or the service is down. */
+export async function weatherToday(place: string, units: "metric" | "imperial", fetchFn: typeof fetch = fetch): Promise<Weather | null> {
   const get = async (url: string) => {
     const res = await fetchFn(url, { signal: AbortSignal.timeout(8_000) });
     return res.ok ? ((await res.json()) as any) : null;
@@ -29,8 +31,14 @@ export async function todaysWeather(place: string, units: "metric" | "imperial",
     if (!d) return null;
     const deg = units === "imperial" ? "°F" : "°C";
     const rain = Number(d.precipitation_probability_max?.[0] ?? 0);
-    return `${hit.name}: ${CODES[Number(d.weather_code?.[0])] ?? "mixed"}, high ${Math.round(d.temperature_2m_max[0])}${deg}, low ${Math.round(d.temperature_2m_min[0])}${deg}${rain >= 30 ? `, ${rain}% chance of rain` : ""}`;
+    const summary = CODES[Number(d.weather_code?.[0])] ?? "mixed";
+    const high = `${Math.round(d.temperature_2m_max[0])}${deg}`;
+    const low = `${Math.round(d.temperature_2m_min[0])}${deg}`;
+    return { place: String(hit.name), summary, high, low, rain: rain >= 30 ? rain : null, line: `${hit.name}: ${summary}, high ${high}, low ${low}${rain >= 30 ? `, ${rain}% chance of rain` : ""}` };
   } catch {
     return null;
   }
 }
+
+/** One plain line, or null. */
+export const todaysWeather = async (place: string, units: "metric" | "imperial", fetchFn: typeof fetch = fetch) => (await weatherToday(place, units, fetchFn))?.line ?? null;

@@ -60,3 +60,14 @@ export async function createEvent(ctx: ToolCtx, e: NewEvent) {
     },
   });
 }
+
+/** "Sat Oct 31" in the person's own zone. */
+export const dayLabel = (d: Date, tz: string) => new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: tz }).format(d);
+
+/** "9:00 to 9:15 AM", or "All day". */
+export function whenLabel(e: CalEvent, tz: string) {
+  if (e.allDay) return "All day";
+  const t = (iso: string) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date(iso)).replace(" AM", "").replace(" PM", "");
+  const ap = new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone: tz, hour12: true }).formatToParts(new Date(e.end)).find((p) => p.type === "dayPeriod")?.value ?? "";
+  return `${t(e.start)} to ${t(e.end)} ${ap}`;
+}

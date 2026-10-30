@@ -223,6 +223,8 @@ describe("chat", () => {
       ["forget_preference", "internal"],
       ["get_weather", "read"],
       ["github_waiting", "read"],
+      ["show_card", "internal"],
+      ["suggest_replies", "internal"],
       ["search_email", "read"],
       ["read_email", "read"],
       ["send_email", "external_write"],

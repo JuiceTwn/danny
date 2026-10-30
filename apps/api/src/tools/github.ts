@@ -21,7 +21,11 @@ export const githubWaiting = defineTool({
     const token = await githubToken(ctx);
     if (!token) return "GitHub isn't connected. Tell the user to connect it in Settings, under Connections.";
     try {
-      return `${FRAME}\n\n${summarize(await waitingOnYou(token, ctx.fetchFn))}`;
+      const w = await waitingOnYou(token, ctx.fetchFn);
+      for (const [title, items] of [["Reviews waiting on you", w.reviews], ["Issues assigned to you", w.assigned], ["Your open pull requests", w.mine]] as const) {
+        if (items.length) ctx.card?.({ kind: "list", title, style: "bullets", items: items.map((i) => ({ text: i.title, sub: `${i.repo}#${i.number}, updated ${i.updated}`, href: i.url })) });
+      }
+      return `${FRAME}\n\n${summarize(w)}\nThe app shows these as cards, so add at most one short line.`;
     } catch (e) {
       if (e instanceof GithubError) return e.message;
       throw e;
