@@ -92,6 +92,13 @@
       "when": 1793390738200,
       "tag": "0012_goals_briefing",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793392771676,
+      "tag": "0013_wrapup_stalled_interests",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type Connection } from "../lib/api";
+  import { api, type Connection, type Interest } from "../lib/api";
   import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
   import { usd } from "../lib/router.svelte";
@@ -24,14 +24,63 @@
       briefTime = app.me.user.briefingTime;
     }
   });
-  async function saveBrief(patch: { briefingEnabled?: boolean; briefingTime?: string }) {
+  let wrapOn = $state(false);
+  let wrapTime = $state("20:00");
+  let voice = $state("foreman");
+  $effect(() => {
+    if (app.me) {
+      wrapOn = app.me.user.wrapupEnabled;
+      wrapTime = app.me.user.wrapupTime;
+      voice = app.me.user.voice;
+    }
+  });
+  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string };
+  const VOICES = [
+    ["foreman", "Foreman: short and dry"],
+    ["warm", "Warm: friendly and encouraging"],
+    ["brief", "Brief: as few words as possible"],
+  ];
+  let interests = $state<Interest[]>([]);
+  let topic = $state("");
+  async function loadInterests() {
+    try {
+      interests = (await api<{ items: Interest[] }>("GET", "/v1/interests")).items;
+    } catch {
+      /* the list just stays empty */
+    }
+  }
+  async function addTopic(e: SubmitEvent) {
+    e.preventDefault();
+    const t = topic.trim();
+    if (!t) return;
+    error = "";
+    try {
+      await api("POST", "/v1/interests", { topic: t });
+      topic = "";
+      await loadInterests();
+    } catch {
+      error = "Couldn't add that. You can follow up to 15 topics.";
+    }
+  }
+  async function dropTopic(id: string) {
+    try {
+      await api("DELETE", `/v1/interests/${id}`);
+      await loadInterests();
+    } catch {
+      error = "Couldn't remove that. Try again.";
+    }
+  }
+  async function saveBrief(patch: Prefs) {
     briefBusy = true;
     error = "";
     try {
-      const r = await api<{ briefingEnabled: boolean; briefingTime: string }>("PATCH", "/v1/profile", patch);
+      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string }>("PATCH", "/v1/profile", patch);
       if (app.me) {
         app.me.user.briefingEnabled = r.briefingEnabled;
         app.me.user.briefingTime = r.briefingTime;
+        app.me.user.wrapupEnabled = r.wrapupEnabled;
+        app.me.user.wrapupTime = r.wrapupTime;
+        app.me.user.voice = r.voice;
       }
     } catch {
       error = "Couldn't save that. Try again.";
@@ -82,6 +131,7 @@
       history.replaceState(null, "", location.pathname + location.hash);
     }
     loadConnections();
+    loadInterests();
   });
 
   let notify = $state<PushState | "checking">("checking");
@@ -189,6 +239,47 @@
     </section>
 
     <section>
+      <h2 class="display">Evening wrap-up</h2>
+      <p>Each evening Danny sums up what got done, what's still open and tomorrow's top three. On Sundays it's a weekly review. Off until you turn it on.</p>
+      <button class="btn {wrapOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ wrapupEnabled: !wrapOn })}>{wrapOn ? "Turn off" : "Turn on"}</button>
+      {#if wrapOn}
+        <div class="field">
+          <label for="wrap-time">Send at (your local time)</label>
+          <input id="wrap-time" class="input" type="time" bind:value={wrapTime} onchange={() => wrapTime && saveBrief({ wrapupTime: wrapTime })} />
+        </div>
+      {/if}
+    </section>
+
+    <section>
+      <h2 class="display">What you follow</h2>
+      <p>Topics Danny looks up news on for your morning briefing. You can also just tell him in chat.</p>
+      {#if interests.length}
+        <ul class="topics">
+          {#each interests as i (i.id)}
+            <li><span>{i.topic}</span><button class="btn small" onclick={() => dropTopic(i.id)} aria-label="Stop following {i.topic}">Remove</button></li>
+          {/each}
+        </ul>
+      {/if}
+      <form class="capform" onsubmit={addTopic}>
+        <div class="field">
+          <label for="topic">Add a topic</label>
+          <input id="topic" class="input" maxlength="80" placeholder="Premier League" bind:value={topic} />
+        </div>
+        <button class="btn" disabled={!topic.trim()}>Add</button>
+      </form>
+    </section>
+
+    <section>
+      <h2 class="display">How Danny talks</h2>
+      <div class="field">
+        <label for="voice">Style</label>
+        <select id="voice" class="input" bind:value={voice} onchange={() => saveBrief({ voice })}>
+          {#each VOICES as [v, label]}<option value={v}>{label}</option>{/each}
+        </select>
+      </div>
+    </section>
+
+    <section>
       <h2 class="display">Notifications</h2>
       {#if notify === "checking"}
         <p class="mono">Checking…</p>
@@ -292,4 +383,6 @@
   @media (max-width: 859px) {
     .page { padding: 14px 16px 28px; padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
   }
+  .topics { display: flex; flex-direction: column; }
+  .topics li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 </style>

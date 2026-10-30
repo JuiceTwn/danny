@@ -26,6 +26,7 @@ import { memoryRoutes } from "./routes/memory.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { goalRoutes } from "./routes/goals.js";
+import { interestRoutes } from "./routes/interests.js";
 
 export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health };
 
@@ -113,6 +114,7 @@ export async function buildApp(deps: Deps) {
     await r.register(settingsRoutes, deps);
     await r.register(taskRoutes, deps);
     await r.register(goalRoutes, deps);
+    await r.register(interestRoutes, deps);
     await r.register(adminRoutes, deps);
   });
 

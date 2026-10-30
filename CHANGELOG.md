@@ -10,6 +10,10 @@ Danny works for you without being asked.
 - **Morning briefing.** Opt-in in Settings, at a time you pick in your timezone, once a day: calendar, top tasks, goal movement and up to three news items on what you care about.
 - **Calendar.** `list_calendar` reads events; `create_event` makes an approval card and only adds the event (and invites any guests) after your tap. Optional Google permission (`calendar.events`): reconnect Google to add it. Existing logins keep working without it.
 - Token savings from earlier in this branch: prompt caching, a stepped history window, clipped old tool results. The model and its price are shown in the status bar and Settings. Reminder notifications now lead with the task.
+- **Evening wrap-up** (opt-in, Settings): what got done, what's open, tomorrow's top three. On Sundays it becomes a weekly review. No web search, so it costs a fraction of a cent. Says nothing on days with nothing to say.
+- **Stalled goals:** two weeks with no progress and Danny asks, once, what's in the way. Fixed wording, no model call, so it's free. Never at night, never more than one goal per person per day. `goal_progress` (and any goal edit) resets the clock.
+- **Interests and voice:** topics you follow shape the briefing's news (`add_interest` in chat or Settings, up to 15). Pick Foreman, Warm or Brief and Danny, briefings and wrap-ups all use it.
+- Migration `0013` adds `interests`, wrap-up and voice columns on `users`, goal progress columns, and two scheduler functions. Additive only.
 - Migration `0012` adds `goals`, three briefing columns on `users`, and two read-only scheduler functions.
 
 Tested against a real Postgres: 117 tests. Not tested: the live Anthropic web-search tool (`web_search_20250305`) and Google Calendar API, which need real keys. Check your first goal check and briefing by hand.

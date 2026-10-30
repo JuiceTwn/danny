@@ -5,7 +5,7 @@ import { auditLog, conversations, messages, pushSubscriptions, tasks } from "../
 import { inQuietHours, nextQuietEnd } from "./time.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import type { Health } from "./health.js";
-import { runDueBriefings, runDueGoalChecks, type BackgroundDeps } from "./background.js";
+import { runDueBriefings, runDueGoalChecks, runDueWrapups, runStalledGoalCheckins, type BackgroundDeps } from "./background.js";
 import type { Vault } from "./vault.js";
 
 /**
@@ -105,7 +105,9 @@ export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
       if (deps.config && deps.model) {
         const bg = { db: deps.db, vault: deps.vault, push: deps.push, log: deps.log, config: deps.config, model: deps.model, google: deps.google };
         await runDueBriefings(bg);
+        await runDueWrapups(bg);
         await runDueGoalChecks(bg);
+        await runStalledGoalCheckins(bg);
       }
       deps.health?.tick();
     } catch (err) {

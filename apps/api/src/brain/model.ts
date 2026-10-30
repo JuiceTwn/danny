@@ -87,7 +87,7 @@ export class AnthropicModel implements ModelClient {
       max_tokens: req.maxTokens,
       system: [{ type: "text", text: req.system, cache_control: mark }],
       messages,
-      tools: tools as Anthropic.Tool[],
+      ...(tools.length ? { tools: tools as Anthropic.Tool[] } : {}),
     });
     stream.on("text", onText);
     const final = await stream.finalMessage();

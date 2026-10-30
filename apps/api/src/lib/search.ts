@@ -46,3 +46,32 @@ export async function budgetedSearch(
 }
 
 export const sourceList = (sources: { title: string; url: string }[]) => (sources.length ? `\n\nSources:\n${sources.map((s) => `- ${s.title.slice(0, 80)} ${s.url}`).join("\n")}` : "");
+
+/** A plain answer with no web access, for things Danny can write from what he already knows (the evening wrap-up). Same cap and ledger as everything else. */
+export async function budgetedAnswer(
+  { db, config, model }: SearchDeps,
+  who: { workspaceId: string; userId: string },
+  req: { system: string; prompt: string; maxTokens?: number },
+): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn);
+  const b = await tenant((tx) => checkBudget(tx, who.workspaceId));
+  if (!b.ok) return { ok: false, reason: b.reason === "kill_switch" ? "Danny is stopped." : "Daily spend cap reached." };
+  let res;
+  try {
+    res = await model.complete({ model: config.model, system: req.system, messages: [{ role: "user", content: req.prompt }], tools: [], maxTokens: req.maxTokens ?? 700 }, () => {});
+  } catch {
+    return { ok: false, reason: "The model call failed. Nothing was charged." };
+  }
+  await tenant((tx) =>
+    recordSpend(tx, {
+      workspaceId: who.workspaceId,
+      userId: who.userId,
+      model: config.model,
+      inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
+      outputTokens: res.usage.outputTokens,
+      costMicros: costMicros(res.usage, config.price),
+    }),
+  );
+  const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("").trim();
+  return { ok: true, text };
+}

@@ -74,6 +74,7 @@ export async function updateGoal(a: Actor, id: string, p: GoalPatch) {
     if (!cur) return null;
     const set: Partial<typeof goals.$inferInsert> = {};
     const seal = (v: string | null) => (v ? a.vault.seal(a.workspaceId, v) : null);
+    set.touchedAt = new Date(); // any change counts as the user working on it
     if (p.title !== undefined) set.titleEnc = a.vault.seal(a.workspaceId, p.title);
     if (p.notes !== undefined) set.notesEnc = seal(p.notes);
     if (p.watchQuery !== undefined) set.watchQueryEnc = seal(p.watchQuery);
@@ -85,9 +86,22 @@ export async function updateGoal(a: Actor, id: string, p: GoalPatch) {
       }
       set.checkEveryHours = p.checkEveryHours;
     }
-    if (!Object.keys(set).length) return goalView(a, a.workspaceId, cur);
     const [row] = await tx.update(goals).set(set).where(eq(goals.id, id)).returning();
     await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "goal.update", detail: { id, fields: Object.keys(p) } });
+    return goalView(a, a.workspaceId, row!);
+  });
+}
+
+/** Record that the user did something on a goal. Keeps the last few notes, newest last, so the plan stays readable. */
+export async function logProgress(a: Actor, id: string, note: string, now = new Date()) {
+  return a.tenant(async (tx) => {
+    const [cur] = await tx.select().from(goals).where(and(eq(goals.id, id), eq(goals.userId, a.userId)));
+    if (!cur) return null;
+    const old = cur.notesEnc ? a.vault.open(a.workspaceId, cur.notesEnc) : "";
+    const next = `${old}${old ? "\n" : ""}${now.toISOString().slice(0, 10)}: ${note}`;
+    const kept = next.length > 1500 ? next.slice(next.length - 1500).replace(/^[^\n]*\n/, "") : next;
+    const [row] = await tx.update(goals).set({ notesEnc: a.vault.seal(a.workspaceId, kept), touchedAt: now, stallNudgedAt: null }).where(eq(goals.id, id)).returning();
+    await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "goal.progress", detail: { id } });
     return goalView(a, a.workspaceId, row!);
   });
 }

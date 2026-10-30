@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createGoal, GoalError, listGoals, MAX_CHECK_HOURS, MIN_CHECK_HOURS, updateGoal, type GoalView } from "../lib/goals.js";
+import { createGoal, GoalError, listGoals, logProgress, MAX_CHECK_HOURS, MIN_CHECK_HOURS, updateGoal, type GoalView } from "../lib/goals.js";
 import { sourceList, WEB_FRAME } from "../lib/search.js";
 import { defineTool } from "./registry.js";
 
@@ -76,6 +76,16 @@ export const updateGoalTool = defineTool({
     }),
 });
 
+export const goalProgress = defineTool({
+  name: "goal_progress",
+  description:
+    "Record that the user did something toward a goal, or tell you how it is going: applied to a job, viewed a flat, saved money. One short sentence in `note`. " +
+    "Do this whenever they mention progress, even in passing. Goals with no progress for two weeks make Danny check in. Take the id from list_goals.",
+  kind: "internal",
+  input: z.object({ id: z.uuid(), note: z.string().trim().min(1).max(300) }),
+  run: async (ctx, { id, note }) => ((await logProgress(ctx, id, note)) ? "Noted." : "No goal with that id."),
+});
+
 export const searchWeb = defineTool({
   name: "search_web",
   description:
@@ -90,4 +100,4 @@ export const searchWeb = defineTool({
   },
 });
 
-export const goalTools = [addGoal, listGoalsTool, updateGoalTool, searchWeb];
+export const goalTools = [addGoal, listGoalsTool, updateGoalTool, goalProgress, searchWeb];

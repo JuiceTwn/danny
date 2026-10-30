@@ -1,4 +1,4 @@
-import { briefingView } from "./tasks.js";
+import { prefColumns, prefsView } from "./tasks.js";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -111,8 +111,8 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
   app.get("/v1/me", async (req, reply) => {
     const auth = await loadSession(deps, req);
     if (!auth) return reply.code(401).send({ error: "unauthorized" });
-    const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute }).from(users).where(eq(users.id, auth.userId));
-    const { briefingMinute, ...rest } = u!;
-    return { user: { ...rest, ...briefingView({ briefingEnabled: rest.briefingEnabled, briefingMinute }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner };
+    const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, ...prefColumns }).from(users).where(eq(users.id, auth.userId));
+    const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, ...rest } = u!;
+    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner };
   });
 };
