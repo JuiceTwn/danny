@@ -4,11 +4,13 @@ import { spendLedger, workspaces } from "../db/schema.js";
 
 export const todayUtc = () => new Date().toISOString().slice(0, 10);
 
+/** Cached reads cost 0.1x the input price, cache writes 1.25x. */
 export function costMicros(
-  usage: { inputTokens: number; outputTokens: number },
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number },
   price: { inputPerMtokUsd: number; outputPerMtokUsd: number },
 ) {
-  return Math.ceil(usage.inputTokens * price.inputPerMtokUsd + usage.outputTokens * price.outputPerMtokUsd);
+  const input = usage.inputTokens + (usage.cacheReadTokens ?? 0) * 0.1 + (usage.cacheWriteTokens ?? 0) * 1.25;
+  return Math.ceil(input * price.inputPerMtokUsd + usage.outputTokens * price.outputPerMtokUsd);
 }
 
 export async function spentToday(tx: Tx, workspaceId: string) {

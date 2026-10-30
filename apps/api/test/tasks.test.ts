@@ -265,7 +265,7 @@ describe("chat tools", () => {
     const seen: string[] = [];
     const model: ModelClient = {
       async complete(req, onText) {
-        seen.push(req.system);
+        seen.push(JSON.stringify(req.messages.at(-1)));
         const res = script.shift()!;
         for (const b of res.content) if (b.type === "text") onText(b.text);
         return res;
@@ -282,7 +282,7 @@ describe("chat tools", () => {
     ];
     const res = await cli.req("POST", "/v1/chat", { message: "remind me to call mum in 90 minutes" });
     expect(res.raw.body).toContain("Added.");
-    expect(seen[0]).toMatch(/Right now it is \d{4}-\d\d-\d\dT[\d:]+[-+]\d\d:\d\d \(America\/Toronto\)/);
+    expect(seen[0]).toMatch(/\[Now: \d{4}-\d\d-\d\dT[\d:]+[-+]\d\d:\d\d \(America\/Toronto\)\]/);
     const list = await cli.get("/v1/tasks");
     expect(list.body.items).toHaveLength(1);
     expect(list.body.items[0]).toMatchObject({ title: "Call mum", remindAt });

@@ -16,7 +16,8 @@ export type ModelRequest = {
 export type ModelResult = {
   content: (TextBlock | ToolUseBlock)[];
   stopReason: string | null;
-  usage: { inputTokens: number; outputTokens: number };
+  /** inputTokens is only the uncached part. Cached reads and writes are billed at different rates. */
+  usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
 };
 
 /** The one seam to the model provider. Tests script it; production uses AnthropicModel. */
@@ -30,19 +31,34 @@ export class AnthropicModel implements ModelClient {
     this.client = new Anthropic({ apiKey });
   }
   async complete(req: ModelRequest, onText: (delta: string) => void): Promise<ModelResult> {
+    // Prompt caching: tools and system are stable, so they are cached as a unit. A second breakpoint on the
+    // last message lets each step of a turn, and the next turn, re-read the conversation so far at a tenth of the price.
+    const mark = { type: "ephemeral" } as const;
+    const tools = req.tools.map((t, i) => (i === req.tools.length - 1 ? { ...t, cache_control: mark } : t));
+    const messages = req.messages.map((m, i): Anthropic.MessageParam => {
+      if (i !== req.messages.length - 1) return m as Anthropic.MessageParam;
+      const blocks = typeof m.content === "string" ? [{ type: "text" as const, text: m.content }] : [...m.content];
+      const last = blocks.length - 1;
+      return { role: m.role, content: blocks.map((b, j) => (j === last ? { ...b, cache_control: mark } : b)) as Anthropic.ContentBlockParam[] };
+    });
     const stream = this.client.messages.stream({
       model: req.model,
       max_tokens: req.maxTokens,
-      system: req.system,
-      messages: req.messages as Anthropic.MessageParam[],
-      tools: req.tools as Anthropic.Tool[],
+      system: [{ type: "text", text: req.system, cache_control: mark }],
+      messages,
+      tools: tools as Anthropic.Tool[],
     });
     stream.on("text", onText);
     const final = await stream.finalMessage();
     return {
       content: final.content.filter((b): b is Anthropic.TextBlock | Anthropic.ToolUseBlock => b.type === "text" || b.type === "tool_use") as ModelResult["content"],
       stopReason: final.stop_reason,
-      usage: { inputTokens: final.usage.input_tokens, outputTokens: final.usage.output_tokens },
+      usage: {
+        inputTokens: final.usage.input_tokens,
+        outputTokens: final.usage.output_tokens,
+        cacheReadTokens: final.usage.cache_read_input_tokens ?? 0,
+        cacheWriteTokens: final.usage.cache_creation_input_tokens ?? 0,
+      },
     };
   }
 }
