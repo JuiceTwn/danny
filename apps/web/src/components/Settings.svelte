@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type Connection, type Interest, type Style } from "../lib/api";
+  import { api, type Interest, type Style } from "../lib/api";
+  import Connections from "./Connections.svelte";
   import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
   import { usd } from "../lib/router.svelte";
@@ -144,48 +145,7 @@
     }
   }
 
-  let conns = $state<Connection[]>([]);
-  let googleConfigured = $state(false);
-  let googleLoaded = $state(false);
-  let googleMsg = $state("");
-  let confirmGmail = $state(false);
-  const gmail = $derived(conns.find((c) => c.provider === "google"));
-  const isAdmin = $derived(app.me?.role === "admin");
-  const GOOGLE_RESULTS: Record<string, string> = {
-    connected: "Gmail connected.",
-    denied: "You cancelled, so nothing was connected.",
-    scopes: "Danny needs both Gmail permissions, read and send. Try again and leave both ticked.",
-    error: "Couldn't connect Gmail. Try again.",
-  };
-  async function loadConnections() {
-    try {
-      const r = await api<{ items: Connection[]; google: { configured: boolean } }>("GET", "/v1/connections");
-      conns = r.items;
-      googleConfigured = r.google.configured;
-    } catch {
-      /* the section just stays empty */
-    }
-    googleLoaded = true;
-  }
-  async function disconnectGmail() {
-    if (!gmail) return;
-    try {
-      await api("DELETE", `/v1/connections/${gmail.id}`);
-      googleMsg = "Gmail disconnected. Google has been told to cancel the login.";
-    } catch {
-      error = "Couldn't disconnect. Try again.";
-    }
-    confirmGmail = false;
-    await loadConnections();
-  }
   onMount(() => {
-    // The server sends people back here with ?google=<result>. Show it once, then clean the address bar.
-    const r = new URLSearchParams(location.search).get("google");
-    if (r) {
-      googleMsg = GOOGLE_RESULTS[r] ?? "";
-      history.replaceState(null, "", location.pathname + location.hash);
-    }
-    loadConnections();
     loadInterests();
     loadStyle();
   });
@@ -245,6 +205,8 @@
 <div class="page">
   <div class="col">
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+    <Connections />
 
     <section>
       <h2 class="display">Danny</h2>
@@ -403,40 +365,6 @@
     </section>
 
     <section>
-      <h2 class="display">Gmail and Calendar</h2>
-      {#if googleMsg}<p class="mono" role="status">{googleMsg}</p>{/if}
-      {#if !googleLoaded}
-        <p class="mono">Checking…</p>
-      {:else if !googleConfigured}
-        <p>Gmail isn't set up on this server yet. The server needs a Google client ID and secret (see docs/GMAIL_SETUP.md).</p>
-      {:else if gmail && gmail.status === "active"}
-        <p>Connected as <strong class="mono who">{gmail.label}</strong>. Danny can read your mail. He sends only after you tap Send on a card, and he can't delete anything.</p>
-        {#if gmail.calendar}
-          <p>Calendar is on. Danny can read your events and add one only after you tap Approve.</p>
-        {:else}
-          <p>Calendar is off. To turn it on, reconnect and leave the calendar permission ticked.</p>
-          {#if isAdmin}<a class="btn wide" href="/v1/connections/google/start">Reconnect to add Calendar</a>{/if}
-        {/if}
-        {#if isAdmin}
-          {#if confirmGmail}
-            <div class="row">
-              <button class="btn warn" onclick={disconnectGmail}>Disconnect</button>
-              <button class="btn" onclick={() => (confirmGmail = false)}>Keep</button>
-            </div>
-          {:else}
-            <button class="btn wide" onclick={() => (confirmGmail = true)}>Disconnect Gmail</button>
-          {/if}
-        {/if}
-      {:else if gmail}
-        <p>Gmail needs to be connected again. Google stopped honouring the saved login{gmail.label ? ` for ${gmail.label}` : ""}.</p>
-        {#if isAdmin}<a class="btn primary wide" href="/v1/connections/google/start">Reconnect Gmail</a>{/if}
-      {:else}
-        <p>Let Danny read your mail and draft replies. Nothing is sent until you tap Send on a card. He can't delete or change anything in your mailbox.</p>
-        {#if isAdmin}<a class="btn primary wide" href="/v1/connections/google/start">Connect Gmail</a>{/if}
-      {/if}
-    </section>
-
-    <section>
       <h2 class="display">Install</h2>
       {#if app.installed}
         <p>Danny is installed on this device.</p>
@@ -478,7 +406,6 @@
   .big { font-size: 1rem; color: var(--run); }
   .big.off { color: var(--need); }
   .wide { min-width: 200px; }
-  .row { display: flex; gap: 10px; }
   .meter { width: 100%; height: 24px; border: 2px solid var(--paper); position: relative; }
   .meter b { position: absolute; inset: 0 auto 0 0; background: var(--run); }
   .capform { display: flex; gap: 12px; align-items: flex-end; width: 100%; max-width: 380px; }

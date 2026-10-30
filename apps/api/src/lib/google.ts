@@ -36,12 +36,51 @@ export class GoogleService {
   // Access tokens live an hour and are never stored: only the refresh token is, encrypted. Cached here per connection.
   private cache = new Map<string, { token: string; exp: number }>();
 
-  constructor(private cfg: GoogleConfig, private fetchFn: typeof fetch = fetch) {}
+  private cfg: GoogleConfig | null;
+  /** Where the client ID and secret came from: the server's environment, the owner typing them into the app, or nowhere yet. */
+  source: "env" | "app" | "none";
+
+  constructor(cfg: GoogleConfig | null, private fetchFn: typeof fetch = fetch) {
+    this.cfg = cfg;
+    this.source = cfg ? "env" : "none";
+  }
+
+  get configured() {
+    return this.cfg !== null;
+  }
+
+  /** Set or clear the client credentials while the server runs. Forgets cached access tokens, which belonged to the old client. */
+  configure(cfg: GoogleConfig | null, source: "env" | "app" | "none") {
+    this.cfg = cfg;
+    this.source = cfg ? source : "none";
+    this.cache.clear();
+  }
+
+  private need() {
+    if (!this.cfg) throw new GmailError("Google isn't set up on this server yet.", "failed");
+    return this.cfg;
+  }
+
+  /**
+   * Asks Google to exchange a code that cannot be valid. Google answers invalid_client if the ID or secret is wrong and
+   * invalid_grant if they are right (and only the code is wrong). That tells the owner straight away whether they pasted it correctly.
+   */
+  async checkCredentials(cfg: GoogleConfig): Promise<"ok" | "bad" | "unreachable"> {
+    try {
+      const res = await this.request(TOKEN_URL, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: cfg.clientId, client_secret: cfg.clientSecret, grant_type: "authorization_code", code: "danny-check", code_verifier: "danny-check-danny-check-danny-check-danny-check", redirect_uri: cfg.redirectUri }) }, "failed");
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (data.error === "invalid_client" || data.error === "unauthorized_client") return "bad";
+      return data.error ? "ok" : "bad";
+    } catch {
+      return "unreachable";
+    }
+  }
 
   authUrl(state: string, challenge: string) {
+    const cfg = this.need();
     const q = new URLSearchParams({
-      client_id: this.cfg.clientId,
-      redirect_uri: this.cfg.redirectUri,
+      client_id: cfg.clientId,
+      redirect_uri: cfg.redirectUri,
       response_type: "code",
       scope: SCOPES.join(" "),
       access_type: "offline", // gives a refresh token
@@ -63,7 +102,8 @@ export class GoogleService {
   }
 
   private async token(params: Record<string, string>) {
-    const res = await this.request(TOKEN_URL, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: this.cfg.clientId, client_secret: this.cfg.clientSecret, ...params }) }, "failed");
+    const cfg = this.need();
+    const res = await this.request(TOKEN_URL, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: cfg.clientId, client_secret: cfg.clientSecret, ...params }) }, "failed");
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
       if (data.error === "invalid_grant") throw new GmailError("The saved Gmail login no longer works. Reconnect Gmail in Settings.", "reconnect");
@@ -78,7 +118,7 @@ export class GoogleService {
   }
 
   exchangeCode(code: string, verifier: string) {
-    return this.token({ grant_type: "authorization_code", code, code_verifier: verifier, redirect_uri: this.cfg.redirectUri });
+    return this.token({ grant_type: "authorization_code", code, code_verifier: verifier, redirect_uri: this.need().redirectUri });
   }
 
   /** Best effort: if Google is unreachable the token is simply dropped on our side. */

@@ -66,6 +66,15 @@ export type Connection = { id: string; provider: string; label: string; status: 
 export type MemoryItem = { id: string; content: string; createdAt: string };
 export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string };
 export type Goal = { id: string; title: string; notes: string | null; watchQuery: string | null; checkEveryHours: number | null; status: string; lastCheckedAt: string | null; lastFinding: string | null };
+export type ConnectorField = { key: string; label: string; secret: boolean; placeholder?: string };
+export type Connector = {
+  id: string; kind: "oauth" | "token"; name: string; blurb: string;
+  state: "needs_setup" | "ready" | "connected" | "reconnect";
+  connectionId: string | null; label: string | null;
+  calendar?: boolean; canSetUp?: boolean; setUpBy?: "env" | "app" | "none";
+  fields?: ConnectorField[]; steps?: string[]; helpUrl?: string;
+};
+export type GoogleSetup = { configured: boolean; source: "env" | "app" | "none"; redirectUri: string; scopes: string[] };
 export type Interest = { id: string; topic: string };
 export type StyleNote = { id: string; kind: "said" | "observed"; note: string };
 export type Style = { instruction: string | null; location: string | null; notes: StyleNote[] };

@@ -249,6 +249,14 @@ export const goals = pgTable(
   (t) => [index("goals_ws_idx").on(t.workspaceId, t.userId, t.status)],
 );
 
+// Settings for the whole server that the owner enters in the app instead of editing .env. Encrypted like everything else.
+// Not tenant data, so no row-level security: only owner-only routes ever touch it.
+export const serverSecrets = pgTable("server_secrets", {
+  name: text("name").primaryKey(),
+  secretEnc: bytea("secret_enc").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // What Danny knows about HOW to help this person, as opposed to facts about their life (that is memory).
 //   instruction  their own standing instructions, written in Settings (at most one)
 //   location     where they are, for weather and "near me" (at most one)

@@ -220,6 +220,7 @@ describe("chat", () => {
       ["list_preferences", "read"],
       ["forget_preference", "internal"],
       ["get_weather", "read"],
+      ["github_waiting", "read"],
       ["search_email", "read"],
       ["read_email", "read"],
       ["send_email", "external_write"],

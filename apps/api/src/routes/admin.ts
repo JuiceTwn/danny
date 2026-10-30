@@ -8,11 +8,13 @@ import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, inviteRequests, invites } from "../db/schema.js";
 import { newToken, sha256 } from "../lib/crypto.js";
+import { SCOPES } from "../lib/google.js";
+import { clearGoogleCredentials, googleRedirectUri, saveGoogleCredentials } from "../lib/server-secrets.js";
 
 const usd = (micros: number) => micros / 1_000_000;
 
 // Server-owner tools. Invite-only signup: nobody gets in until the owner approves them here.
-export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config }) => {
+export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, vault, google }) => {
   app.addHook("preHandler", async (req, reply) => {
     if (!req.auth?.isOwner) return reply.code(403).send({ error: "owner_only" });
   });
@@ -39,6 +41,44 @@ export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config })
   app.post("/v1/admin/invites", async (req) => {
     const { email } = z.object({ email: emailSchema }).parse(req.body);
     return createInvite(email, req.auth!.userId);
+  });
+
+  // ---- Google client ID and secret, entered in the app instead of editing .env. The secret goes in and never comes back out.
+  const googleView = () => ({
+    configured: google!.configured,
+    source: google!.source,
+    redirectUri: googleRedirectUri(config),
+    scopes: SCOPES,
+    appName: "Danny",
+  });
+  app.get("/v1/admin/google", async () => googleView());
+
+  app.put("/v1/admin/google", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {
+    if (google!.source === "env") return reply.code(409).send({ error: "set_by_environment", message: "Google is set in the server's .env file, so it can't be changed here." });
+    const body = z
+      .object({
+        clientId: z.string().trim().regex(/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/i, "That doesn't look like a Google client ID. It ends in .apps.googleusercontent.com."),
+        clientSecret: z.string().trim().min(10).max(200),
+      })
+      .parse(req.body);
+    const cfg = { ...body, redirectUri: googleRedirectUri(config) };
+    const verdict = await google!.checkCredentials(cfg);
+    if (verdict === "bad") return reply.code(400).send({ error: "invalid_credentials", message: "Google didn't accept that ID and secret. Check you copied all of both, with no spaces." });
+    if (verdict === "unreachable") return reply.code(502).send({ error: "google_unreachable", message: "Couldn't reach Google to check them. Try again in a minute." });
+    await saveGoogleCredentials(db, vault, body);
+    google!.configure(cfg, "app");
+    const { workspaceId, userId } = req.auth!;
+    await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "google.setup", detail: {} }));
+    return googleView();
+  });
+
+  app.delete("/v1/admin/google", async (req, reply) => {
+    if (google!.source === "env") return reply.code(409).send({ error: "set_by_environment", message: "Google is set in the server's .env file, so it can't be changed here." });
+    await clearGoogleCredentials(db);
+    google!.configure(null, "none");
+    const { workspaceId, userId } = req.auth!;
+    await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "google.clear", detail: {} }));
+    return googleView();
   });
 
   // ---- Update and backup without SSH. The app never runs anything: it drops an empty file named check, backup or update

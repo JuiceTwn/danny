@@ -11,7 +11,7 @@ import type { Config } from "./config.js";
 import type { ModelClient } from "./brain/model.js";
 import type { Db } from "./db/client.js";
 import { Health } from "./lib/health.js";
-import type { GoogleService } from "./lib/google.js";
+import { GoogleService } from "./lib/google.js";
 import type { PushSender } from "./lib/push.js";
 import type { Vault } from "./lib/vault.js";
 import type { ToolRegistry } from "./tools/registry.js";
@@ -26,10 +26,11 @@ import { memoryRoutes } from "./routes/memory.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { goalRoutes } from "./routes/goals.js";
+import { connectorRoutes } from "./routes/connectors.js";
 import { interestRoutes } from "./routes/interests.js";
 import { styleRoutes } from "./routes/style.js";
 
-export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health };
+export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch };
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -38,6 +39,8 @@ declare module "fastify" {
 }
 
 export async function buildApp(deps: Deps) {
+  // There is always a Google service. It is "not configured" until the server has a client ID and secret, which the owner can enter in the app.
+  deps.google ??= new GoogleService(null);
   const { config } = deps;
   const app = Fastify({
     logger: config.env === "test" ? false : { redact: ["req.headers.cookie", "req.headers.authorization"] },
@@ -115,6 +118,7 @@ export async function buildApp(deps: Deps) {
     await r.register(settingsRoutes, deps);
     await r.register(taskRoutes, deps);
     await r.register(goalRoutes, deps);
+    await r.register(connectorRoutes, deps);
     await r.register(interestRoutes, deps);
     await r.register(styleRoutes, deps);
     await r.register(adminRoutes, deps);

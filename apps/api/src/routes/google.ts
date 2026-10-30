@@ -18,7 +18,7 @@ const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(
 export const googleRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, google, config }) => {
   app.get(`${PATH}/start`, async (req, reply) => {
     if (req.auth!.role !== "admin") return reply.code(403).send({ error: "admins_only" });
-    if (!google) return reply.code(503).send({ error: "google_not_configured" });
+    if (!google?.configured) return reply.code(503).send({ error: "google_not_configured" });
     const state = randomBytes(24).toString("base64url");
     const verifier = randomBytes(48).toString("base64url");
     reply.setCookie(COOKIE, `${state}.${verifier}`, { httpOnly: true, sameSite: "lax", secure: config.cookieSecure, path: PATH, maxAge: 600 });
@@ -34,7 +34,7 @@ export const googleRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, g
     const back = (result: string) => reply.redirect(`/?google=${result}#/settings`);
 
     const [state, verifier] = (raw ?? "").split(".");
-    if (!google || role !== "admin" || !state || !verifier || !q.state || !same(state, q.state)) return back("error");
+    if (!google?.configured || role !== "admin" || !state || !verifier || !q.state || !same(state, q.state)) return back("error");
     if (q.error || !q.code) return back("denied");
 
     let tokens;

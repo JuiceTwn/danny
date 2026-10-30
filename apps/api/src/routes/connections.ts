@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, connections } from "../db/schema.js";
+import { connectorById } from "../lib/connectors.js";
 import type { GoogleSecret } from "../lib/gmail.js";
 
 // Linked accounts. The secret (an API key or token) goes in encrypted and never comes back out:
@@ -20,14 +21,14 @@ export const connectionRoutes: FastifyPluginAsync<Deps> = async (app, { db, vaul
     // Whether the Google login can use the calendar. Only a yes or no leaves here, never the secret.
     const full = await withTenant(db, workspaceId, (tx) => tx.select({ id: connections.id, secretEnc: connections.secretEnc }).from(connections).where(eq(connections.provider, "google")));
     const cal = new Set(full.filter((c) => vault.openJson<GoogleSecret>(workspaceId, c.secretEnc).calendar === true).map((c) => c.id));
-    return { items: items.map((i) => (i.provider === "google" ? { ...i, calendar: cal.has(i.id) } : i)), google: { configured: google !== null } };
+    return { items: items.map((i) => (i.provider === "google" ? { ...i, calendar: cal.has(i.id) } : i)), google: { configured: google?.configured === true } };
   });
 
   app.post("/v1/connections", async (req, reply) => {
     const { workspaceId, userId, role } = req.auth!;
     if (role !== "admin") return reply.code(403).send({ error: "admins_only" });
     const body = z
-      .object({ provider: z.string().trim().min(1).max(40).refine((p) => p.toLowerCase() !== "google", "Connect Google with Sign in with Google"), label: z.string().trim().max(100).default(""), secret: z.string().min(1).max(8000) })
+      .object({ provider: z.string().trim().min(1).max(40).refine((p) => p.toLowerCase() !== "google", "Connect Google with Sign in with Google").refine((p) => !connectorById(p.toLowerCase()), "Use the Connect button for that one"), label: z.string().trim().max(100).default(""), secret: z.string().min(1).max(8000) })
       .parse(req.body);
     const item = await withTenant(db, workspaceId, async (tx) => {
       const [c] = await tx

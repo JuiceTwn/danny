@@ -106,6 +106,13 @@
       "when": 1793394708970,
       "tag": "0014_style_quiet_learning",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793397439114,
+      "tag": "0015_server_secrets",
+      "breakpoints": true
     }
   ]
 }

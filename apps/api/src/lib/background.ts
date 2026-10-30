@@ -5,6 +5,8 @@ import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
 import { auditLog, conversations, goals, interests, memory, messages, pushSubscriptions, styleNotes, tasks, users } from "../db/schema.js";
 import { eventLine, listEvents } from "./calendar.js";
+import { summarize as githubSummary, waitingOnYou } from "./github.js";
+import { githubToken } from "../tools/github.js";
 import { goalView } from "./goals.js";
 import type { GoogleService } from "./google.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
@@ -122,9 +124,17 @@ export async function runDueGoalChecks(deps: BackgroundDeps, now = new Date()) {
   return reported;
 }
 
+/** What is waiting on them on GitHub, or null when it isn't connected. */
+async function githubWaiting(deps: BackgroundDeps, who: Who) {
+  const { db, vault } = deps;
+  const ctx = { ...who, db, vault, tenant: <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn) } as unknown as Parameters<typeof githubToken>[0];
+  const token = await githubToken(ctx);
+  return token ? githubSummary(await waitingOnYou(token, deps.fetchFn)) : null;
+}
+
 /** Today's events as plain lines, or null when Google or the calendar permission isn't connected. */
 async function todaysCalendar(deps: BackgroundDeps, who: Who, timezone: string, now: Date) {
-  if (!deps.google) return null;
+  if (!deps.google?.configured) return null;
   const { db, vault } = deps;
   const ctx = { ...who, db, vault, google: deps.google, tenant: <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn) } as unknown as Parameters<typeof listEvents>[0];
   const { start, end } = localDayBounds(now, timezone);
@@ -176,6 +186,7 @@ export async function runDueBriefings(deps: BackgroundDeps, now = new Date()) {
         };
       });
       const calendar = await todaysCalendar(deps, who, d.timezone, now).catch(() => null);
+      const github = await githubWaiting(deps, who).catch(() => null);
       const weather = ctx.location ? await todaysWeather(ctx.location, ctx.units, deps.fetchFn) : null;
 
       const r = await budgetedSearch(asSearchDeps(deps), who, {
@@ -191,6 +202,7 @@ export async function runDueBriefings(deps: BackgroundDeps, now = new Date()) {
           "",
           weather ? `Weather today: ${weather}. Mention it in one short line, and only say more if it changes their plans.` : "",
           calendar ? `Calendar today:\n${calendar}` : "Calendar: not connected.",
+          github ? `GitHub:\n${github}` : "",
           ctx.style && `How they like to be helped:\n${ctx.style}`,
           `Open tasks:\n${ctx.tasks.join("\n") || "none"}`,
           `Goals:\n${ctx.goals.map((g) => `- ${g.title}${g.notes ? ` (${g.notes})` : ""}${g.lastFinding ? ` Last finding: ${g.lastFinding.slice(0, 200)}` : ""}`).join("\n") || "none"}`,

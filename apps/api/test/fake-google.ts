@@ -16,6 +16,8 @@ export class FakeGoogle {
   // injected faults
   sendMode: "ok" | "400" | "500" | "network" = "ok";
   invalidGrant = false;
+  /** When set, Google only accepts this client ID and secret and answers invalid_client for any other. */
+  expectClient: { id: string; secret: string } | null = null;
 
   // what happened
   sent: { mime: string; threadId?: string }[] = [];
@@ -49,6 +51,7 @@ export class FakeGoogle {
 
     if (url.origin === "https://oauth2.googleapis.com") {
       const form = new URLSearchParams(body);
+      if (this.expectClient && url.pathname === "/token" && (form.get("client_id") !== this.expectClient.id || form.get("client_secret") !== this.expectClient.secret)) return json(401, { error: "invalid_client" });
       if (url.pathname === "/revoke") {
         this.revoked.push(form.get("token")!);
         return json(200, {});

@@ -1,5 +1,7 @@
 # Connecting Gmail
 
+> You no longer have to edit `.env` for the Google part: as the owner, open Settings, Connections, and tap Set up Google. It walks through the same steps below and checks what you paste. The `.env` route still works and takes priority.
+
 Danny reads your mail and drafts replies. He sends only after you tap **Send it** on a card. The connection can read and send. It cannot delete, archive, label or edit anything.
 
 You make a Google "OAuth client" once, give its ID and secret to the server, then click **Connect Gmail** in Settings.

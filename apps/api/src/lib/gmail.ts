@@ -20,7 +20,7 @@ async function activeConnection(ctx: ToolCtx): Promise<Conn> {
 
 /** One Gmail API call for this workspace's connected account. */
 export async function google<T>(ctx: ToolCtx, path: string, init?: { method?: string; json?: unknown; api?: "gmail" | "calendar" }): Promise<T> {
-  if (!ctx.google) throw new GmailError(NOT_CONNECTED, "failed");
+  if (!ctx.google?.configured) throw new GmailError(NOT_CONNECTED, "failed");
   const conn = await activeConnection(ctx);
   if (init?.api === "calendar" && !conn.calendar) throw new GmailError("Calendar isn't connected. Tell the user to reconnect Google in Settings and leave the calendar permission ticked.", "failed");
   try {
