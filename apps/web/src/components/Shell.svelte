@@ -4,6 +4,7 @@
   import Logo from "./Logo.svelte";
   import StatusBar from "./StatusBar.svelte";
   import Chat from "./Chat.svelte";
+  import Goals from "./Goals.svelte";
   import Waiting from "./Waiting.svelte";
   import Memory from "./Memory.svelte";
   import Settings from "./Settings.svelte";
@@ -11,12 +12,13 @@
 
   const tabs = $derived<{ id: Route; label: string }[]>([
     { id: "chat", label: "Chat" },
+    { id: "goals", label: "Goals" },
     { id: "waiting", label: "Waiting" },
     { id: "memory", label: "Memory" },
     { id: "settings", label: "Settings" },
     ...(app.me?.isOwner ? [{ id: "owner" as Route, label: "Owner" }] : []),
   ]);
-  const titles: Record<Route, string> = { chat: "Chat", waiting: "Waiting on you", memory: "Memory", settings: "Settings", owner: "Owner" };
+  const titles: Record<Route, string> = { chat: "Chat", goals: "Goals", waiting: "Waiting on you", memory: "Memory", settings: "Settings", owner: "Owner" };
 </script>
 
 <div class="app">
@@ -48,6 +50,7 @@
     </header>
     <div class="content">
       {#if router.current === "chat"}<Chat />
+      {:else if router.current === "goals"}<Goals />
       {:else if router.current === "waiting"}<Waiting />
       {:else if router.current === "memory"}<Memory />
       {:else if router.current === "settings"}<Settings />

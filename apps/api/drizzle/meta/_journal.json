@@ -57,6 +57,13 @@
       "when": 1793322847022,
       "tag": "0007_add_encrypted_title",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793400000000,
+      "tag": "0008_goals_agent",
+      "breakpoints": true
     }
   ]
 }

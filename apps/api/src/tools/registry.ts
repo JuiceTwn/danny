@@ -15,6 +15,8 @@ export type ToolCtx = {
   userId: string;
   db: Db;
   vault: Vault;
+  /** Who is acting: the user in chat, or Danny on his own review. Goals remember who started them. */
+  actor?: "user" | "danny";
   /** Run database work inside this workspace, with row-level security applied. */
   tenant: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 };
@@ -26,9 +28,16 @@ export type Tool<S extends z.ZodType = z.ZodType> = {
   input: S;
   /** One line shown on the approval card. Required for external_write. */
   approvalTitle?: (input: z.infer<S>) => string;
-  /** Not used for external_write; those only run after approval, through an executor (not built yet). */
+  /** Not used for external_write. */
   run?: (ctx: ToolCtx, input: z.infer<S>) => Promise<string>;
+  /**
+   * external_write only. Runs once, after the user taps approve, and never from chat or from a review.
+   * Throw ToolUnavailable for a problem the user can fix (like a missing account); its message is shown to them.
+   */
+  execute?: (ctx: ToolCtx, input: z.infer<S>) => Promise<string>;
 };
+
+export class ToolUnavailable extends Error {}
 
 export function defineTool<S extends z.ZodType>(t: Tool<S>): Tool<S> {
   if (t.kind === "external_write" && !t.approvalTitle) throw new Error(`${t.name}: external_write tools need approvalTitle`);

@@ -30,14 +30,14 @@ function scripted(steps: (ModelResult | ((req: ModelRequest) => Promise<ModelRes
   return { model, calls, steps };
 }
 
-const sendEmail = vi.fn(async () => "SENT");
-const emailTool = defineTool({
-  name: "send_email",
-  description: "Send an email",
+const sendSms = vi.fn(async () => "SENT");
+const smsTool = defineTool({
+  name: "send_sms",
+  description: "Send a text",
   kind: "external_write",
   input: z.object({ to: z.string(), body: z.string() }),
-  approvalTitle: (i) => `Email to ${i.to}`,
-  run: sendEmail as never, // would be a bug if ever called from chat
+  approvalTitle: (i) => `Text to ${i.to}`,
+  run: sendSms as never, // would be a bug if ever called from chat
 });
 
 let ctx: Ctx;
@@ -46,7 +46,7 @@ let script: ReturnType<typeof scripted>;
 let proxyModel: ModelClient;
 beforeAll(async () => {
   proxyModel = { complete: (r, o) => script.model.complete(r, o) };
-  const tools = createRegistry().register(emailTool);
+  const tools = createRegistry().register(smsTool);
   ctx = await setupApp(proxyModel, tools);
   owner = (await seedOwner(ctx)).c;
 });
@@ -70,8 +70,8 @@ describe("chat", () => {
     expect(r.events).toEqual([{ type: "text", text: "Morning. What's first?" }, { type: "done" }]);
     const hist = (await u.c.get("/v1/chat/history")).body.messages;
     expect(hist.map((m: any) => [m.role, m.text])).toEqual([["user", "hey danny"], ["assistant", "Morning. What's first?"]]);
-    // 1000 in x $1/Mtok + 200 out x $5/Mtok = $0.002
-    expect((await u.c.get("/v1/settings")).body.spentTodayUsd).toBeCloseTo(0.002, 6);
+    // Haiku 5.5: 1000 in x $0.10/Mtok + 200 out x $0.50/Mtok = $0.0002
+    expect((await u.c.get("/v1/settings")).body.spentTodayUsd).toBeCloseTo(0.0002, 6);
   });
 
   it("remembers facts through the tool, and uses them next time", async () => {
@@ -101,14 +101,14 @@ describe("chat", () => {
 
   it("an outside-world tool is never run from chat, it becomes an approval", async () => {
     const u = await signUp(ctx, owner, "Guard");
-    sendEmail.mockClear();
-    script = scripted([useTool("send_email", { to: "marlene@x.ca", body: "Hi" }), text("Queued.")]);
+    sendSms.mockClear();
+    script = scripted([useTool("send_sms", { to: "marlene@x.ca", body: "Hi" }), text("Queued.")]);
     const r = await chat(u.c, "email Marlene");
-    expect(sendEmail).not.toHaveBeenCalled();
-    expect(r.events).toContainEqual({ type: "tool", name: "send_email", status: "queued" });
+    expect(sendSms).not.toHaveBeenCalled();
+    expect(r.events).toContainEqual({ type: "tool", name: "send_sms", status: "queued" });
     const [a] = await ctx.owner.db.select().from(approvals).where(eq(approvals.userId, u.userId));
-    expect(a).toMatchObject({ kind: "send_email", status: "pending", executedAt: null });
-    expect(ctx.vault.open(u.workspaceId, a!.titleEnc)).toBe("Email to marlene@x.ca");
+    expect(a).toMatchObject({ kind: "send_sms", status: "pending", executedAt: null });
+    expect(ctx.vault.open(u.workspaceId, a!.titleEnc)).toBe("Text to marlene@x.ca");
   });
 
   it("bad tool calls come back to the model as errors, not crashes", async () => {
@@ -145,8 +145,8 @@ describe("chat", () => {
   it("stops when the daily cap is hit, including between tool steps", async () => {
     const u = await signUp(ctx, owner, "Cap");
     await u.c.patch("/v1/settings", { dailyCapUsd: 0.001 });
-    // first call costs $0.002, which passes the cap, so the follow-up step must not run
-    script = scripted([{ ...useTool("remember", { fact: "x" }), usage: { inputTokens: 2000, outputTokens: 0 } }, text("never")]);
+    // first call costs $0.002 (20,000 tokens in at Haiku prices), which passes the cap, so the follow-up step must not run
+    script = scripted([{ ...useTool("remember", { fact: "x" }), usage: { inputTokens: 20000, outputTokens: 0 } }, text("never")]);
     const r = await chat(u.c, "go");
     expect(r.events.at(-1)).toMatchObject({ type: "error", code: "cap_reached" });
     expect(script.calls).toHaveLength(1);
@@ -200,6 +200,16 @@ describe("chat", () => {
   it("lists tools with their kind so the app can show what Danny can do", async () => {
     const u = await signUp(ctx, owner, "Tools");
     const tools = (await u.c.get("/v1/tools")).body.tools;
-    expect(tools.map((t: any) => [t.name, t.kind])).toEqual([["remember", "internal"], ["request_approval", "internal"], ["send_email", "external_write"]]);
+    expect(tools.map((t: any) => [t.name, t.kind])).toEqual([
+      ["remember", "internal"],
+      ["request_approval", "internal"],
+      ["send_email", "external_write"],
+      ["list_goals", "read"],
+      ["set_goal", "internal"],
+      ["update_goal", "internal"],
+      ["add_steps", "internal"],
+      ["update_step", "internal"],
+      ["send_sms", "external_write"],
+    ]);
   });
 });

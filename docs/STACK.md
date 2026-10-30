@@ -13,8 +13,8 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 | Passwords | argon2id (`@node-rs/argon2`) | OWASP-minimum parameters. |
 | Sessions | Opaque random token in an HttpOnly cookie, SHA-256 hashed in the database | Revocable, and a database leak does not leak usable sessions. |
 | Web app | Svelte 5 + Vite + TypeScript, one responsive interface | The same build is the phone PWA and the desktop app: sidebar on wide screens, bottom tabs on phones. 72 KB of JavaScript. Served by the API on the same origin, so cookies and the origin check stay simple. |
-| Jobs (next) | pg-boss | Queue inside Postgres, so no Redis to run. |
-| Model API (next) | `@anthropic-ai/sdk`, streaming, SSE to the browser | |
+| Jobs | A timer inside the API process (`brain/heartbeat.ts`), with an atomic per-workspace claim in Postgres | One server, so no queue to run. A run is claimed with one `UPDATE`, so two processes can't both start it. Move to pg-boss if jobs ever need retries or fan-out. |
+| Model API | `@anthropic-ai/sdk`, streaming, SSE to the browser | Two models: `MODEL` for chat, `PLANNER_MODEL` for self-review. |
 
 ## How multi-tenancy works
 
@@ -36,11 +36,20 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 - **Limits.** The server holds the key while it runs, so this protects data at rest and in backups, not against someone with live access to the running server. Everything also travels over HTTPS.
 - **Lost key = lost data.** Back up `DATA_KEYS` separately from the database.
 
+## How Danny works on his own
+
+- A **goal** has steps, notes, and a `next_review_at`. Danny sets that himself when he reviews it.
+- Each tick, a free query asks "is any review due, or was a card decided since the last run?" Only a yes calls the planner model.
+- A review gets the goals, memory, recent chat and what is waiting on the boss. It may use every tool chat can. It can plan and draft. It cannot send.
+- Limits, enforced in code: the kill switch and daily cap (shared with chat), runs per day, a 10 minute gap, 8 cards waiting at most, 12 goals, 15 steps per goal.
+- A goal that was due and not rescheduled moves out a day after every run, so one stuck goal can't wake him every tick.
+- `external_write` tools (like `send_email`) run only from `executeApproved`, after the user taps Approve, once per card.
+
 ## What is deliberately not here yet
 
-- Chat and the model tool loop (next slice).
-- Email sending. The owner receives the invite link and passes it on.
-- Billing, push notifications, connectors. Approvals are recorded, never executed, and the API says so in every response.
+- Connectors other than email (Google Business Profile, calendar, social). Approvals for those are recorded, not executed.
+- Billing and push notifications.
+- Prompt caching. The spend count ignores cache discounts, so the cap over-counts rather than under-counts.
 
 ## Deviations from the written build direction
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { api } from "../lib/api";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
   import { usd } from "../lib/router.svelte";
@@ -26,6 +27,57 @@
       await refresh();
     } catch {
       error = "Couldn't change that. Try again.";
+    }
+  }
+
+  let runs = $state("");
+  $effect(() => {
+    if (s && runs === "") runs = String(s.agentRunsPerDay);
+  });
+  async function setAgent(patch: { agentEnabled?: boolean; agentRunsPerDay?: number }) {
+    error = msg = "";
+    try {
+      await api("PATCH", "/v1/settings", patch);
+      await refresh();
+      if (patch.agentRunsPerDay !== undefined) msg = "Saved.";
+    } catch {
+      error = "Couldn't change that. Only an admin can.";
+    }
+  }
+  const lastRun = $derived(s?.agentLastRunAt ? new Date(s.agentLastRunAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }) : "never");
+
+  type Conn = { id: string; provider: string; label: string };
+  let conns = $state<Conn[]>([]);
+  let mailKey = $state("");
+  let mailFrom = $state("");
+  const mail = $derived(conns.find((c) => c.provider === "resend"));
+  const loadConns = async () => {
+    try {
+      conns = (await api<{ items: Conn[] }>("GET", "/v1/connections")).items;
+    } catch {
+      /* section just shows as unlinked */
+    }
+  };
+  onMount(loadConns);
+  async function linkMail(e: SubmitEvent) {
+    e.preventDefault();
+    error = msg = "";
+    try {
+      await api("POST", "/v1/connections", { provider: "resend", label: mailFrom.trim(), secret: JSON.stringify({ apiKey: mailKey.trim(), from: mailFrom.trim() }) });
+      mailKey = mailFrom = "";
+      await loadConns();
+      msg = "Email linked.";
+    } catch {
+      error = "Couldn't link that. Only an admin can.";
+    }
+  }
+  async function unlinkMail() {
+    if (!mail) return;
+    try {
+      await api("DELETE", `/v1/connections/${mail.id}`);
+      await loadConns();
+    } catch {
+      error = "Couldn't unlink that.";
     }
   }
 
@@ -57,6 +109,40 @@
       </div>
       <p>{s?.killSwitch ? "Danny won't answer or spend anything until you start him again." : "One tap stops everything. Danny won't answer or spend until you start him again."}</p>
       <button class="btn {s?.killSwitch ? 'primary' : 'warn'} wide" onclick={toggle}>{s?.killSwitch ? "Start Danny" : "Stop Danny"}</button>
+    </section>
+
+    <section>
+      <h2 class="display">Works on his own</h2>
+      <p>Danny reviews your goals between chats, fixes the plan, and drafts what he can. He never sends anything without your tap. Every review counts against your daily spend cap.</p>
+      <div class="state">
+        <span class="lamp" class:off={!s?.agentEnabled}></span>
+        <strong class="mono big" class:off={!s?.agentEnabled}>{s?.agentEnabled ? "On" : "Off"}</strong>
+      </div>
+      <button class="btn {s?.agentEnabled ? '' : 'primary'} wide" onclick={() => setAgent({ agentEnabled: !s?.agentEnabled })}>{s?.agentEnabled ? "Turn off" : "Let Danny work on his own"}</button>
+      {#if s?.agentEnabled && !s.schedulerOn}<p class="error" role="status">This server isn't running the scheduler (no model key, or AGENT_TICK_SECONDS=0). Danny only reviews when you press Review now.</p>{/if}
+      <p class="mono">{s?.agentRunsToday ?? 0} of {s?.agentRunsPerDay ?? 0} reviews used today · last: {lastRun}</p>
+      <form class="capform" onsubmit={(e) => { e.preventDefault(); void setAgent({ agentRunsPerDay: Number(runs) }); }}>
+        <div class="field">
+          <label for="runs">Reviews allowed per day</label>
+          <input id="runs" class="input" type="number" min="1" max="24" step="1" inputmode="numeric" bind:value={runs} />
+        </div>
+        <button class="btn">Save</button>
+      </form>
+    </section>
+
+    <section>
+      <h2 class="display">Email</h2>
+      {#if mail}
+        <p>Approved emails go out from <strong>{mail.label}</strong>.</p>
+        <button class="btn" onclick={unlinkMail}>Unlink</button>
+      {:else}
+        <p>Link a Resend account so approved emails can actually send. Until then, approving only records your decision. Up to 20 emails a day.</p>
+        <form class="mailform" onsubmit={linkMail}>
+          <div class="field"><label for="mk">Resend API key</label><input id="mk" class="input" type="password" autocomplete="off" bind:value={mailKey} /></div>
+          <div class="field"><label for="mf">Send from</label><input id="mf" class="input" placeholder="Justin <justin@yourdomain.com>" bind:value={mailFrom} /></div>
+          <button class="btn" disabled={!mailKey.trim() || mailFrom.trim().length < 3}>Link email</button>
+        </form>
+      {/if}
     </section>
 
     <section>
@@ -122,6 +208,8 @@
   .meter b { position: absolute; inset: 0 auto 0 0; background: var(--run); }
   .capform { display: flex; gap: 12px; align-items: flex-end; width: 100%; max-width: 380px; }
   .capform .field { flex: 1; }
+  .mailform { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 380px; align-items: flex-start; }
+  .mailform .field { width: 100%; }
   .who { text-transform: none; letter-spacing: 0; }
   .steps { counter-reset: s; width: 100%; max-width: 46ch; }
   .steps li { counter-increment: s; display: grid; grid-template-columns: 2.4rem 1fr; padding: 10px 0; border-top: 1px solid var(--line); }

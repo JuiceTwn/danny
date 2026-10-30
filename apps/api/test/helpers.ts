@@ -32,6 +32,10 @@ export async function setupApp(model: ModelClient = new DemoModel(), tools = cre
     vault,
     runtime,
     owner,
+    config,
+    tools,
+    /** What the brain needs, for tests that drive a review directly instead of through HTTP. */
+    deps: { db: runtime.db, config, model, tools, vault },
     async close() {
       await app.close();
       await runtime.client.end();

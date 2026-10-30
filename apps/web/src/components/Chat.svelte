@@ -15,6 +15,7 @@
   let stick = true;
   let nextId = 0;
   let controller: AbortController | null = null;
+  let lastSeen = 0;
 
   const starters = ["Remember that Marlene prefers texts, not calls", "Draft a reply to a customer asking for a quote", "What do you remember about me?"];
 
@@ -33,12 +34,44 @@
     try {
       const h = await api<{ messages: HistoryMsg[] }>("GET", "/v1/chat/history?limit=100");
       rows = h.messages.map((m) => ({ id: nextId++, kind: m.role === "user" ? "user" : "danny", text: m.text, at: m.at }));
+      lastSeen = Math.max(0, ...h.messages.map((m) => new Date(m.at).getTime()));
     } catch {
       /* start empty */
     }
     loaded = true;
     await toBottom();
     boxEl?.focus();
+  });
+
+  // Danny can speak first after a review on his own. Check quietly while the tab is open and nothing is mid-reply.
+  async function pickUp() {
+    if (busy || document.hidden || !loaded) return;
+    try {
+      const h = await api<{ messages: HistoryMsg[] }>("GET", "/v1/chat/history?limit=10");
+      let added = false;
+      for (const m of h.messages) {
+        if (m.role !== "assistant" || new Date(m.at).getTime() <= lastSeen) continue;
+        if (!rows.some((r) => r.kind === "danny" && r.text === m.text)) {
+          rows.push({ id: nextId++, kind: "danny", text: m.text, at: m.at });
+          added = true;
+        }
+      }
+      lastSeen = Math.max(lastSeen, ...h.messages.map((m) => new Date(m.at).getTime()));
+      if (added) {
+        void refresh();
+        await toBottom();
+      }
+    } catch {
+      /* try again next time */
+    }
+  }
+  onMount(() => {
+    const t = setInterval(pickUp, 45_000);
+    document.addEventListener("visibilitychange", pickUp);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", pickUp);
+    };
   });
 
   function grow() {
@@ -78,6 +111,7 @@
     } finally {
       busy = false;
       controller = null;
+      lastSeen = Date.now(); // what just streamed is already on screen; only later messages are news
       await toBottom();
       void refresh();
       boxEl?.focus();

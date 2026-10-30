@@ -42,6 +42,10 @@ export const workspaces = pgTable("workspaces", {
   plan: text("plan").notNull().default("invite"),
   dailyCapMicros: bigint("daily_cap_micros", { mode: "number" }).notNull().default(2_000_000), // US$2.00
   killSwitch: boolean("kill_switch").notNull().default(false),
+  // Autonomy. Off until an admin turns it on. The limit is on review runs per UTC day, whatever started them.
+  agentEnabled: boolean("agent_enabled").notNull().default(false),
+  agentRunsPerDay: integer("agent_runs_per_day").notNull().default(6),
+  agentLastRunAt: timestamp("agent_last_run_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -191,4 +195,41 @@ export const connections = pgTable(
   (t) => [index("connections_ws_idx").on(t.workspaceId, t.provider)],
 );
 
-export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger", "connections"] as const;
+// What the boss is trying to get done, and the steps Danny has planned toward it. Text is encrypted like memory.
+export const goals = pgTable(
+  "goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    titleEnc: bytea("title_enc").notNull(),
+    notesEnc: bytea("notes_enc").notNull(), // encrypted; Danny's running notes on the goal
+    status: text("status").notNull().default("active"), // active | done | dropped
+    createdBy: text("created_by").notNull().default("user"), // user | danny
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    // When Danny should next look at this goal on his own. A due review is what wakes him up.
+    nextReviewAt: timestamp("next_review_at", { withTimezone: true }).notNull(),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("goals_ws_idx").on(t.workspaceId, t.status, t.nextReviewAt)],
+);
+
+export const goalSteps = pgTable(
+  "goal_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    goalId: uuid("goal_id").notNull().references(() => goals.id, { onDelete: "cascade" }),
+    textEnc: bytea("text_enc").notNull(),
+    status: text("status").notNull().default("todo"), // todo | doing | done | blocked
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    position: integer("position").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("goal_steps_goal_idx").on(t.goalId, t.position)],
+);
+
+export const TENANT_TABLES = ["memory", "conversations", "messages", "approvals", "audit_log", "spend_ledger", "connections", "goals", "goal_steps"] as const;

@@ -23,11 +23,28 @@ const schema = z.object({
   // Built web app (apps/web/dist). If the folder is missing, only the API is served.
   WEB_DIR: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Chat. Cheap and quick.
   MODEL: z.string().default("claude-haiku-5-5"),
-  // Placeholders. Check against Anthropic's current pricing before real traffic.
-  PRICE_INPUT_PER_MTOK_USD: z.coerce.number().default(1),
-  PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(5),
+  // Planning and reviews that run without being asked. Judgment matters more than price here.
+  PLANNER_MODEL: z.string().default("claude-sonnet-5-5"),
+  // How often the scheduler looks for due work. 0 turns the scheduler off.
+  AGENT_TICK_SECONDS: z.coerce.number().int().min(0).default(300),
+  // Optional override for a model not in the price table below, or if prices change.
+  // Format: "model=inputUsdPerMtok/outputUsdPerMtok,model2=..."
+  MODEL_PRICES: z.string().default(""),
 });
+
+/** US$ per million tokens, from Anthropic's published prices. Anything not listed falls back to the most expensive known price, so the cap errs on the safe side. */
+export const DEFAULT_PRICES: Record<string, { inputPerMtokUsd: number; outputPerMtokUsd: number }> = {
+  "claude-haiku-5-5": { inputPerMtokUsd: 0.1, outputPerMtokUsd: 0.5 },
+  "claude-sonnet-5-5": { inputPerMtokUsd: 2, outputPerMtokUsd: 10 },
+  "claude-sonnet-5": { inputPerMtokUsd: 2, outputPerMtokUsd: 10 },
+  "claude-opus-5-5": { inputPerMtokUsd: 4, outputPerMtokUsd: 20 },
+  "claude-opus-5": { inputPerMtokUsd: 5, outputPerMtokUsd: 25 },
+  "claude-fable-5-1": { inputPerMtokUsd: 10, outputPerMtokUsd: 50 },
+  "claude-fable-5": { inputPerMtokUsd: 10, outputPerMtokUsd: 50 },
+};
+const FALLBACK_PRICE = { inputPerMtokUsd: 10, outputPerMtokUsd: 50 };
 
 export type Config = ReturnType<typeof loadConfig>;
 
@@ -36,6 +53,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   if (c.NODE_ENV === "production" && c.COOKIE_SECURE !== "true") {
     throw new Error("COOKIE_SECURE must be true in production");
+  }
+  const prices = { ...DEFAULT_PRICES };
+  for (const part of list(c.MODEL_PRICES)) {
+    const m = /^([^=]+)=([\d.]+)\/([\d.]+)$/.exec(part);
+    if (!m) throw new Error(`MODEL_PRICES entry not understood: ${part}`);
+    prices[m[1]!] = { inputPerMtokUsd: Number(m[2]), outputPerMtokUsd: Number(m[3]) };
   }
   return {
     env: c.NODE_ENV,
@@ -55,6 +78,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     webDir: c.WEB_DIR,
     anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
     model: c.MODEL,
-    price: { inputPerMtokUsd: c.PRICE_INPUT_PER_MTOK_USD, outputPerMtokUsd: c.PRICE_OUTPUT_PER_MTOK_USD },
+    plannerModel: c.PLANNER_MODEL,
+    agentTickMs: c.AGENT_TICK_SECONDS * 1000,
+    priceFor: (model: string) => prices[model] ?? FALLBACK_PRICE,
   };
 }

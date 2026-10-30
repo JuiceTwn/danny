@@ -1,5 +1,5 @@
-export type Route = "chat" | "waiting" | "memory" | "settings" | "owner";
-const ROUTES: Route[] = ["chat", "waiting", "memory", "settings", "owner"];
+export type Route = "chat" | "goals" | "waiting" | "memory" | "settings" | "owner";
+const ROUTES: Route[] = ["chat", "goals", "waiting", "memory", "settings", "owner"];
 
 const parse = (): Route => {
   const r = location.hash.replace(/^#\//, "") as Route;

@@ -13,6 +13,7 @@
   const pending = $derived(items.filter((a) => a.status === "pending"));
   const done = $derived(items.filter((a) => a.status !== "pending"));
   const words: Record<string, string> = { approved: "Approved", changes_requested: "Sent back", dropped: "Dropped" };
+  const word = (a: Approval) => (a.executed ? "Sent" : (words[a.status] ?? a.status));
 
   async function load() {
     try {
@@ -43,12 +44,16 @@
   }
 
   const draftOf = (p: Record<string, unknown>) =>
-    typeof p.draft === "string" ? p.draft : Object.entries(p).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n");
+    typeof p.draft === "string"
+      ? p.draft
+      : typeof p.body === "string" && typeof p.to === "string"
+        ? `To: ${p.to}\nSubject: ${p.subject ?? ""}\n\n${p.body}`
+        : Object.entries(p).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n");
 </script>
 
 <div class="page">
   <div class="col">
-    <p class="honest mono">Approving records your decision. Danny can't send anything outside this app yet.</p>
+    <p class="honest mono">Nothing goes out until you tap Approve. Emails send from your linked account (Settings). Anything else is only recorded for now.</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
     {#if loaded && pending.length === 0}
@@ -81,7 +86,7 @@
       <ul class="earlierlist">
         {#each done as a (a.id)}
           <li>
-            <span class="tag" class:run={a.status === "approved"} class:off={a.status !== "approved"}>{words[a.status] ?? a.status}</span>
+            <span class="tag" class:run={a.status === "approved"} class:off={a.status !== "approved"}>{word(a)}</span>
             <span class="t">{a.title}</span>
             <span class="mono">{notes[a.id] ?? (a.decidedAt ? `${fmtDay(a.decidedAt)} ${fmtTime(a.decidedAt)}` : "")}</span>
           </li>

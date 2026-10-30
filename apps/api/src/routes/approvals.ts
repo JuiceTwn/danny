@@ -4,12 +4,13 @@ import { z } from "zod";
 import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import type { Vault } from "../lib/vault.js";
+import { executeApproved } from "../brain/execute.js";
 import { approvals, auditLog } from "../db/schema.js";
 
 const STATUS = { approve: "approved", changes: "changes_requested", drop: "dropped" } as const;
 
-// Approvals are recorded, not executed. executedAt stays null until a real connector exists,
-// and every response says so, so no client can imply that something was sent.
+// Approving records the decision. Only a tool with a real executor (like send_email, with an account linked) does anything
+// outside the app, and only then is executedAt set. Every response says which happened, so no client can imply something was sent.
 const view = (vault: Vault, a: typeof approvals.$inferSelect) => ({
   id: a.id,
   kind: a.kind,
@@ -21,7 +22,8 @@ const view = (vault: Vault, a: typeof approvals.$inferSelect) => ({
   executed: a.executedAt !== null,
 });
 
-export const approvalRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault }) => {
+export const approvalRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
+  const { db, vault } = deps;
   app.get("/v1/approvals", async (req) => {
     const { workspaceId } = req.auth!;
     const { status } = z.object({ status: z.enum(["pending", "approved", "changes_requested", "dropped"]).optional() }).parse(req.query);
@@ -58,6 +60,10 @@ export const approvalRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault 
       return a;
     });
     if (!row) return reply.code(409).send({ error: "not_pending_or_not_found" });
-    return { item: view(vault, row), note: "Recorded. Nothing has been sent." };
+    // The update above only matches a pending card, so a card can be released once and only once.
+    if (decision !== "approve") return { item: view(vault, row), note: "Recorded. Nothing has been sent." };
+    const out = await executeApproved(deps, { workspaceId, userId }, row, req.log);
+    const [fresh] = await withTenant(db, workspaceId, (tx) => tx.select().from(approvals).where(eq(approvals.id, id)));
+    return { item: view(vault, fresh ?? row), note: out.note };
   });
 };

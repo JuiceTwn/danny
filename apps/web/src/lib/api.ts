@@ -60,7 +60,29 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
 }
 
 export type Me = { user: { id: string; email: string; name: string }; workspaceId: string; role: string; isOwner: boolean };
-export type Settings = { dailyCapUsd: number; killSwitch: boolean; spentTodayUsd: number };
+export type Settings = {
+  dailyCapUsd: number;
+  killSwitch: boolean;
+  spentTodayUsd: number;
+  agentEnabled: boolean;
+  agentRunsPerDay: number;
+  agentRunsToday: number;
+  agentLastRunAt: string | null;
+  schedulerOn: boolean;
+};
+export type GoalStep = { id: string; text: string; status: "todo" | "doing" | "done" | "blocked"; dueAt: string | null };
+export type Goal = {
+  id: string;
+  title: string;
+  notes: string;
+  status: "active" | "done" | "dropped";
+  createdBy: "user" | "danny";
+  dueAt: string | null;
+  nextReviewAt: string;
+  lastReviewedAt: string | null;
+  steps: GoalStep[];
+};
+export type AgentRun = { ran: true; message: string | null; costUsd: number; steps: number } | { ran: false; reason: string };
 export type Approval = { id: string; kind: string; title: string; payload: Record<string, unknown>; status: string; createdAt: string; decidedAt: string | null; executed: boolean };
 export type MemoryItem = { id: string; content: string; createdAt: string };
 export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string };

@@ -9,6 +9,7 @@ import { ZodError } from "zod";
 import type { Config } from "./config.js";
 import type { ModelClient } from "./brain/model.js";
 import type { Db } from "./db/client.js";
+import { GoalError } from "./lib/goals.js";
 import type { Vault } from "./lib/vault.js";
 import type { ToolRegistry } from "./tools/registry.js";
 import { connectionRoutes } from "./routes/connections.js";
@@ -16,6 +17,7 @@ import { chatRoutes } from "./routes/chat.js";
 import { adminRoutes } from "./routes/admin.js";
 import { approvalRoutes } from "./routes/approvals.js";
 import { authRoutes, loadSession, type AuthCtx } from "./routes/auth.js";
+import { goalRoutes } from "./routes/goals.js";
 import { inviteRequestRoutes } from "./routes/invite-requests.js";
 import { memoryRoutes } from "./routes/memory.js";
 import { settingsRoutes } from "./routes/settings.js";
@@ -65,6 +67,8 @@ export async function buildApp(deps: Deps) {
     if (err instanceof ZodError) {
       return reply.code(400).send({ error: "invalid_request", issues: err.issues.map((i) => ({ path: i.path.join("."), message: i.message })) });
     }
+    // Limits like "too many goals" are the user's to fix and are worded for them.
+    if (err instanceof GoalError) return reply.code(409).send({ error: "limit", message: err.message });
     const status = err.statusCode ?? 500;
     if (status >= 500) req.log.error(err);
     return reply.code(status).send({ error: status >= 500 ? "server_error" : err.message });
@@ -91,6 +95,7 @@ export async function buildApp(deps: Deps) {
     });
     await r.register(chatRoutes, deps);
     await r.register(memoryRoutes, deps);
+    await r.register(goalRoutes, deps);
     await r.register(connectionRoutes, deps);
     await r.register(approvalRoutes, deps);
     await r.register(settingsRoutes, deps);

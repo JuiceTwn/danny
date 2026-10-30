@@ -12,6 +12,8 @@ export type ModelRequest = {
   messages: Msg[];
   tools: { name: string; description: string; input_schema: { type: "object"; [k: string]: unknown } }[];
   maxTokens: number;
+  /** How hard the model thinks. Thinking tokens bill as output, so chat runs low and planning runs medium. */
+  effort?: "low" | "medium" | "high";
 };
 export type ModelResult = {
   content: (TextBlock | ToolUseBlock)[];
@@ -36,7 +38,8 @@ export class AnthropicModel implements ModelClient {
       system: req.system,
       messages: req.messages as Anthropic.MessageParam[],
       tools: req.tools as Anthropic.Tool[],
-    });
+      ...(req.effort ? { output_config: { effort: req.effort } } : {}),
+    } as Anthropic.MessageStreamParams);
     stream.on("text", onText);
     const final = await stream.finalMessage();
     return {

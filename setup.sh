@@ -16,7 +16,11 @@ if [ ! -f .env ]; then
     echo "# Encrypts everything users write to Danny. BACK THIS UP: without it, stored data cannot be read."
     echo "DATA_KEYS=1:$(head -c 32 /dev/urandom | base64)"
     echo "ANTHROPIC_API_KEY="
+    echo "# Chat runs on the cheap model. Reviews Danny does on his own (goals, plans, drafts) run on the planner."
     echo "MODEL=claude-haiku-5-5"
+    echo "PLANNER_MODEL=claude-sonnet-5-5"
+    echo "# Seconds between looks for due work. 0 turns the scheduler off."
+    echo "AGENT_TICK_SECONDS=300"
     if [ -n "$DOMAIN" ]; then
       echo "APP_URL=https://$DOMAIN"
       echo "APP_ORIGINS=https://$DOMAIN"
