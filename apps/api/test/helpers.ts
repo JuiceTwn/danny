@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { buildApp } from "../src/app.js";
 import { DemoModel, type ModelClient } from "../src/brain/model.js";
+import type { GoogleService } from "../src/lib/google.js";
 import { NoPush, type PushSender } from "../src/lib/push.js";
 import { Vault } from "../src/lib/vault.js";
 import { createRegistry } from "../src/tools/builtin.js";
@@ -14,7 +15,7 @@ import { APP_URL, OWNER_URL } from "./env.js";
 export const ORIGIN = "http://app.test";
 export const TEST_DATA_KEYS = "1:" + Buffer.alloc(32, 7).toString("base64");
 
-export async function setupApp(model: ModelClient = new DemoModel(), tools = createRegistry(), env: Record<string, string> = {}, push: PushSender = new NoPush()) {
+export async function setupApp(model: ModelClient = new DemoModel(), tools = createRegistry(), env: Record<string, string> = {}, push: PushSender = new NoPush(), google: GoogleService | null = null) {
   const config = loadConfig({
     NODE_ENV: "test",
     DATABASE_URL: APP_URL,
@@ -27,7 +28,7 @@ export async function setupApp(model: ModelClient = new DemoModel(), tools = cre
   const runtime = createDb(APP_URL, 5);
   const owner = createDb(OWNER_URL, 2); // table owner: for seeding and for checking what is really in the database
   const vault = new Vault(config.dataKeys);
-  const app = await buildApp({ config, db: runtime.db, model, tools, vault, push });
+  const app = await buildApp({ config, db: runtime.db, model, tools, vault, push, google });
   return {
     app,
     vault,

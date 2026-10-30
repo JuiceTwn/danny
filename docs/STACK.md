@@ -45,6 +45,15 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 - The scheduler finds due tasks across workspaces through `due_reminders()`, a read-only `SECURITY DEFINER` function that returns ids and a timezone, never a title. Workspaces with the kill switch on are skipped.
 - Push endpoints are only accepted from real push services (Google, Mozilla, Apple, Windows), because the server posts to whatever address a subscription carries.
 
+## Gmail
+
+- Sign-in with Google, authorization code flow with PKCE, and a `state` value bound to the browser by a short-lived `HttpOnly` cookie scoped to the OAuth path. Scopes are `gmail.readonly` and `gmail.send` only.
+- Only the refresh token is stored, encrypted in the connection vault like any other secret, and no endpoint returns it. Access tokens live an hour and are cached in memory.
+- No Google client library: a small `fetch` wrapper (`lib/google.ts`) so error text shown to the user is always one of our own fixed sentences, never Google's.
+- Tools: `search_email` and `read_email` (read, run immediately; results are framed as untrusted text and cut to 6,000 characters) and `send_email` (external_write: queues a card, never sends from chat).
+- **Approvals now execute.** A tool of kind `external_write` may define `execute`. Approving claims the card in one atomic update (so two taps never both run), runs the executor, and records what happened: `done`, `failed` (definitely did nothing, so retry is allowed) or `unknown` (timeout or server error, so no automatic retry because it could double-send). `executedAt` is set only on `done`. Cards for tools with no executor are still recorded only, and say so. The payload is re-validated against the tool's input rules at execution time, and executable kinds can't be created through the hand-made `POST /v1/approvals` endpoint.
+- No bcc, no attachments, plain text only, header values containing line breaks are refused.
+
 ## Row-level security and the owner role
 
 Tenant tables use `FORCE ROW LEVEL SECURITY`, which applies to the table owner too. `admin_usage()` and `due_reminders()` run as the owner, so the owner role has a read-only `owner_read` policy on `spend_ledger` and `tasks`. Tests run migrations as a non-superuser owner (`danny_owner`), like production, so a missing policy fails the suite.

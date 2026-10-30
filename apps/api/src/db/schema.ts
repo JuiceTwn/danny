@@ -141,8 +141,11 @@ export const approvals = pgTable(
     payloadEnc: bytea("payload_enc").notNull(), // encrypted JSON: the draft itself
     status: text("status").notNull().default("pending"), // pending | approved | changes_requested | dropped
     decidedAt: timestamp("decided_at", { withTimezone: true }),
-    // Honesty field: stays null until a connector really executes the action.
+    // Honesty fields: executedAt stays null until a connector really did the thing.
     executedAt: timestamp("executed_at", { withTimezone: true }),
+    // null = nothing to run (recorded only) | running | done | failed (definitely not done, safe to retry) | unknown (may have happened: check, do not retry)
+    execution: text("execution"),
+    executionNote: text("execution_note"), // a fixed, non-sensitive sentence, never provider error text
     createdAt: createdAt(),
   },
   (t) => [index("approvals_ws_idx").on(t.workspaceId, t.status, t.createdAt)],

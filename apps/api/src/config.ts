@@ -31,6 +31,9 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default("mailto:admin@localhost"),
+  // Gmail. Create an OAuth client in Google Cloud (type: Web) with redirect URI <APP_URL>/v1/connections/google/callback. See docs/GMAIL_SETUP.md.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
   // Checks for due reminders every 30 seconds. Turn off only for tests or a second, read-only process.
   SCHEDULER: z.enum(["true", "false"]).default("true"),
 });
@@ -62,6 +65,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
     model: c.MODEL,
     vapid: c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY ? { publicKey: c.VAPID_PUBLIC_KEY, privateKey: c.VAPID_PRIVATE_KEY, subject: c.VAPID_SUBJECT } : null,
+    google: c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET ? { clientId: c.GOOGLE_CLIENT_ID, clientSecret: c.GOOGLE_CLIENT_SECRET, redirectUri: `${c.APP_URL.replace(/\/$/, "")}/v1/connections/google/callback` } : null,
     scheduler: c.SCHEDULER === "true" && c.NODE_ENV !== "test",
     price: { inputPerMtokUsd: c.PRICE_INPUT_PER_MTOK_USD, outputPerMtokUsd: c.PRICE_OUTPUT_PER_MTOK_USD },
   };

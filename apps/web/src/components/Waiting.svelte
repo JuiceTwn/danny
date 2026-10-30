@@ -13,6 +13,13 @@
   const pending = $derived(items.filter((a) => a.status === "pending"));
   const done = $derived(items.filter((a) => a.status !== "pending"));
   const words: Record<string, string> = { approved: "Approved", changes_requested: "Sent back", dropped: "Dropped" };
+  // What actually happened, in words. "Sent" only when the server confirmed it.
+  function outcome(a: Approval) {
+    if (a.status !== "approved" || !a.canExecute) return words[a.status] ?? a.status;
+    if (a.execution === "done") return "Sent";
+    if (a.execution === "failed") return "Didn't send";
+    return a.execution === "running" ? "Sending…" : "Check Gmail";
+  }
 
   async function load() {
     try {
@@ -42,13 +49,20 @@
     }
   }
 
-  const draftOf = (p: Record<string, unknown>) =>
-    typeof p.draft === "string" ? p.draft : Object.entries(p).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n");
+  const list = (v: unknown) => (Array.isArray(v) ? v.join(", ") : "");
+  const draftOf = (a: Approval) => {
+    const p = a.payload;
+    // An email card shows exactly what will go out: who, what, and the words.
+    if (a.kind === "send_email") {
+      return [`To: ${list(p.to)}`, ...(list(p.cc) ? [`Cc: ${list(p.cc)}`] : []), `Subject: ${p.subject}`, ...(p.reply_to_message_id ? ["(Reply in the same thread)"] : []), "", String(p.body ?? "")].join("\n");
+    }
+    return typeof p.draft === "string" ? p.draft : Object.entries(p).map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n");
+  };
 </script>
 
 <div class="page">
   <div class="col">
-    <p class="honest mono">Approving records your decision. Danny can't send anything outside this app yet.</p>
+    <p class="honest mono">Approving an email sends it from your Gmail right then. Other cards are only recorded: Danny can't act on those yet.</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
     {#if loaded && pending.length === 0}
@@ -65,10 +79,10 @@
           <div class="th"><span class="mono ink">{a.kind} · {fmtDay(a.createdAt)} {fmtTime(a.createdAt)}</span><span class="tag need">Needs you</span></div>
           <div class="tb">
             <h2 class="display">{a.title}</h2>
-            {#if draftOf(a.payload)}<blockquote>{draftOf(a.payload)}</blockquote>{/if}
+            {#if draftOf(a)}<blockquote>{draftOf(a)}</blockquote>{/if}
           </div>
           <div class="tf">
-            <button class="btn primary" disabled={busyId === a.id} onclick={() => decide(a, "approve")}>Approve</button>
+            <button class="btn primary" disabled={busyId === a.id} onclick={() => decide(a, "approve")}>{busyId === a.id && a.canExecute ? "Sending…" : a.canExecute ? "Send it" : "Approve"}</button>
             <button class="btn" disabled={busyId === a.id} onclick={() => decide(a, "changes")}>Change</button>
             <button class="btn" disabled={busyId === a.id} onclick={() => decide(a, "drop")}>Drop</button>
           </div>
@@ -81,9 +95,12 @@
       <ul class="earlierlist">
         {#each done as a (a.id)}
           <li>
-            <span class="tag" class:run={a.status === "approved"} class:off={a.status !== "approved"}>{words[a.status] ?? a.status}</span>
+            <span class="tag" class:run={a.status === "approved" && (!a.canExecute || a.execution === "done")} class:need={a.canExecute && (a.execution === "failed" || a.execution === "unknown" || a.execution === "running")} class:off={a.status !== "approved"}>{outcome(a)}</span>
             <span class="t">{a.title}</span>
-            <span class="mono">{notes[a.id] ?? (a.decidedAt ? `${fmtDay(a.decidedAt)} ${fmtTime(a.decidedAt)}` : "")}</span>
+            <span class="mono">{notes[a.id] ?? a.executionNote ?? (a.decidedAt ? `${fmtDay(a.decidedAt)} ${fmtTime(a.decidedAt)}` : "")}</span>
+            {#if a.execution === "failed"}
+              <button class="btn small" disabled={busyId === a.id} onclick={() => decide(a, "approve")}>Try again</button>
+            {/if}
           </li>
         {/each}
       </ul>

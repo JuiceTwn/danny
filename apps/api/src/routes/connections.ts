@@ -4,10 +4,11 @@ import { z } from "zod";
 import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, connections } from "../db/schema.js";
+import type { GoogleSecret } from "../lib/gmail.js";
 
 // Linked accounts. The secret (an API key or token) goes in encrypted and never comes back out:
 // no endpoint returns it. Only server-side tool code can read it, through readConnectionSecret.
-export const connectionRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault }) => {
+export const connectionRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, google }) => {
   app.get("/v1/connections", async (req) => {
     const { workspaceId } = req.auth!;
     const items = await withTenant(db, workspaceId, (tx) =>
@@ -16,14 +17,14 @@ export const connectionRoutes: FastifyPluginAsync<Deps> = async (app, { db, vaul
         .from(connections)
         .orderBy(desc(connections.createdAt)),
     );
-    return { items };
+    return { items, google: { configured: google !== null } };
   });
 
   app.post("/v1/connections", async (req, reply) => {
     const { workspaceId, userId, role } = req.auth!;
     if (role !== "admin") return reply.code(403).send({ error: "admins_only" });
     const body = z
-      .object({ provider: z.string().trim().min(1).max(40), label: z.string().trim().max(100).default(""), secret: z.string().min(1).max(8000) })
+      .object({ provider: z.string().trim().min(1).max(40).refine((p) => p.toLowerCase() !== "google", "Connect Google with Sign in with Google"), label: z.string().trim().max(100).default(""), secret: z.string().min(1).max(8000) })
       .parse(req.body);
     const item = await withTenant(db, workspaceId, async (tx) => {
       const [c] = await tx
@@ -41,10 +42,16 @@ export const connectionRoutes: FastifyPluginAsync<Deps> = async (app, { db, vaul
     if (role !== "admin") return reply.code(403).send({ error: "admins_only" });
     const { id } = z.object({ id: z.uuid() }).parse(req.params);
     const gone = await withTenant(db, workspaceId, async (tx) => {
-      const rows = await tx.delete(connections).where(and(eq(connections.id, id), eq(connections.workspaceId, workspaceId))).returning({ id: connections.id });
+      const rows = await tx.delete(connections).where(and(eq(connections.id, id), eq(connections.workspaceId, workspaceId))).returning({ id: connections.id, provider: connections.provider, secretEnc: connections.secretEnc });
       if (rows.length) await tx.insert(auditLog).values({ workspaceId, userId, action: "connection.remove", detail: { id } });
-      return rows.length > 0;
+      return rows[0];
     });
-    return gone ? { ok: true } : reply.code(404).send({ error: "not_found" });
+    if (!gone) return reply.code(404).send({ error: "not_found" });
+    // Disconnecting Gmail also tells Google to cancel the login, so removing it here really removes access.
+    if (gone.provider === "google" && google) {
+      google.forget(id);
+      await google.revoke(vault.openJson<GoogleSecret>(workspaceId, gone.secretEnc).refreshToken);
+    }
+    return { ok: true };
   });
 };

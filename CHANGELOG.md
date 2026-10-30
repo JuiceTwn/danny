@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+Gmail connector, and approvals that actually run.
+
+- Connect Gmail from Settings (Sign in with Google). Danny can search and read mail, and draft emails or replies as cards. A card shows the exact recipients, subject and text. **Send it** sends from your Gmail, threaded under the original for replies. See `docs/GMAIL_SETUP.md`.
+- Least privilege: read and send only. Danny cannot delete, archive or edit mail. No bcc.
+- Approvals now execute for tools that define an executor. The card says what happened: Sent, Didn't send (with Try again), or Check Gmail when it can't be sure. A second tap or a double-click never sends twice.
+- Email text is framed to the model as untrusted data. Nothing is sent from chat without a tap.
+- Disconnecting revokes the login at Google. Connecting again replaces and revokes the old one. If Google stops honouring the login, Danny says so and Settings offers Reconnect.
+- Closed a gap: `POST /v1/approvals` can no longer create a card of an executable kind, and stored payloads are re-validated before they run.
+
+Not yet verified: a real Google consent screen and a real send (tests use a fake Google; a real-browser run covered the callback, cookies and UI). Needs a Google OAuth client from you.
+
+---
+
+## Earlier (reminders branch)
+
 Tasks and reminders, built for people who lose track of things.
 
 - Tasks: Danny adds them from chat (`add_task`), lists them, marks them done, snoozes them, and answers "what's next" with one task. A Tasks tab in the app does the same.

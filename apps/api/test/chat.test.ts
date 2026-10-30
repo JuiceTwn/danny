@@ -32,12 +32,12 @@ function scripted(steps: (ModelResult | ((req: ModelRequest) => Promise<ModelRes
 
 const sendEmail = vi.fn(async () => "SENT");
 const emailTool = defineTool({
-  name: "send_email",
+  name: "send_test_email",
   description: "Send an email",
   kind: "external_write",
   input: z.object({ to: z.string(), body: z.string() }),
   approvalTitle: (i) => `Email to ${i.to}`,
-  run: sendEmail as never, // would be a bug if ever called from chat
+  execute: sendEmail as never, // would be a bug if ever called from chat: only an approval tap may run it
 });
 
 let ctx: Ctx;
@@ -102,12 +102,12 @@ describe("chat", () => {
   it("an outside-world tool is never run from chat, it becomes an approval", async () => {
     const u = await signUp(ctx, owner, "Guard");
     sendEmail.mockClear();
-    script = scripted([useTool("send_email", { to: "marlene@x.ca", body: "Hi" }), text("Queued.")]);
+    script = scripted([useTool("send_test_email", { to: "marlene@x.ca", body: "Hi" }), text("Queued.")]);
     const r = await chat(u.c, "email Marlene");
     expect(sendEmail).not.toHaveBeenCalled();
-    expect(r.events).toContainEqual({ type: "tool", name: "send_email", status: "queued" });
+    expect(r.events).toContainEqual({ type: "tool", name: "send_test_email", status: "queued" });
     const [a] = await ctx.owner.db.select().from(approvals).where(eq(approvals.userId, u.userId));
-    expect(a).toMatchObject({ kind: "send_email", status: "pending", executedAt: null });
+    expect(a).toMatchObject({ kind: "send_test_email", status: "pending", executedAt: null });
     expect(ctx.vault.open(u.workspaceId, a!.titleEnc)).toBe("Email to marlene@x.ca");
   });
 
@@ -208,7 +208,10 @@ describe("chat", () => {
       ["whats_next", "read"],
       ["complete_task", "internal"],
       ["snooze_task", "internal"],
+      ["search_email", "read"],
+      ["read_email", "read"],
       ["send_email", "external_write"],
+      ["send_test_email", "external_write"],
     ]);
   });
 });

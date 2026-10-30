@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { approvals, auditLog, memory } from "../db/schema.js";
 import { defineTool, ToolRegistry } from "./registry.js";
+import { gmailTools } from "./gmail.js";
 import { taskTools } from "./tasks.js";
 
 export const remember = defineTool({
@@ -40,6 +41,6 @@ export const requestApproval = defineTool({
 
 export function createRegistry() {
   const r = new ToolRegistry().register(remember).register(requestApproval);
-  for (const t of taskTools) r.register(t);
+  for (const t of [...taskTools, ...gmailTools]) r.register(t);
   return r;
 }

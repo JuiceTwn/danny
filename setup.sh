@@ -16,6 +16,9 @@ if [ ! -f .env ]; then
     echo "# Encrypts everything users write to Danny. BACK THIS UP: without it, stored data cannot be read."
     echo "DATA_KEYS=1:$(head -c 32 /dev/urandom | base64)"
     echo "ANTHROPIC_API_KEY="
+    echo "# Gmail: see docs/GMAIL_SETUP.md. Leave blank to run without it."
+    echo "GOOGLE_CLIENT_ID="
+    echo "GOOGLE_CLIENT_SECRET="
     echo "MODEL=claude-haiku-5-5"
     if [ -n "$DOMAIN" ]; then
       echo "APP_URL=https://$DOMAIN"

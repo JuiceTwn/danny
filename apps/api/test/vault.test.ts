@@ -130,7 +130,7 @@ describe("connections vault", () => {
     expect(JSON.stringify(list.body)).not.toMatch(/secret|TOP-SECRET/i);
     expect(await ctx.owner.client.unsafe(`select encode(secret_enc,'escape') v from connections where id='${made.body.item.id}'`).then((r) => String(r[0]!.v))).not.toContain("TOP-SECRET");
 
-    const tool = { workspaceId: u.workspaceId, userId: u.userId, db: ctx.runtime.db, vault: ctx.vault, tenant: <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(ctx.runtime.db, u.workspaceId, fn) };
+    const tool = { workspaceId: u.workspaceId, userId: u.userId, db: ctx.runtime.db, vault: ctx.vault, google: null, tenant: <T,>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(ctx.runtime.db, u.workspaceId, fn) };
     expect(await readConnectionSecret(tool, "demo")).toBe("sk-live-TOP-SECRET");
     expect(await readConnectionSecret(tool, "other")).toBeNull();
   });
