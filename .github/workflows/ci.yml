@@ -24,3 +24,11 @@ jobs:
       - run: npm run build -w @danny/api
       - run: npm run check -w @danny/web
       - run: npm run build -w @danny/web
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck -x -P SCRIPTDIR deploy/*.sh deploy/danny deploy/test/*.sh setup.sh
+      - run: bash deploy/test/scripts.test.sh
+      # Real containers: builds the image, runs setup, backup, restore and the watchdog.
+      - run: bash deploy/test/integration.sh

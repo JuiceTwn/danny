@@ -1,7 +1,13 @@
+# Logs rotate so they can never fill the disk.
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
 services:
   db:
     image: postgres:16
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_DB: danny
       POSTGRES_USER: postgres
@@ -20,6 +26,8 @@ services:
   api:
     build: .
     restart: unless-stopped
+    init: true
+    logging: *logging
     depends_on:
       db: { condition: service_healthy }
     env_file: .env
@@ -35,6 +43,7 @@ services:
     profiles: ["https"]
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
     depends_on: [api]
     ports: ["80:80", "443:443"]
     volumes:

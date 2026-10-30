@@ -303,3 +303,38 @@ describe("chat tools", () => {
     expect(out).not.toContain("no deadline");
   });
 });
+
+describe("readiness", () => {
+  it("/readyz is 200 when the database answers and the scheduler is fresh, and /healthz stays a cheap liveness check", async () => {
+    const r = await ctx.app.inject({ method: "GET", url: "/readyz", remoteAddress: "10.7.7.7" });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({ ok: true, db: true, scheduler: true });
+    expect((await ctx.app.inject({ method: "GET", url: "/healthz", remoteAddress: "10.7.7.7" })).statusCode).toBe(200);
+  });
+
+  it("goes 503 when the scheduler has stopped ticking, so a silent reminder outage gets noticed and restarted", async () => {
+    const { Health } = await import("../src/lib/health.js");
+    const health = new Health(true, 50);
+    const c2 = await setupApp(undefined, undefined, {}, undefined, null, health);
+    const ready = () => c2.app.inject({ method: "GET", url: "/readyz", remoteAddress: "10.7.7.9" });
+    expect((await ready()).statusCode).toBe(200); // fresh at boot
+    await new Promise((r) => setTimeout(r, 80));
+    const stale = await ready();
+    expect(stale.statusCode).toBe(503);
+    expect(stale.json()).toEqual({ ok: false, db: true, scheduler: false });
+    health.tick(); // the scheduler comes back
+    expect((await ready()).statusCode).toBe(200);
+    expect(new Health(false, 1).schedulerOk(Date.now() + 10_000)).toBe(true); // scheduler off (tests, read-only process): never stale
+    await c2.close();
+  });
+
+  it("goes 503 with db:false when the database is unreachable", async () => {
+    const c2 = await setupApp();
+    await c2.runtime.client.end();
+    const r = await c2.app.inject({ method: "GET", url: "/readyz", remoteAddress: "10.7.7.8" });
+    expect(r.statusCode).toBe(503);
+    expect(r.json()).toMatchObject({ ok: false, db: false });
+    await c2.app.close();
+    await c2.owner.client.end();
+  });
+});

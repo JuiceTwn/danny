@@ -4,6 +4,7 @@ import { withTenant, type Db } from "../db/client.js";
 import { auditLog, conversations, messages, pushSubscriptions, tasks } from "../db/schema.js";
 import { inQuietHours, nextQuietEnd } from "./time.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
+import type { Health } from "./health.js";
 import type { Vault } from "./vault.js";
 
 /**
@@ -28,7 +29,7 @@ export function nudgeText(title: string, nudgesSent: number) {
 type Due = { workspace_id: string; user_id: string; task_id: string; timezone: string };
 type Fired = { taskId: string; text: string; subs: { id: string; sub: PushSub }[] };
 
-export type ReminderDeps = { db: Db; vault: Vault; push: PushSender; log?: FastifyBaseLogger };
+export type ReminderDeps = { db: Db; vault: Vault; push: PushSender; log?: FastifyBaseLogger; health?: Health };
 
 /** Fire every reminder that is due as of `now`. Returns how many fired. Safe to run from more than one process. */
 export async function runDueReminders({ db, vault, push, log }: ReminderDeps, now = new Date()) {
@@ -89,6 +90,7 @@ export function startScheduler(deps: ReminderDeps, everyMs = 30_000) {
     running = true;
     try {
       await runDueReminders(deps);
+      deps.health?.tick();
     } catch (err) {
       deps.log?.error({ err }, "scheduler tick failed");
     } finally {

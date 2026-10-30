@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+Self-healing deployment.
+
+- `deploy/bootstrap.sh`: one command turns a fresh Ubuntu/Debian server into a running Danny. Checks the server and DNS first and stops with a plain sentence if something is wrong. Installs Docker, adds swap on small servers, sets the firewall, turns on automatic security updates, runs `setup.sh`, installs the watchdog and nightly backup, and runs the doctor. Safe to re-run.
+- Watchdog (every minute): after 3 bad checks it repairs in steps (bring the stack up, restart the API, restart the database), then stops instead of looping and says so.
+- `/readyz`: ready means the database answers **and** the reminder scheduler is still ticking. A scheduler that silently stops would otherwise mean reminders just never arrive. Docker's health status uses it; Caddy does not expose it to the internet.
+- `danny doctor | backup | restore | update | logs`. Backups are verified, private and kept 14 days. `danny update` backs up, builds, migrates and starts, and puts the old code back if the new version won't come up.
+- Container logs rotate, so they can't fill the disk.
+- Fixed: `./setup.sh` with no domain wrote production mode with insecure cookies, which the API refuses to start with, so that path never worked. It now runs in development mode on 127.0.0.1 only.
+- Found by actually building the image for the first time: the Dockerfile builds and the stack comes up healthy. (In the sandbox the build needed the egress proxy's CA; a normal server does not.)
+
+Tested: 37 script scenarios against fake docker/git, 21 checks against real containers (setup, readiness, login, backup, restore, watchdog repairing a stopped API and database). Not tested: `bootstrap.sh`'s own apt/Docker-install/ufw/swap/systemd steps, which need a real fresh server.
+
+---
+
+## Earlier (Gmail connector)
+
 Gmail connector, and approvals that actually run.
 
 - Connect Gmail from Settings (Sign in with Google). Danny can search and read mail, and draft emails or replies as cards. A card shows the exact recipients, subject and text. **Send it** sends from your Gmail, threaded under the original for replies. See `docs/GMAIL_SETUP.md`.

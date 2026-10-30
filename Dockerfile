@@ -22,5 +22,6 @@ ENV WEB_DIR=/app/apps/web/dist
 USER node
 WORKDIR /app/apps/api
 EXPOSE 8787
-HEALTHCHECK --interval=30s --timeout=3s CMD node -e "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# Ready = the database answers and the reminder scheduler is ticking, not merely "the process is up".
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "fetch('http://127.0.0.1:8787/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "dist/server.js"]

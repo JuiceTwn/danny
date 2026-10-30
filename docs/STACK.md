@@ -45,6 +45,10 @@ Chosen for three things: fast to ship, safe with other people's data, and cheap 
 - The scheduler finds due tasks across workspaces through `due_reminders()`, a read-only `SECURITY DEFINER` function that returns ids and a timezone, never a title. Workspaces with the kill switch on are skipped.
 - Push endpoints are only accepted from real push services (Google, Mozilla, Apple, Windows), because the server posts to whatever address a subscription carries.
 
+## Hosting and self-healing
+
+See `docs/DEPLOY.md`. One server, Docker Compose (Postgres, the API, Caddy for HTTPS). `deploy/bootstrap.sh` installs and configures everything on a fresh Ubuntu/Debian host. A systemd watchdog repairs the stack in escalating restarts and then stops; `/readyz` checks the database and that the reminder scheduler is still ticking; nightly verified backups; `danny update` rolls back if the new version won't start. Deliberately no AI in the repair loop: repairs are fixed, testable steps that only restart things and clear unused images.
+
 ## Gmail
 
 - Sign-in with Google, authorization code flow with PKCE, and a `state` value bound to the browser by a short-lived `HttpOnly` cookie scoped to the OAuth path. Scopes are `gmail.readonly` and `gmail.send` only.

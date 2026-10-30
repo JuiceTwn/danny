@@ -4,11 +4,13 @@ import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { sql } from "drizzle-orm";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import type { Config } from "./config.js";
 import type { ModelClient } from "./brain/model.js";
 import type { Db } from "./db/client.js";
+import { Health } from "./lib/health.js";
 import type { GoogleService } from "./lib/google.js";
 import type { PushSender } from "./lib/push.js";
 import type { Vault } from "./lib/vault.js";
@@ -24,7 +26,7 @@ import { memoryRoutes } from "./routes/memory.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { taskRoutes } from "./routes/tasks.js";
 
-export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null };
+export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health };
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -82,7 +84,16 @@ export async function buildApp(deps: Deps) {
     if (!origin || !config.appOrigins.has(origin)) return reply.code(403).send({ error: "bad_origin" });
   });
 
+  // Liveness: the process answers. Cheap, safe to expose, fine for an outside uptime monitor.
   app.get("/healthz", async () => ({ ok: true }));
+  // Readiness: the database answers and the reminder scheduler is still ticking. For the watchdog and Docker's health status.
+  // It says which check failed and nothing else. The reverse proxy does not expose it to the internet.
+  const health = deps.health ?? new Health(false);
+  app.get("/readyz", async (_req, reply) => {
+    const db = await Promise.race([deps.db.execute(sql`select 1`).then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 2000))]).catch(() => false);
+    const scheduler = health.schedulerOk();
+    return reply.code(db && scheduler ? 200 : 503).send({ ok: db && scheduler, db, scheduler });
+  });
   await app.register(inviteRequestRoutes, deps);
   await app.register(authRoutes, deps);
 
