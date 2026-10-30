@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { buildApp } from "../src/app.js";
+import { DemoModel, type ModelClient } from "../src/brain/model.js";
+import { createRegistry } from "../src/tools/builtin.js";
 import { loadConfig } from "../src/config.js";
 import { createDb } from "../src/db/client.js";
 import { memberships, users, workspaces } from "../src/db/schema.js";
@@ -9,7 +11,7 @@ import { APP_URL, OWNER_URL } from "./env.js";
 
 export const ORIGIN = "http://app.test";
 
-export async function setupApp() {
+export async function setupApp(model: ModelClient = new DemoModel(), tools = createRegistry()) {
   const config = loadConfig({
     NODE_ENV: "test",
     DATABASE_URL: APP_URL,
@@ -19,7 +21,7 @@ export async function setupApp() {
   } as NodeJS.ProcessEnv);
   const runtime = createDb(APP_URL, 5);
   const owner = createDb(OWNER_URL, 2); // table owner: for seeding and for checking what is really in the database
-  const app = await buildApp({ config, db: runtime.db });
+  const app = await buildApp({ config, db: runtime.db, model, tools });
   return {
     app,
     runtime,
@@ -51,7 +53,7 @@ export function client(ctx: Ctx, cookie = "") {
       const set = res.headers["set-cookie"];
       const first = Array.isArray(set) ? set[0] : set;
       if (first?.startsWith("danny_session=")) self.cookie = first.split(";")[0]!;
-      return { status: res.statusCode, body: res.json() as any, headers: res.headers, raw: res };
+      return { status: res.statusCode, body: (res.headers["content-type"]?.toString().includes("json") ? res.json() : null) as any, headers: res.headers, raw: res };
     },
     get: (url: string) => self.req("GET", url),
     post: (url: string, body?: unknown) => self.req("POST", url, body ?? {}),

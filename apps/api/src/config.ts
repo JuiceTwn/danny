@@ -18,6 +18,8 @@ const schema = z.object({
   SESSION_DAYS: z.coerce.number().int().default(30),
   DEFAULT_DAILY_CAP_USD: z.coerce.number().default(2),
   MAX_DAILY_CAP_USD: z.coerce.number().default(50),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  MODEL: z.string().default("claude-haiku-5-5"),
   // Placeholders. Check against Anthropic's current pricing before real traffic.
   PRICE_INPUT_PER_MTOK_USD: z.coerce.number().default(1),
   PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(5),
@@ -45,6 +47,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     sessionDays: c.SESSION_DAYS,
     defaultDailyCapMicros: Math.round(c.DEFAULT_DAILY_CAP_USD * 1_000_000),
     maxDailyCapMicros: Math.round(c.MAX_DAILY_CAP_USD * 1_000_000),
+    anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
+    model: c.MODEL,
     price: { inputPerMtokUsd: c.PRICE_INPUT_PER_MTOK_USD, outputPerMtokUsd: c.PRICE_OUTPUT_PER_MTOK_USD },
   };
 }
