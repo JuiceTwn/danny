@@ -15,6 +15,31 @@
     if (s && cap === "") cap = String(s.dailyCapUsd);
   });
 
+  let briefOn = $state(false);
+  let briefTime = $state("07:30");
+  let briefBusy = $state(false);
+  $effect(() => {
+    if (app.me) {
+      briefOn = app.me.user.briefingEnabled;
+      briefTime = app.me.user.briefingTime;
+    }
+  });
+  async function saveBrief(patch: { briefingEnabled?: boolean; briefingTime?: string }) {
+    briefBusy = true;
+    error = "";
+    try {
+      const r = await api<{ briefingEnabled: boolean; briefingTime: string }>("PATCH", "/v1/profile", patch);
+      if (app.me) {
+        app.me.user.briefingEnabled = r.briefingEnabled;
+        app.me.user.briefingTime = r.briefingTime;
+      }
+    } catch {
+      error = "Couldn't save that. Try again.";
+    } finally {
+      briefBusy = false;
+    }
+  }
+
   let conns = $state<Connection[]>([]);
   let googleConfigured = $state(false);
   let googleLoaded = $state(false);
@@ -149,6 +174,18 @@
         <button class="btn" disabled={saving}>Save</button>
       </form>
       {#if msg}<p class="mono" role="status">{msg}</p>{/if}
+    </section>
+
+    <section>
+      <h2 class="display">Morning briefing</h2>
+      <p>Each morning Danny sends your day, how your goals are going, and news on what you care about. It uses web searches, so it costs a few cents a day. Off until you turn it on.</p>
+      <button class="btn {briefOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ briefingEnabled: !briefOn })}>{briefOn ? "Turn off" : "Turn on"}</button>
+      {#if briefOn}
+        <div class="field">
+          <label for="brief-time">Send at (your local time)</label>
+          <input id="brief-time" class="input" type="time" bind:value={briefTime} onchange={() => briefTime && saveBrief({ briefingTime: briefTime })} />
+        </div>
+      {/if}
     </section>
 
     <section>

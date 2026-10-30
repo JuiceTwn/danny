@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type Task } from "../lib/api";
+  import { api, type Goal, type Task } from "../lib/api";
   import { fmtWhen } from "../lib/router.svelte";
 
   let items = $state<Task[]>([]);
@@ -9,6 +9,24 @@
   let remind = $state("");
   let error = $state("");
   let snoozing = $state("");
+
+  let goals = $state<Goal[]>([]);
+  async function loadGoals() {
+    try {
+      goals = (await api<{ items: Goal[] }>("GET", "/v1/goals")).items;
+    } catch {
+      /* goals just stay hidden */
+    }
+  }
+  async function setGoal(id: string, body: Record<string, unknown>) {
+    error = "";
+    try {
+      await api("PATCH", `/v1/goals/${id}`, body);
+      await loadGoals();
+    } catch {
+      error = "That didn't go through. Try again.";
+    }
+  }
 
   const next = $derived(items[0]);
   const rest = $derived(items.slice(1));
@@ -23,6 +41,7 @@
   }
   onMount(() => {
     load();
+    loadGoals();
     // Reminders fire on the server, so pick up changes when the app comes back to the front.
     const onShow = () => document.visibilityState === "visible" && load();
     document.addEventListener("visibilitychange", onShow);
@@ -113,6 +132,30 @@
           <ul class="list">{#each rest as t (t.id)}{@render card(t, false)}{/each}</ul>
         </section>
       {/if}
+    {/if}
+
+    {#if goals.length}
+      <section aria-label="Goals">
+        <h2 class="mono">Goals</h2>
+        <ul class="list">
+          {#each goals as g (g.id)}
+            <li>
+              <div class="body">
+                <p class="title">{g.title}</p>
+                {#if g.notes}<span class="mono">{g.notes}</span>{/if}
+                <span class="mono">
+                  {g.status === "paused" ? "Paused" : g.checkEveryHours ? `Watching every ${g.checkEveryHours >= 24 && g.checkEveryHours % 24 === 0 ? `${g.checkEveryHours / 24} day${g.checkEveryHours === 24 ? "" : "s"}` : `${g.checkEveryHours} hours`}${g.lastCheckedAt ? `, last checked ${fmtWhen(g.lastCheckedAt)}` : ""}` : "Not watching. Ask Danny in chat to watch it."}
+                </span>
+              </div>
+              <div class="ask">
+                {#if g.checkEveryHours}<button class="btn small" onclick={() => setGoal(g.id, { checkEveryHours: null })} aria-label="Stop watching: {g.title}">Stop watching</button>{/if}
+                <button class="btn small" onclick={() => setGoal(g.id, { status: g.status === "paused" ? "open" : "paused" })} aria-label="{g.status === 'paused' ? 'Resume' : 'Pause'}: {g.title}">{g.status === "paused" ? "Resume" : "Pause"}</button>
+                <button class="btn small primary" onclick={() => setGoal(g.id, { status: "done" })} aria-label="Done: {g.title}">Done</button>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </section>
     {/if}
   </div>
 </div>
