@@ -187,10 +187,53 @@ gs reset -q --hard "$v2"
 gs checkout -q --detach
 : > "$FAKE_LOG"; FAKE_HEALTHY=1 "$U" > "$T/u.out" 2>&1; rc=$?
 check "detached HEAD: refuses" test "$rc" -ne 0 -a ! -s "$FAKE_LOG" && grep -q "detached" "$T/u.out"
+
+echo "owner tab requests (ops.sh)"
+OPS="$T/state/ops"; mkdir -p "$OPS/requests" "$OPS/status"
+O="$G/server/deploy/ops.sh"
+S_OUT="$OPS/status"
+ask() { : > "$OPS/requests/$1"; }
+# pj <file> <python expression over d>: prints the value, so a test can compare it
+pj() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2]))' "$1" "$2" 2>/dev/null; }
+all_json() { for f in last repo backups; do python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$S_OUT/$f.json" 2>/dev/null || return 1; done; }
+gs checkout -q main; gs reset -q --hard "$v2"   # the update tests above left the server detached
+
+publish v4
+: > "$FAKE_LOG"; ask check; FAKE_HEALTHY=1 "$O"; rc=$?
+check "check: finishes ok, does not touch the code or Docker" test "$rc" -eq 0 -a "$(cat "$G/server/VERSION")" = v2 -a "$(grep -c docker "$FAKE_LOG")" -eq 0
+check "check: reports how many changes are waiting, by name" test "$(pj "$S_OUT/repo.json" 'd["behind"]')" -ge 1 -a "$(pj "$S_OUT/repo.json" 'd["changes"][0]')" = v4
+check "check: every status file is valid JSON" all_json
+check "the request is consumed, so the path unit does not loop" test -z "$(ls -A "$OPS/requests")"
+
+: > "$FAKE_LOG"; ask backup; FAKE_HEALTHY=1 "$O"
+check "backup: runs the real backup script, says ok and lists the file" test "$(pj "$S_OUT/last.json" 'd["state"]')" = ok -a "$(pj "$S_OUT/backups.json" 'len(d)')" -ge 1 && grep -q pg_dump "$FAKE_LOG"
+
+: > "$FAKE_LOG"; ask update; FAKE_HEALTHY=1 "$O"
+check "update: moves to the new code through update.sh, and says ok" test "$(cat "$G/server/VERSION")" = v4 -a "$(pj "$S_OUT/last.json" 'd["state"]+" "+d["action"]')" = "ok update" && grep -q "migrate.js" "$FAKE_LOG"
+check "update: version and 'behind' are refreshed afterwards" test "$(pj "$S_OUT/repo.json" 'd["behind"]')" = 0
+
+publish v5; echo dirty >> "$G/server/VERSION"
+: > "$FAKE_LOG"; ask update; FAKE_HEALTHY=1 "$O"
+check "a failing update is reported as failed, with the reason in plain words" test "$(pj "$S_OUT/last.json" 'd["state"]')" = failed && pj "$S_OUT/last.json" 'd["summary"]' | grep -q "local changes"
+gs checkout -q -- VERSION
+
+# What the app writes is untrusted: only the three exact names count, and what is inside is never read.
+: > "$FAKE_LOG"
+echo '; touch /tmp/ops-pwned' > "$OPS/requests/check"
+: > "$OPS/requests/restore"; : > "$OPS/requests/update; id"; mkdir -p "$OPS/requests/backup.d"; ln -s /etc/passwd "$OPS/requests/backup"
+FAKE_HEALTHY=1 "$O"
+check "stray names, folders and links are ignored (no restore, no backup, no update) and cleared" test ! -e /tmp/ops-pwned -a -z "$(ls -A "$OPS/requests")" -a "$(grep -c -E 'pg_dump|migrate|restore' "$FAKE_LOG")" -eq 0
+check "a request's contents are never executed" test ! -e /tmp/ops-pwned
+
+# While a request runs, the watchdog does not repair things underneath it.
+: > "$FAKE_LOG"
+( exec 9>"$T/state/ops.lock"; flock -n 9; FAKE_HEALTHY=0 "$S/watchdog.sh" >/dev/null 2>&1; FAKE_HEALTHY=0 "$S/watchdog.sh" >/dev/null 2>&1; FAKE_HEALTHY=0 "$S/watchdog.sh" >/dev/null 2>&1 )
+check "watchdog stays out of the way while the lock is held" test ! -s "$FAKE_LOG"
 export DANNY_DIR="$OLD_DIR"
 
 echo "danny command"
 check "help lists the commands" bash -c "'$S/danny' help | grep -q 'danny update'"
+check "help mentions how to turn on the Owner tab buttons" bash -c "'$S/danny' help | grep -q 'ops-install'"
 
 echo
 echo "$pass passed, $failed failed"

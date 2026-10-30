@@ -37,6 +37,11 @@ services:
       TRUST_PROXY: "true"
     expose: ["8787"]
     ports: ["127.0.0.1:8787:8787"]
+    # The Owner tab's Update and Backup buttons. The app can only drop a request file; a root-owned script on the host
+    # does the work (deploy/ops.sh). It can read the results but never write them. No Docker socket is shared.
+    volumes:
+      - ${DANNY_STATE_DIR:-/var/lib/danny}/ops/requests:/ops/requests
+      - ${DANNY_STATE_DIR:-/var/lib/danny}/ops/status:/ops/status:ro
 
   # Automatic HTTPS. Only started when setup.sh was given a domain: docker compose --profile https up -d
   caddy:

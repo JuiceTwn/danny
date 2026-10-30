@@ -29,6 +29,8 @@ const schema = z.object({
   PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(5),
   // Anthropic bills each web search separately, on top of tokens.
   PRICE_SEARCH_USD: z.coerce.number().default(0.01),
+  // Where the Owner tab drops update and backup requests, and reads the results. A root-owned script on the server does the work (deploy/ops.sh).
+  OPS_DIR: z.string().default("/ops"),
   // Web push. Generate once: npx web-push generate-vapid-keys. Without them reminders still land in the chat.
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
@@ -66,6 +68,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     webDir: c.WEB_DIR,
     anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
     model: c.MODEL,
+    opsDir: c.OPS_DIR,
     vapid: c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY ? { publicKey: c.VAPID_PUBLIC_KEY, privateKey: c.VAPID_PRIVATE_KEY, subject: c.VAPID_SUBJECT } : null,
     google: c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET ? { clientId: c.GOOGLE_CLIENT_ID, clientSecret: c.GOOGLE_CLIENT_SECRET, redirectUri: `${c.APP_URL.replace(/\/$/, "")}/v1/connections/google/callback` } : null,
     scheduler: c.SCHEDULER === "true" && c.NODE_ENV !== "test",

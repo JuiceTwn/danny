@@ -153,6 +153,7 @@ UNIT
   systemctl daemon-reload
   systemctl enable --now danny-watchdog.timer danny-backup.timer
   say "  watchdog: every minute. backup: every night at about 03:17, 14 days kept in $BACKUP_DIR"
+  "$DIR/ops-install.sh" || say "  (the Owner tab buttons could not be turned on. Try: danny ops-install)"
 }
 
 preflight

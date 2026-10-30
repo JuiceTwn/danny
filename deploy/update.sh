@@ -34,3 +34,5 @@ compose run --rm --no-deps api node dist/cli/migrate.js || rollback
 compose up -d || rollback
 wait_healthy 120 || rollback
 say "Updated and healthy at $(git rev-parse --short HEAD)."
+# Keep the Owner tab buttons current with this version of the code. Never fails the update.
+[ -n "${DANNY_FROM_OPS:-}" ] || [ ! -e /etc/systemd/system/danny-ops.path ] || "$DIR/ops-install.sh" >/dev/null 2>&1 || true

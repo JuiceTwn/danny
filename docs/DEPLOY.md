@@ -59,10 +59,16 @@ danny doctor --fix      also do the safe repairs
 danny backup            back up now
 danny restore <file>    replace the database with a backup (takes a safety backup first)
 danny update            pull the latest code, back up, build, migrate, start; rolls back if it won't start
+danny ops-install       turn on the Owner tab buttons (once)
 danny logs [service]    follow the logs
 ```
 
 `danny update` only fast-forwards. If the checkout has local changes or has diverged from `origin`, it stops without touching anything.
+
+## Update and backup from the Owner tab
+Run `danny ops-install` once. After that the Owner tab has Check for updates, Back up now and Update Danny, so you do not need SSH for routine work. They run exactly the same `backup.sh` and `update.sh`, with the same verified backup and automatic rollback.
+
+How it stays safe: the app never gets Docker or a shell. It only creates an empty file named `check`, `backup` or `update` in `/var/lib/danny/ops/requests`. A systemd path unit then starts `deploy/ops.sh` as root, which looks at those three exact names and nothing else (other names, folders, links and file contents are ignored and deleted). Results go to `/var/lib/danny/ops/status`, which the app can only read. While one is running, the watchdog stands back so it does not restart things underneath it. Restoring a backup is deliberately not a button: do that by SSH with `danny restore`.
 
 ## Restoring
 `danny restore /var/backups/danny/danny-<date>.sql.gz` stops Danny, replaces the database, starts him, and waits for him to be healthy. You need the same `DATA_KEYS` that were in use when the backup was taken.

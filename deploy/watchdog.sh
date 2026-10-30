@@ -6,6 +6,8 @@ set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 mkdir -p "$STATE_DIR"
+# An update or backup from the Owner tab holds this lock. Restarting things underneath it would break it.
+exec 8>"$STATE_DIR/ops.lock"; flock -n 8 || exit 0
 fails_f="$STATE_DIR/watchdog.fails"; attempts_f="$STATE_DIR/watchdog.attempts"
 last_f="$STATE_DIR/watchdog.last_repair"; gaveup_f="$STATE_DIR/watchdog.gave_up"
 GRACE="${DANNY_WATCHDOG_GRACE:-3}"        # consecutive bad checks before acting (a deploy or a blip is not an outage)

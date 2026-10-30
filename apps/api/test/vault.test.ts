@@ -40,7 +40,8 @@ describe("vault", () => {
   it("workspaces get different keys from the same master", () => {
     const solo = new Vault(`1:${key()}`);
     // sealing the same text for two workspaces must not be openable with the other's key, even ignoring AAD
-    const a = solo.seal(WS_A, "x"), b = solo.seal(WS_B, "x");
+    const text = "x".repeat(64); // a 1-byte value matched by chance about once in 256 runs
+    const a = solo.seal(WS_A, text), b = solo.seal(WS_B, text);
     expect(a.subarray(29).equals(b.subarray(29))).toBe(false);
   });
 

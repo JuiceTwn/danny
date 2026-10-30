@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { api } from "../lib/api";
   import { fmtDay, usd } from "../lib/router.svelte";
 
@@ -13,6 +13,53 @@
   let copied = $state(false);
   let error = $state("");
 
+  type Ops = {
+    available: boolean; busy: boolean; pending: string[];
+    last: { action: string; state: string; startedAt: string; finishedAt: string | null; summary: string } | null;
+    version: string | null; branch: string | null; behind: number; changes: string[]; checkedAt: string | null;
+    backups: { name: string; bytes: number; at: string }[];
+  };
+  let ops = $state<Ops | null>(null);
+  let confirmUpdate = $state(false);
+  let asked = $state("");
+  let reconnecting = $state(false);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const WORDS: Record<string, string> = { check: "Checking for updates", backup: "Backing up", update: "Updating" };
+  const kb = (b: number) => (b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  const ago = (iso: string | null) => {
+    if (!iso) return "never";
+    const m = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+  };
+
+  // While something runs, ask again every few seconds. During an update the app restarts, so a failed request is expected, not an error.
+  async function loadOps() {
+    try {
+      ops = await api<Ops>("GET", "/v1/admin/ops");
+      reconnecting = false;
+    } catch {
+      reconnecting = !!asked;
+    }
+    clearTimeout(timer);
+    if (ops?.busy || reconnecting) timer = setTimeout(loadOps, 3000);
+    else asked = "";
+  }
+  async function ask(action: "check" | "backup" | "update") {
+    error = "";
+    confirmUpdate = false;
+    asked = action;
+    try {
+      await api("POST", "/v1/admin/ops", { action });
+    } catch {
+      error = "Couldn't start that. If this is the first time, run danny ops-install once on the server.";
+      asked = "";
+      return;
+    }
+    await loadOps();
+  }
+  onDestroy(() => clearTimeout(timer));
+
   async function load() {
     try {
       requests = (await api<{ items: Req[] }>("GET", "/v1/admin/invite-requests")).items;
@@ -21,7 +68,10 @@
       error = "Couldn't load owner data.";
     }
   }
-  onMount(load);
+  onMount(() => {
+    load();
+    loadOps();
+  });
 
   async function makeLink(forEmail: string, path: string, body?: unknown) {
     error = "";
@@ -86,6 +136,57 @@
     </section>
 
     <section>
+      <h2 class="display">Server</h2>
+      {#if !ops}
+        <p class="muted">Checking…</p>
+      {:else if !ops.available}
+        <p>The Update and Backup buttons aren't turned on yet. Once, on the server, run:</p>
+        <code>danny ops-install</code>
+        <p class="muted">After that, this tab can check for updates, back up and update by itself. The app never gets control of the server: it only leaves a note, and a script on the server does the work.</p>
+      {:else}
+        <p class="mono">
+          Version {ops.version ?? "unknown"}{ops.branch ? ` on ${ops.branch}` : ""}.
+          {ops.behind > 0 ? `${ops.behind} update${ops.behind > 1 ? "s" : ""} waiting.` : "Up to date."}
+          Checked {ago(ops.checkedAt)}.
+        </p>
+        {#if ops.behind > 0}
+          <ul class="changes">{#each ops.changes as c}<li>{c}</li>{/each}</ul>
+        {/if}
+
+        {#if ops.busy || reconnecting}
+          <p class="mono" role="status">
+            {WORDS[ops.last?.action ?? asked] ?? "Working"}…
+            {reconnecting ? "Danny is restarting. This page will pick up again by itself." : "This can take a few minutes."}
+          </p>
+        {:else}
+          <div class="row">
+            <button class="btn" onclick={() => ask("check")}>Check for updates</button>
+            <button class="btn" onclick={() => ask("backup")}>Back up now</button>
+            {#if confirmUpdate}
+              <button class="btn warn" onclick={() => ask("update")}>Yes, update</button>
+              <button class="btn" onclick={() => (confirmUpdate = false)}>Cancel</button>
+            {:else}
+              <button class="btn primary" onclick={() => (confirmUpdate = true)}>Update Danny</button>
+            {/if}
+          </div>
+          {#if confirmUpdate}<p class="muted">This backs up first, then restarts Danny for about a minute. If the new version won't start, the old code is put back.</p>{/if}
+        {/if}
+
+        {#if ops.last && !ops.busy && !reconnecting}
+          <p class="mono" class:bad={ops.last.state === "failed"} role="status">
+            Last: {ops.last.action} {ops.last.state === "ok" ? "worked" : ops.last.state === "failed" ? "FAILED" : ops.last.state}, {ago(ops.last.finishedAt ?? ops.last.startedAt)}.
+          </p>
+          {#if ops.last.summary}<pre>{ops.last.summary}</pre>{/if}
+        {/if}
+
+        {#if ops.backups.length}
+          <h3 class="mono">Recent backups</h3>
+          <ul class="changes">{#each ops.backups as b}<li><span class="mono">{b.name}</span> <span class="muted">{kb(b.bytes)}, {ago(b.at)}</span></li>{/each}</ul>
+        {/if}
+      {/if}
+    </section>
+
+    <section>
       <h2 class="display">Spend by person</h2>
       <div class="scroll">
         <table>
@@ -110,6 +211,11 @@
   .linkbox { background: var(--panel); border: 2px solid var(--run); padding: 16px; margin-bottom: 12px; }
   code { display: block; width: 100%; padding: 10px; background: var(--graphite); border: 1px solid var(--line); font: 400 .8125rem/1.4 var(--mono); overflow-wrap: anywhere; user-select: all; }
   ul { width: 100%; }
+  .changes li { display: block; padding: 6px 0; overflow-wrap: anywhere; }
+  pre { width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px; background: var(--graphite); border: 1px solid var(--line); font: 400 .8125rem/1.4 var(--mono); }
+  .bad { color: var(--need); }
+  h3 { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .row { flex-wrap: wrap; }
   li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
   .scroll { width: 100%; overflow-x: auto; }

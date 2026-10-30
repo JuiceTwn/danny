@@ -4,7 +4,7 @@ DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=common.sh
 . "$DIR/common.sh"
 case "${1:-help}" in
-  doctor|backup|restore|update|watchdog) exec "$DIR/$1.sh" "${@:2}" ;;
+  doctor|backup|restore|update|watchdog|ops|ops-install) exec "$DIR/$1.sh" "${@:2}" ;;
   status) exec "$DIR/doctor.sh" ;;
   logs)   compose logs -f --tail=100 "${2:-api}" ;;
   *)
@@ -14,6 +14,7 @@ danny status            same as doctor
 danny backup            back up the database now (also runs every night)
 danny restore <file>    replace the database with a backup
 danny update            update to the latest code; rolls back if it will not start
+danny ops-install         turn on the Owner tab's Update and Backup buttons (once)
 danny logs [service]    follow the logs (default: api)
 USAGE
     ;;
