@@ -323,7 +323,7 @@ describe("interests and voice", () => {
     expect((await other.c.get("/v1/interests")).body.items).toEqual([]);
     expect((await other.c.del(`/v1/interests/${list[0].id}`)).status).toBe(404);
 
-    await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "00:00" });
+    await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
     searches.length = 0;
     searchReply = () => found("Morning.");
     await runDueBriefings(deps(), new Date("2027-06-01T13:00:00Z"));
@@ -344,7 +344,7 @@ describe("interests and voice", () => {
     const sys = chatCalls.at(-1)!.system;
     expect(sys).toContain("friendly and encouraging");
     expect(sys).not.toContain("shop foreman");
-    await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "00:00" });
+    await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
     searches.length = 0;
     await runDueBriefings(deps(), new Date("2027-06-02T13:00:00Z"));
     expect(searches.some((s) => s.system.includes("friendly and encouraging"))).toBe(true);
@@ -500,6 +500,39 @@ describe("learning how to help", () => {
   });
 });
 
+describe("plain text and late sends", () => {
+  it("strips markdown that slips into a background message", async () => {
+    const { plainText } = await import("../src/lib/background.js");
+    expect(plainText("**Today**\n* one\n# Goals\nuse `x` and __this__")).toBe("Today\n- one\nGoals\nuse x and this");
+  });
+
+  it("a briefing turned on after the day is well under way is skipped, not sent as a late morning briefing", async () => {
+    const u = await signUp(ctx, owner, "Late");
+    await ctx.owner.db.update(users).set({ timezone: "America/Toronto" }).where(eq(users.id, u.userId));
+    await u.c.post("/v1/tasks", { title: "Something open" });
+    await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
+    searchReply = () => found("**Today**\nMorning.");
+    expect(await runDueBriefings(deps(), new Date("2027-08-03T21:30:00Z"))).toBe(0); // 17:30 in Toronto
+    expect((await chatText(u.c)).length).toBe(0);
+    expect(await runDueBriefings(deps(), new Date("2027-08-03T22:00:00Z"))).toBe(0); // and not retried later the same day
+    await runDueBriefings(deps(), new Date("2027-08-04T12:00:00Z")); // 08:00 next morning: sent, and without asterisks
+    const sent = (await chatText(u.c)).at(-1)!;
+    expect(sent).toContain("Morning.");
+    expect(sent).not.toContain("**");
+  });
+
+  it("the same goes for the evening wrap-up", async () => {
+    const u = await signUp(ctx, owner, "Late2");
+    await ctx.owner.db.update(users).set({ timezone: "America/Toronto" }).where(eq(users.id, u.userId));
+    await u.c.post("/v1/tasks", { title: "Something open" });
+    await u.c.patch("/v1/profile", { wrapupEnabled: true, wrapupTime: "20:00" });
+    plainReply = () => say("Wrap.");
+    await runDueWrapups(deps(), new Date("2027-08-04T09:00:00Z")); // 05:00 next morning, 9 hours late
+    expect((await chatText(u.c)).length).toBe(0);
+    plainReply = null;
+  });
+});
+
 describe("get_weather in chat", () => {
   const reg = createRegistry();
   const hits: string[] = [];
@@ -542,7 +575,7 @@ describe("weather in the briefing", () => {
     const u = await signUp(ctx, owner, "Wx");
     await u.c.req("PUT", "/v1/style/location", { text: "Leeds, UK" });
     await u.c.req("PUT", "/v1/style/instruction", { text: "Call me Jo." });
-    await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "00:00" });
+    await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
     searches.length = 0;
     searchReply = () => found("Morning Jo.");
     await runDueBriefings({ ...deps(), fetchFn: fakeFetch }, new Date("2027-07-01T13:00:00Z"));
