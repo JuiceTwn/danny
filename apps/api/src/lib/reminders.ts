@@ -26,8 +26,16 @@ export function nudgeText(title: string, nudgesSent: number) {
   return `Last nudge on this one: ${title}. It stays on your list.`;
 }
 
+/** Short status line for the notification. The task title is the headline, so this never repeats it. */
+export function nudgeLabel(nudgesSent: number) {
+  if (nudgesSent === 0) return "Reminder";
+  if (nudgesSent === 1) return "Still open";
+  if (nudgesSent === 2) return "Still on the board";
+  return "Last nudge · stays on your list";
+}
+
 type Due = { workspace_id: string; user_id: string; task_id: string; timezone: string };
-type Fired = { taskId: string; text: string; subs: { id: string; sub: PushSub }[] };
+type Fired = { taskId: string; text: string; title: string; label: string; subs: { id: string; sub: PushSub }[] };
 
 export type ReminderDeps = { db: Db; vault: Vault; push: PushSender; log?: FastifyBaseLogger; health?: Health };
 
@@ -52,7 +60,8 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
           return null;
         }
 
-        const text = nudgeText(vault.open(d.workspace_id, t.titleEnc), t.nudgeCount);
+        const title = vault.open(d.workspace_id, t.titleEnc);
+        const text = nudgeText(title, t.nudgeCount);
         await tx.update(tasks).set({ nudgeCount: t.nudgeCount + 1, remindAt: nextNudgeAt(t.nudgeCount + 1, now) }).where(eq(tasks.id, t.id));
 
         // It also lands in the chat, so it is there even if push is off or the phone was asleep.
@@ -62,7 +71,7 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
         await tx.insert(auditLog).values({ workspaceId: d.workspace_id, userId: d.user_id, action: "reminder.fire", detail: { id: t.id, nudge: t.nudgeCount + 1 } });
 
         const subs = await tx.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, d.user_id));
-        return { taskId: t.id, text, subs: subs.map((s) => ({ id: s.id, sub: vault.openJson<PushSub>(d.workspace_id, s.subEnc) })) };
+        return { taskId: t.id, text, title, label: nudgeLabel(t.nudgeCount), subs: subs.map((s) => ({ id: s.id, sub: vault.openJson<PushSub>(d.workspace_id, s.subEnc) })) };
       });
       if (!f) continue;
       fired++;
@@ -70,7 +79,7 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
       const dead: string[] = [];
       for (const { id, sub } of f.subs) {
         if (!isAllowedPushEndpoint(sub.endpoint)) continue;
-        if ((await push.send(sub, { title: "Danny", body: f.text, taskId: f.taskId })) === "gone") dead.push(id);
+        if ((await push.send(sub, { title: f.title, body: f.label, taskId: f.taskId })) === "gone") dead.push(id);
       }
       if (dead.length) {
         await withTenant(db, d.workspace_id, (tx) => tx.delete(pushSubscriptions).where(inArray(pushSubscriptions.id, dead)));

@@ -126,6 +126,15 @@
     </section>
 
     <section>
+      <h2 class="display">Model</h2>
+      {#if s}
+        <p class="mono big">{s.demo ? "None (demo mode)" : s.model}</p>
+        <p class="mono">{usd(s.priceInputPerMtokUsd)} per million tokens in, {usd(s.priceOutputPerMtokUsd)} out</p>
+        <p>Each message sends your recent chat and memory along with it, so a short reply still costs more than its length. Change it with the MODEL setting on the server.</p>
+      {/if}
+    </section>
+
+    <section>
       <h2 class="display">Daily spend cap</h2>
       <p>Danny stops for the day when he hits this number. It resets at midnight UTC.</p>
       {#if s}

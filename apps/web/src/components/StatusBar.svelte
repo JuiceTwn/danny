@@ -9,6 +9,7 @@
     <span class="lamp" class:off={s.killSwitch}></span>
     <span class="word" class:off={s.killSwitch}>{s.killSwitch ? "Stopped" : "Running"}</span>
     <span class="spend mono">{usd(s.spentTodayUsd)} of {usd(s.dailyCapUsd)} today</span>
+    <span class="spend mono model" title="Model in use">{s.demo ? "demo" : s.model}</span>
   {/if}
 </div>
 
@@ -19,4 +20,5 @@
   .word { font: 500 .75rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--run); }
   .word.off { color: var(--need); }
   .spend { margin-left: 6px; }
+  .model { opacity: .7; }
 </style>

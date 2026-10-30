@@ -49,8 +49,9 @@ self.addEventListener("push", (e) => {
       tag: d.taskId || "danny",
       renotify: true,
       icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
       data: { taskId: d.taskId || null },
-      actions: d.taskId ? [{ action: "done", title: "Done" }, { action: "snooze", title: "Snooze 10 min" }] : [],
+      actions: d.taskId ? [{ action: "done", title: "Done" }, { action: "snooze", title: "Snooze" }] : [],
     }),
   );
 });

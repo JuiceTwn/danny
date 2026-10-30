@@ -13,7 +13,7 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
     return withTenant(db, workspaceId, async (tx) => {
       const [ws] = await tx.select().from(workspaces).where(eq(workspaces.id, workspaceId));
       const spent = await spentToday(tx, workspaceId);
-      return { dailyCapUsd: usd(ws!.dailyCapMicros), killSwitch: ws!.killSwitch, spentTodayUsd: usd(spent) };
+      return { dailyCapUsd: usd(ws!.dailyCapMicros), killSwitch: ws!.killSwitch, spentTodayUsd: usd(spent), model: config.model, demo: !config.anthropicApiKey, priceInputPerMtokUsd: config.price.inputPerMtokUsd, priceOutputPerMtokUsd: config.price.outputPerMtokUsd };
     });
   }
 

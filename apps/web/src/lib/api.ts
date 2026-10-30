@@ -60,7 +60,7 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
 }
 
 export type Me = { user: { id: string; email: string; name: string; timezone: string }; workspaceId: string; role: string; isOwner: boolean };
-export type Settings = { dailyCapUsd: number; killSwitch: boolean; spentTodayUsd: number };
+export type Settings = { dailyCapUsd: number; killSwitch: boolean; spentTodayUsd: number; model: string; demo: boolean; priceInputPerMtokUsd: number; priceOutputPerMtokUsd: number };
 export type Approval = { id: string; kind: string; title: string; payload: Record<string, unknown>; status: string; createdAt: string; decidedAt: string | null; executed: boolean; canExecute: boolean; execution: "running" | "done" | "failed" | "unknown" | null; executionNote: string | null };
 export type Connection = { id: string; provider: string; label: string; status: string; createdAt: string };
 export type MemoryItem = { id: string; content: string; createdAt: string };

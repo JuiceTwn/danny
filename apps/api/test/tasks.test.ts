@@ -128,7 +128,7 @@ describe("reminders", () => {
     expect(await runDueReminders(runner(), at)).toBeGreaterThanOrEqual(1);
 
     expect(push.sent.filter((s) => s.payload.taskId === id)).toHaveLength(1);
-    expect(push.sent.find((s) => s.payload.taskId === id)!.payload.body).toBe("Reminder: Call the dentist");
+    expect(push.sent.find((s) => s.payload.taskId === id)!.payload).toMatchObject({ title: "Call the dentist", body: "Reminder" });
     const row = await rowOf(id);
     expect(row.nudgeCount).toBe(1);
     expect(row.remindAt!.toISOString()).toBe(minutes(10, at.getTime()).toISOString());
