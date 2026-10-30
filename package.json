@@ -1,5 +1,8 @@
 {
   "name": "danny",
   "private": true,
-  "workspaces": ["apps/*"]
+  "workspaces": [
+    "apps/*"
+  ],
+  "version": "1.0.0"
 }
