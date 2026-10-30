@@ -52,7 +52,7 @@ export type Client = ReturnType<typeof client>;
 export function client(ctx: Ctx, cookie = "") {
   const self = {
     cookie,
-    async req(method: "GET" | "POST" | "PATCH" | "DELETE", url: string, body?: unknown, headers: Record<string, string> = {}) {
+    async req(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body?: unknown, headers: Record<string, string> = {}) {
       const res = await ctx.app.inject({
         method,
         url,

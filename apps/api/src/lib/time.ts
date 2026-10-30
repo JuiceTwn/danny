@@ -43,18 +43,23 @@ export function localIso(date: Date, tz: string) {
 export const QUIET_START = 22; // 22:00 local
 export const QUIET_END = 7; //   07:00 local
 
-export function inQuietHours(date: Date, tz: string) {
+export type Quiet = { start: number; end: number };
+export const DEFAULT_QUIET: Quiet = { start: QUIET_START, end: QUIET_END };
+
+/** Quiet hours may wrap midnight (22 to 7) or sit inside a day (13 to 15). Equal start and end means never quiet. */
+export function inQuietHours(date: Date, tz: string, q: Quiet = DEFAULT_QUIET) {
   const h = localHour(date, tz);
-  return h >= QUIET_START || h < QUIET_END;
+  if (q.start === q.end) return false;
+  return q.start > q.end ? h >= q.start || h < q.end : h >= q.start && h < q.end;
 }
 
-/** The next 07:00 local after `date`. */
-export function nextQuietEnd(date: Date, tz: string) {
+/** The next time quiet hours end, local, after `date`. */
+export function nextQuietEnd(date: Date, tz: string, q: Quiet = DEFAULT_QUIET) {
   const p = parts(date, tz);
-  let at = zonedToUtc(p.y, p.mo, p.d, QUIET_END, 0, tz);
+  let at = zonedToUtc(p.y, p.mo, p.d, q.end, 0, tz);
   if (at <= date) {
     const next = new Date(Date.UTC(p.y, p.mo - 1, p.d + 1));
-    at = zonedToUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), QUIET_END, 0, tz);
+    at = zonedToUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), q.end, 0, tz);
   }
   return at;
 }

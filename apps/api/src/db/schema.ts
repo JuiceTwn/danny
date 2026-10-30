@@ -40,6 +40,11 @@ export const users = pgTable(
     wrapupMinute: integer("wrapup_minute").notNull().default(1200), // 1200 = 20:00
     lastWrapupDay: date("last_wrapup_day"),
     voice: text("voice").notNull().default("foreman"), // foreman | warm | brief
+    quietStart: integer("quiet_start").notNull().default(22), // local hour repeat nudges and watch alerts go quiet
+    quietEnd: integer("quiet_end").notNull().default(7),
+    units: text("units").notNull().default("metric"), // metric | imperial, for weather
+    learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
+    lastLearnedAt: timestamp("last_learned_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -242,6 +247,24 @@ export const goals = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("goals_ws_idx").on(t.workspaceId, t.userId, t.status)],
+);
+
+// What Danny knows about HOW to help this person, as opposed to facts about their life (that is memory).
+//   instruction  their own standing instructions, written in Settings (at most one)
+//   location     where they are, for weather and "near me" (at most one)
+//   said         a preference they told Danny in chat
+//   observed     something Danny worked out from how they use him; replaced each week
+export const styleNotes = pgTable(
+  "style_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    noteEnc: bytea("note_enc").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("style_notes_user_idx").on(t.workspaceId, t.userId, t.kind)],
 );
 
 // Topics the user wants news and updates on. They shape the morning briefing.

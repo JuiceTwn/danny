@@ -1,11 +1,11 @@
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import { withTenant, type Db } from "../db/client.js";
-import { auditLog, conversations, messages, pushSubscriptions, tasks } from "../db/schema.js";
+import { auditLog, conversations, messages, pushSubscriptions, tasks, users } from "../db/schema.js";
 import { inQuietHours, nextQuietEnd } from "./time.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import type { Health } from "./health.js";
-import { runDueBriefings, runDueGoalChecks, runDueWrapups, runStalledGoalCheckins, type BackgroundDeps } from "./background.js";
+import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueWrapups, runStalledGoalCheckins, type BackgroundDeps } from "./background.js";
 import type { Vault } from "./vault.js";
 
 /**
@@ -58,8 +58,10 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
         if (!t) return null;
 
         // Repeat nudges never wake anyone up. The first one is exactly when they asked for.
-        if (t.nudgeCount > 0 && inQuietHours(now, d.timezone)) {
-          await tx.update(tasks).set({ remindAt: nextQuietEnd(now, d.timezone) }).where(eq(tasks.id, t.id));
+        const [pref] = await tx.select({ start: users.quietStart, end: users.quietEnd }).from(users).where(eq(users.id, d.user_id));
+        const quiet = pref ?? { start: 22, end: 7 };
+        if (t.nudgeCount > 0 && inQuietHours(now, d.timezone, quiet)) {
+          await tx.update(tasks).set({ remindAt: nextQuietEnd(now, d.timezone, quiet) }).where(eq(tasks.id, t.id));
           return null;
         }
 
@@ -108,6 +110,7 @@ export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
         await runDueWrapups(bg);
         await runDueGoalChecks(bg);
         await runStalledGoalCheckins(bg);
+        await runDueLearning(bg);
       }
       deps.health?.tick();
     } catch (err) {

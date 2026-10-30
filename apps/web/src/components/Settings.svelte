@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type Connection, type Interest } from "../lib/api";
+  import { api, type Connection, type Interest, type Style } from "../lib/api";
   import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
   import { usd } from "../lib/router.svelte";
@@ -34,7 +34,58 @@
       voice = app.me.user.voice;
     }
   });
-  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string };
+  let quietStart = $state(22);
+  let quietEnd = $state(7);
+  let units = $state("metric");
+  let learnOn = $state(true);
+  $effect(() => {
+    if (app.me) {
+      quietStart = app.me.user.quietStart;
+      quietEnd = app.me.user.quietEnd;
+      units = app.me.user.units;
+      learnOn = app.me.user.learnEnabled;
+    }
+  });
+  const HOURS = Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, "0")}:00`] as const);
+  let style = $state<Style>({ instruction: null, location: null, notes: [] });
+  let instruction = $state("");
+  let place = $state("");
+  let styleMsg = $state("");
+  async function loadStyle() {
+    try {
+      style = await api<Style>("GET", "/v1/style");
+      instruction = style.instruction ?? "";
+      place = style.location ?? "";
+    } catch {
+      /* the section just stays empty */
+    }
+  }
+  async function saveStyle(which: "instruction" | "location", text: string) {
+    styleMsg = error = "";
+    try {
+      style = await api<Style>("PUT", `/v1/style/${which}`, { text });
+      styleMsg = "Saved.";
+    } catch {
+      error = "Couldn't save that. Try again.";
+    }
+  }
+  async function forgetNote(id: string) {
+    try {
+      await api("DELETE", `/v1/style/notes/${id}`);
+      await loadStyle();
+    } catch {
+      error = "Couldn't forget that. Try again.";
+    }
+  }
+  async function forgetAll() {
+    try {
+      await api("DELETE", "/v1/style/notes");
+      await loadStyle();
+    } catch {
+      error = "Couldn't forget those. Try again.";
+    }
+  }
+  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean };
   const VOICES = [
     ["foreman", "Foreman: short and dry"],
     ["warm", "Warm: friendly and encouraging"],
@@ -74,13 +125,17 @@
     briefBusy = true;
     error = "";
     try {
-      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string }>("PATCH", "/v1/profile", patch);
+      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean }>("PATCH", "/v1/profile", patch);
       if (app.me) {
         app.me.user.briefingEnabled = r.briefingEnabled;
         app.me.user.briefingTime = r.briefingTime;
         app.me.user.wrapupEnabled = r.wrapupEnabled;
         app.me.user.wrapupTime = r.wrapupTime;
         app.me.user.voice = r.voice;
+        app.me.user.quietStart = r.quietStart;
+        app.me.user.quietEnd = r.quietEnd;
+        app.me.user.units = r.units;
+        app.me.user.learnEnabled = r.learnEnabled;
       }
     } catch {
       error = "Couldn't save that. Try again.";
@@ -132,6 +187,7 @@
     }
     loadConnections();
     loadInterests();
+    loadStyle();
   });
 
   let notify = $state<PushState | "checking">("checking");
@@ -280,6 +336,57 @@
     </section>
 
     <section>
+      <h2 class="display">About you</h2>
+      <p>Where you are, for the weather in your briefing. And anything Danny should always do, in your own words.</p>
+      <div class="field">
+        <label for="place">Where you are</label>
+        <input id="place" class="input" maxlength="80" placeholder="Leeds, UK" bind:value={place} onchange={() => saveStyle("location", place)} />
+      </div>
+      <div class="field">
+        <label for="units">Temperature</label>
+        <select id="units" class="input" bind:value={units} onchange={() => saveBrief({ units })}>
+          <option value="metric">Celsius</option>
+          <option value="imperial">Fahrenheit</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="instr">Standing instructions</label>
+        <textarea id="instr" class="input" rows="4" maxlength="1000" placeholder="Call me Jo. Nothing before 10am. Keep it short." bind:value={instruction}></textarea>
+      </div>
+      <button class="btn wide" onclick={() => saveStyle("instruction", instruction)}>Save</button>
+      {#if styleMsg}<p class="mono" role="status">{styleMsg}</p>{/if}
+    </section>
+
+    <section>
+      <h2 class="display">What Danny has learned</h2>
+      <p>How you like to be helped, from what you tell him and how you use him. It only changes his style and timing, never his rules or what needs your approval. Everything is listed here and you can remove any of it.</p>
+      {#if style.notes.length}
+        <ul class="topics">
+          {#each style.notes as n (n.id)}
+            <li><span>{n.note} <span class="mono">({n.kind === "said" ? "you told him" : "he noticed"})</span></span><button class="btn small" onclick={() => forgetNote(n.id)} aria-label="Forget: {n.note}">Forget</button></li>
+          {/each}
+        </ul>
+        <button class="btn wide" onclick={forgetAll}>Forget all of it</button>
+      {:else}
+        <p class="mono">Nothing yet.</p>
+      {/if}
+      <button class="btn {learnOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ learnEnabled: !learnOn })}>{learnOn ? "Stop him learning from how I use him" : "Let him learn from how I use him"}</button>
+    </section>
+
+    <section>
+      <h2 class="display">Quiet hours</h2>
+      <p>Repeat reminders and watch alerts stay silent in this window. The first reminder at the time you asked for always comes through.</p>
+      <div class="field">
+        <label for="qs">Quiet from</label>
+        <select id="qs" class="input" bind:value={quietStart} onchange={() => saveBrief({ quietStart })}>{#each HOURS as [h, label]}<option value={h}>{label}</option>{/each}</select>
+      </div>
+      <div class="field">
+        <label for="qe">Until</label>
+        <select id="qe" class="input" bind:value={quietEnd} onchange={() => saveBrief({ quietEnd })}>{#each HOURS as [h, label]}<option value={h}>{label}</option>{/each}</select>
+      </div>
+    </section>
+
+    <section>
       <h2 class="display">Notifications</h2>
       {#if notify === "checking"}
         <p class="mono">Checking…</p>
@@ -290,7 +397,7 @@
       {:else if notify === "denied"}
         <p>Notifications are blocked for this site. Allow them in your browser settings, then come back.</p>
       {:else}
-        <p>{notify === "on" ? "Reminders will buzz this device. Quiet hours are 10pm to 7am: repeat nudges wait until morning." : "Get reminders on this device, even when Danny is closed."}</p>
+        <p>{notify === "on" ? "Reminders will buzz this device. Repeat nudges wait out your quiet hours (see below)." : "Get reminders on this device, even when Danny is closed."}</p>
         <button class="btn {notify === 'on' ? '' : 'primary'} wide" disabled={notifyBusy} onclick={toggleNotify}>{notify === "on" ? "Turn off" : "Turn on"}</button>
       {/if}
     </section>
