@@ -136,7 +136,7 @@ export const approvals = pgTable(
     workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(), // e.g. email, post, note. Free text until connectors exist.
-    title: text("title").notNull(),
+    titleEnc: bytea("title_enc").notNull(), // encrypted: titles often contain customer names
     payloadEnc: bytea("payload_enc").notNull(), // encrypted JSON: the draft itself
     status: text("status").notNull().default("pending"), // pending | approved | changes_requested | dropped
     decidedAt: timestamp("decided_at", { withTimezone: true }),

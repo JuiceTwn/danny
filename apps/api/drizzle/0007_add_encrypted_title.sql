@@ -1,0 +1,1 @@
+ALTER TABLE "approvals" ADD COLUMN "title_enc" "bytea" NOT NULL;

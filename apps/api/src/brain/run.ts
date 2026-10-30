@@ -143,7 +143,7 @@ async function runTool(
     const id = await ctx.tenant(async (tx) => {
       const [a] = await tx
         .insert(approvals)
-        .values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind: tool.name, title, payloadEnc: ctx.vault.sealJson(ctx.workspaceId, parsed.data) })
+        .values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind: tool.name, titleEnc: ctx.vault.seal(ctx.workspaceId, title), payloadEnc: ctx.vault.sealJson(ctx.workspaceId, parsed.data) })
         .returning({ id: approvals.id });
       await tx.insert(auditLog).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, action: "approval.request", detail: { id: a!.id, tool: tool.name } });
       return a!.id;
@@ -157,9 +157,9 @@ async function runTool(
     const out = await tool.run!(ctx, parsed.data);
     if (tool.name === "request_approval") {
       const [a] = await ctx.tenant((tx) =>
-        tx.select({ id: approvals.id, title: approvals.title }).from(approvals).orderBy(desc(approvals.createdAt)).limit(1),
+        tx.select({ id: approvals.id, titleEnc: approvals.titleEnc }).from(approvals).orderBy(desc(approvals.createdAt)).limit(1),
       );
-      if (a) emit({ type: "approval", id: a.id, title: a.title });
+      if (a) emit({ type: "approval", id: a.id, title: ctx.vault.open(ctx.workspaceId, a.titleEnc) });
     }
     emit({ type: "tool", name: tool.name, status: "ran" });
     return { type: "tool_result", tool_use_id: call.id, content: out };

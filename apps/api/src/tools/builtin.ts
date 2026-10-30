@@ -29,7 +29,7 @@ export const requestApproval = defineTool({
   }),
   async run(ctx, { kind, title, draft }) {
     const id = await ctx.tenant(async (tx) => {
-      const [a] = await tx.insert(approvals).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind, title, payloadEnc: ctx.vault.sealJson(ctx.workspaceId, { draft }) }).returning({ id: approvals.id });
+      const [a] = await tx.insert(approvals).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, kind, titleEnc: ctx.vault.seal(ctx.workspaceId, title), payloadEnc: ctx.vault.sealJson(ctx.workspaceId, { draft }) }).returning({ id: approvals.id });
       await tx.insert(auditLog).values({ workspaceId: ctx.workspaceId, userId: ctx.userId, action: "approval.request", detail: { id: a!.id, kind, via: "chat" } });
       return a!.id;
     });

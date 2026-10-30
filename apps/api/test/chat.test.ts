@@ -107,7 +107,8 @@ describe("chat", () => {
     expect(sendEmail).not.toHaveBeenCalled();
     expect(r.events).toContainEqual({ type: "tool", name: "send_email", status: "queued" });
     const [a] = await ctx.owner.db.select().from(approvals).where(eq(approvals.userId, u.userId));
-    expect(a).toMatchObject({ kind: "send_email", title: "Email to marlene@x.ca", status: "pending", executedAt: null });
+    expect(a).toMatchObject({ kind: "send_email", status: "pending", executedAt: null });
+    expect(ctx.vault.open(u.workspaceId, a!.titleEnc)).toBe("Email to marlene@x.ca");
   });
 
   it("bad tool calls come back to the model as errors, not crashes", async () => {

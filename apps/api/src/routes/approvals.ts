@@ -13,7 +13,7 @@ const STATUS = { approve: "approved", changes: "changes_requested", drop: "dropp
 const view = (vault: Vault, a: typeof approvals.$inferSelect) => ({
   id: a.id,
   kind: a.kind,
-  title: a.title,
+  title: vault.open(a.workspaceId, a.titleEnc),
   payload: vault.openJson(a.workspaceId, a.payloadEnc),
   status: a.status,
   createdAt: a.createdAt,
@@ -37,7 +37,7 @@ export const approvalRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault 
       .object({ kind: z.string().trim().min(1).max(40), title: z.string().trim().min(1).max(200), payload: z.record(z.string(), z.unknown()).default({}) })
       .parse(req.body);
     const row = await withTenant(db, workspaceId, async (tx) => {
-      const [a] = await tx.insert(approvals).values({ workspaceId, userId, kind: body.kind, title: body.title, payloadEnc: vault.sealJson(workspaceId, body.payload) }).returning();
+      const [a] = await tx.insert(approvals).values({ workspaceId, userId, kind: body.kind, titleEnc: vault.seal(workspaceId, body.title), payloadEnc: vault.sealJson(workspaceId, body.payload) }).returning();
       await tx.insert(auditLog).values({ workspaceId, userId, action: "approval.request", detail: { id: a!.id, kind: body.kind } });
       return a!;
     });

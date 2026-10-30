@@ -82,10 +82,13 @@ describe("what the database really holds", () => {
     const m = await u.c.post("/v1/memory", { content: "SECRET-MEMORY-TEXT" });
     const a = await u.c.post("/v1/approvals", { kind: "email", title: "t", payload: { draft: "SECRET-DRAFT-TEXT" } });
     expect(await raw("memory", "content_enc", m.body.item.id)).not.toContain("SECRET-MEMORY");
+    const t = await u.c.post("/v1/approvals", { kind: "email", title: "SECRET-TITLE Marlene", payload: {} });
+    expect(await raw("approvals", "title_enc", t.body.item.id)).not.toContain("SECRET-TITLE");
+    expect((await u.c.get("/v1/approvals")).body.items.map((i: any) => i.title)).toContain("SECRET-TITLE Marlene");
     expect(await raw("approvals", "payload_enc", a.body.item.id)).not.toContain("SECRET-DRAFT");
     // and the API still returns the real content to the right user
     expect((await u.c.get("/v1/memory")).body.items[0].content).toBe("SECRET-MEMORY-TEXT");
-    expect((await u.c.get("/v1/approvals")).body.items[0].payload).toEqual({ draft: "SECRET-DRAFT-TEXT" });
+    expect((await u.c.get("/v1/approvals")).body.items.find((i: any) => i.id === a.body.item.id).payload).toEqual({ draft: "SECRET-DRAFT-TEXT" });
   });
 
   it("a row moved to another workspace cannot be read there", async () => {
