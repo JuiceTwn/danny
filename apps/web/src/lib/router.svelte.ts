@@ -23,6 +23,11 @@ export const fmtDay = (iso: string) => {
   return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 };
 export const usd = (n: number) => `$${n.toFixed(2)}`;
+/** "3 h 20 min", "45 min": how long until the allowance resets. */
+export const resetsIn = (iso: string, now = Date.now()) => {
+  const mins = Math.max(1, Math.ceil((Date.parse(iso) - now) / 60_000));
+  return mins >= 60 ? `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}` : `${mins} min`;
+};
 export const fmtWhen = (iso: string) => {
   const d = new Date(iso);
   return `${fmtDay(iso)} ${fmtTime(iso)}${d.getTime() < Date.now() ? " (past)" : ""}`;

@@ -70,7 +70,7 @@ Reminders reach them by notification and in this chat, and come back a few times
 
 export const BLOCKED_MESSAGE = {
   kill_switch: "Danny is stopped. Turn him back on in settings.",
-  cap_reached: "Daily spend cap reached. Raise it in settings or wait until tomorrow (UTC).",
+  cap_reached: "You've used all of today's allowance. It resets at midnight UTC.",
 } as const;
 
 // The model API needs history to start at a plain user message, never at a stray tool result.

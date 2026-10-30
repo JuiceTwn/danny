@@ -71,7 +71,19 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
 }
 
 export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean }; workspaceId: string; role: string; isOwner: boolean };
-export type Settings = { dailyCapUsd: number; killSwitch: boolean; spentTodayUsd: number; model: string; demo: boolean; priceInputPerMtokUsd: number; priceOutputPerMtokUsd: number };
+// Everyone gets the usage percentage. The dollar fields, and the right to change the cap, belong to the server owner only.
+export type Settings = {
+  usedPercent: number;
+  resetsAt: string;
+  killSwitch: boolean;
+  model: string;
+  demo: boolean;
+  canSetCap: boolean;
+  dailyCapUsd?: number;
+  spentTodayUsd?: number;
+  priceInputPerMtokUsd?: number;
+  priceOutputPerMtokUsd?: number;
+};
 export type Approval = { id: string; kind: string; title: string; payload: Record<string, unknown>; status: string; createdAt: string; decidedAt: string | null; executed: boolean; canExecute: boolean; execution: "running" | "done" | "failed" | "unknown" | null; executionNote: string | null };
 export type Connection = { id: string; provider: string; label: string; status: string; createdAt: string; calendar?: boolean };
 export type MemoryKind = "fact" | "preference" | "person" | "plan" | "place";

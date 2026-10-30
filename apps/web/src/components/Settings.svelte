@@ -4,7 +4,7 @@
   import Connections from "./Connections.svelte";
   import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
-  import { usd } from "../lib/router.svelte";
+  import { resetsIn, usd } from "../lib/router.svelte";
 
   const s = $derived(app.settings);
   let cap = $state("");
@@ -13,7 +13,7 @@
   let error = $state("");
 
   $effect(() => {
-    if (s && cap === "") cap = String(s.dailyCapUsd);
+    if (s?.dailyCapUsd !== undefined && cap === "") cap = String(s.dailyCapUsd);
   });
 
   let briefOn = $state(false);
@@ -173,7 +173,7 @@
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1);
   const device = ios ? "ios" : /Android/.test(ua) ? "android" : "desktop";
-  const pct = $derived(s && s.dailyCapUsd > 0 ? Math.min(100, (s.spentTodayUsd / s.dailyCapUsd) * 100) : 0);
+  const pct = $derived(s?.usedPercent ?? 0);
 
   async function toggle() {
     if (!s) return;
@@ -222,26 +222,35 @@
       <h2 class="display">Model</h2>
       {#if s}
         <p class="mono big">{s.demo ? "None (demo mode)" : s.model}</p>
-        <p class="mono">{usd(s.priceInputPerMtokUsd)} per million tokens in, {usd(s.priceOutputPerMtokUsd)} out</p>
-        <p>Each message sends your recent chat and memory along with it, so a short reply still costs more than its length. Change it with the MODEL setting on the server.</p>
+        {#if s.canSetCap}
+          <p class="mono">{usd(s.priceInputPerMtokUsd ?? 0)} per million tokens in, {usd(s.priceOutputPerMtokUsd ?? 0)} out</p>
+          <p>Each message sends your recent chat and memory along with it, so a short reply still costs more than its length. Change it with the MODEL setting on the server.</p>
+        {:else}
+          <p>Each message sends your recent chat and memory along with it, so a short reply uses more than its length suggests.</p>
+        {/if}
       {/if}
     </section>
 
     <section>
-      <h2 class="display">Daily spend cap</h2>
-      <p>Danny stops for the day when he hits this number. It resets at midnight UTC.</p>
+      <h2 class="display">Daily usage</h2>
       {#if s}
-        <div class="meter" role="img" aria-label="{usd(s.spentTodayUsd)} of {usd(s.dailyCapUsd)} used today"><b style:width="{pct}%"></b></div>
-        <p class="mono">{usd(s.spentTodayUsd)} used of {usd(s.dailyCapUsd)}</p>
+        <div class="meter" role="img" aria-label="{s.usedPercent}% of today's usage"><b style:width="{pct}%"></b></div>
+        <p class="mono">{s.usedPercent}% used · resets in {resetsIn(s.resetsAt)}</p>
+        <p>{s.usedPercent >= 100 ? "You've used all of today's allowance. Danny is back at midnight UTC." : "Danny stops for the day when the bar is full. It resets at midnight UTC."}</p>
+        {#if s.canSetCap}
+          <p class="mono">{usd(s.spentTodayUsd ?? 0)} used of {usd(s.dailyCapUsd ?? 0)}</p>
+        {/if}
       {/if}
-      <form class="capform" onsubmit={saveCap}>
-        <div class="field">
-          <label for="cap">Cap in US dollars</label>
-          <input id="cap" class="input" type="number" min="0" step="0.5" inputmode="decimal" bind:value={cap} />
-        </div>
-        <button class="btn" disabled={saving}>Save</button>
-      </form>
-      {#if msg}<p class="mono" role="status">{msg}</p>{/if}
+      {#if s?.canSetCap}
+        <form class="capform" onsubmit={saveCap}>
+          <div class="field">
+            <label for="cap">Your daily limit in US dollars (owner only)</label>
+            <input id="cap" class="input" type="number" min="0" step="0.5" inputmode="decimal" bind:value={cap} />
+          </div>
+          <button class="btn" disabled={saving}>Save</button>
+        </form>
+        {#if msg}<p class="mono" role="status">{msg}</p>{/if}
+      {/if}
     </section>
 
     <section>

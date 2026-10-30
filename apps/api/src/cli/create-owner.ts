@@ -20,7 +20,7 @@ if (existing) {
 }
 await db.transaction(async (tx) => {
   const [u] = await tx.insert(users).values({ email: lower, name, passwordHash: await hashPassword(password), isOwner: true }).returning({ id: users.id });
-  const [w] = await tx.insert(workspaces).values({ name: name ? `${name}'s Danny` : "My Danny", dailyCapMicros: config.defaultDailyCapMicros }).returning({ id: workspaces.id });
+  const [w] = await tx.insert(workspaces).values({ name: name ? `${name}'s Danny` : "My Danny", dailyCapMicros: config.ownerDailyCapMicros }).returning({ id: workspaces.id });
   await tx.insert(memberships).values({ workspaceId: w!.id, userId: u!.id, role: "admin" });
 });
 await client.end();

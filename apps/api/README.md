@@ -22,7 +22,7 @@ Routes (all JSON, session cookie, same-origin check on writes):
 | `GET/POST /v1/memory`, `DELETE /v1/memory/:id` | |
 | `GET/POST /v1/approvals`, `POST /v1/approvals/:id/decision` | recorded, never executed |
 | `POST /v1/chat` (streams events), `GET /v1/chat/history`, `GET /v1/tools` | the model loop; see `src/tools/registry.ts` for how to add a tool |
-| `GET/PATCH /v1/settings` | daily spend cap and kill switch |
+| `GET/PATCH /v1/settings` | usage meter and kill switch; the daily cap is owner-only |
 | `GET /v1/admin/invite-requests`, `POST .../:id/approve`, `POST /v1/admin/invites`, `GET /v1/admin/usage` | owner only |
 
 ## Adding a tool

@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withTenant } from "../src/db/client.js";
-import { approvals, auditLog, memory } from "../src/db/schema.js";
+import { approvals, auditLog, memory, workspaces } from "../src/db/schema.js";
 import { checkBudget, recordSpend } from "../src/lib/spend.js";
 import { PASSWORD, client, seedOwner, setupApp, signUp, uniqueEmail, ORIGIN, type Client, type Ctx } from "./helpers.js";
 
@@ -195,26 +195,58 @@ describe("tenant isolation", () => {
 });
 
 describe("spend cap and kill switch", () => {
-  it("defaults, then changes by the admin, and the cap is enforced in one place", async () => {
+  it("new users get the free dollar a day, can stop Danny, and cannot change the limit", async () => {
     const u = await signUp(ctx, owner, "Cap");
     const s = (await u.c.get("/v1/settings")).body;
-    expect(s).toMatchObject({ dailyCapUsd: 2, killSwitch: false, spentTodayUsd: 0, model: expect.any(String) });
+    expect(s).toMatchObject({ usedPercent: 0, killSwitch: false, canSetCap: false, model: expect.any(String), resetsAt: expect.any(String) });
+    // a usage meter, not dollars
+    expect(s).not.toHaveProperty("dailyCapUsd");
+    expect(s).not.toHaveProperty("spentTodayUsd");
+    const [ws] = await ctx.owner.db.select().from(workspaces).where(eq(workspaces.id, u.workspaceId));
+    expect(ws!.dailyCapMicros).toBe(1_000_000);
 
-    expect((await u.c.patch("/v1/settings", { dailyCapUsd: 0.5 })).body.dailyCapUsd).toBe(0.5);
-    expect((await u.c.patch("/v1/settings", { dailyCapUsd: 9999 })).status).toBe(400);
+    const denied = await u.c.patch("/v1/settings", { dailyCapUsd: 50 });
+    expect(denied.status).toBe(403);
+    expect(denied.body.error).toBe("owner_only");
+    // a mixed request is refused whole, so the stop switch is not flipped either
+    expect((await u.c.patch("/v1/settings", { dailyCapUsd: 50, killSwitch: true })).status).toBe(403);
+    expect((await u.c.get("/v1/settings")).body.killSwitch).toBe(false);
+    const [after] = await ctx.owner.db.select().from(workspaces).where(eq(workspaces.id, u.workspaceId));
+    expect(after!.dailyCapMicros).toBe(1_000_000);
 
+    expect((await u.c.patch("/v1/settings", { killSwitch: true })).status).toBe(200);
+    expect((await u.c.patch("/v1/settings", { killSwitch: false })).status).toBe(200);
+  });
+
+  it("the usage meter fills as the day's allowance is spent, and the cap is enforced in one place", async () => {
+    const u = await signUp(ctx, owner, "Meter");
     const budget = () => withTenant(ctx.runtime.db, u.workspaceId, (tx) => checkBudget(tx, u.workspaceId));
     expect((await budget()).ok).toBe(true);
     await withTenant(ctx.runtime.db, u.workspaceId, (tx) =>
-      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1000, outputTokens: 1000, costMicros: 600_000 }),
+      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1000, outputTokens: 1000, costMicros: 250_000 }),
+    );
+    expect((await u.c.get("/v1/settings")).body.usedPercent).toBe(25);
+    await withTenant(ctx.runtime.db, u.workspaceId, (tx) =>
+      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1000, outputTokens: 1000, costMicros: 800_000 }),
     );
     expect(await budget()).toMatchObject({ ok: false, reason: "cap_reached" });
-    expect((await u.c.get("/v1/settings")).body.spentTodayUsd).toBe(0.6);
-
-    await u.c.patch("/v1/settings", { dailyCapUsd: 5, killSwitch: true });
+    expect((await u.c.get("/v1/settings")).body.usedPercent).toBe(100);
+    await u.c.patch("/v1/settings", { killSwitch: true });
     expect(await budget()).toMatchObject({ ok: false, reason: "kill_switch" });
     await u.c.patch("/v1/settings", { killSwitch: false });
-    expect((await budget()).ok).toBe(true);
+  });
+
+  it("only the owner sees dollars and sets a cap, and only for their own workspace", async () => {
+    const s = (await owner.get("/v1/settings")).body;
+    expect(s).toMatchObject({ canSetCap: true, dailyCapUsd: expect.any(Number), spentTodayUsd: expect.any(Number) });
+    const original = s.dailyCapUsd;
+    expect((await owner.patch("/v1/settings", { dailyCapUsd: 0.5 })).body.dailyCapUsd).toBe(0.5);
+    expect((await owner.patch("/v1/settings", { dailyCapUsd: 9999 })).status).toBe(400);
+    await owner.patch("/v1/settings", { dailyCapUsd: original });
+    // the owner changing theirs does not touch anyone else's
+    const u = await signUp(ctx, owner, "Other");
+    const [ws] = await ctx.owner.db.select().from(workspaces).where(eq(workspaces.id, u.workspaceId));
+    expect(ws!.dailyCapMicros).toBe(1_000_000);
   });
 
   it("one workspace's spend never counts against another's cap", async () => {

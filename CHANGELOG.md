@@ -4,6 +4,7 @@
 
 Danny works for you without being asked.
 
+- **Free daily allowance.** Everyone but the server owner gets US$1 a day (`DEFAULT_DAILY_CAP_USD`) and can no longer change it: `PATCH /v1/settings` with `dailyCapUsd` is owner-only (403 `owner_only`). Members see a usage meter (percent used, time until the midnight-UTC reset) instead of dollars; the owner still sees dollars and sets their own limit (`OWNER_DAILY_CAP_USD` is where it starts). The stop switch stays with everyone. Migration 0017 moves existing non-owner workspaces to $1.
 - **Goals.** Tell Danny you're looking into a new job, a move, a purchase, and he saves it with your criteria (`add_goal`, `list_goals`, `update_goal`). Goals show on the Tasks page with Pause, Done and Stop watching. Encrypted like everything else.
 - **Watching.** A goal can be checked on the web every 6 to 168 hours. Danny only speaks up, in chat and by push, when a check finds something new (it is told what it reported last time). Max 5 watched goals; push stays quiet during quiet hours.
 - **Web search.** `search_web` in chat, plus the searches above. Results are framed as untrusted text. Every search goes through the kill switch and daily cap and is billed per search (`PRICE_SEARCH_USD`, default 0.01) plus tokens.

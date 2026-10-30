@@ -56,7 +56,7 @@ export const workspaces = pgTable("workspaces", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   plan: text("plan").notNull().default("invite"),
-  dailyCapMicros: bigint("daily_cap_micros", { mode: "number" }).notNull().default(2_000_000), // US$2.00
+  dailyCapMicros: bigint("daily_cap_micros", { mode: "number" }).notNull().default(1_000_000), // US$1.00: the free daily allowance
   killSwitch: boolean("kill_switch").notNull().default(false),
   createdAt: createdAt(),
 });

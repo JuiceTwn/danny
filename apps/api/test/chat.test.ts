@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ModelClient, ModelRequest, ModelResult } from "../src/brain/model.js";
-import { approvals, memory, spendLedger } from "../src/db/schema.js";
+import { approvals, memory, spendLedger, workspaces } from "../src/db/schema.js";
 import { createRegistry } from "../src/tools/builtin.js";
 import { defineTool } from "../src/tools/registry.js";
 import { ORIGIN, seedOwner, setupApp, signUp, type Client, type Ctx } from "./helpers.js";
@@ -71,7 +71,8 @@ describe("chat", () => {
     const hist = (await u.c.get("/v1/chat/history")).body.messages;
     expect(hist.map((m: any) => [m.role, m.text])).toEqual([["user", "hey danny"], ["assistant", "Morning. What's first?"]]);
     // 1000 in x $1/Mtok + 200 out x $5/Mtok = $0.002
-    expect((await u.c.get("/v1/settings")).body.spentTodayUsd).toBeCloseTo(0.002, 6);
+    const ledger = await ctx.owner.db.select().from(spendLedger).where(eq(spendLedger.workspaceId, u.workspaceId));
+    expect(ledger.reduce((n, r) => n + r.costMicros, 0) / 1_000_000).toBeCloseTo(0.002, 6);
   });
 
   it("remembers facts through the tool, and uses them next time", async () => {
@@ -144,7 +145,7 @@ describe("chat", () => {
 
   it("stops when the daily cap is hit, including between tool steps", async () => {
     const u = await signUp(ctx, owner, "Cap");
-    await u.c.patch("/v1/settings", { dailyCapUsd: 0.001 });
+    await ctx.owner.db.update(workspaces).set({ dailyCapMicros: 1000 }).where(eq(workspaces.id, u.workspaceId));
     // first call costs $0.002, which passes the cap, so the follow-up step must not run
     script = scripted([{ ...useTool("remember", { fact: "x" }), usage: { inputTokens: 2000, outputTokens: 0 } }, text("never")]);
     const r = await chat(u.c, "go");

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { app } from "../lib/store.svelte";
-  import { usd } from "../lib/router.svelte";
+  import { resetsIn } from "../lib/router.svelte";
   const s = $derived(app.settings);
 </script>
 
@@ -8,7 +8,7 @@
   {#if s}
     <span class="lamp" class:off={s.killSwitch}></span>
     <span class="word" class:off={s.killSwitch}>{s.killSwitch ? "Stopped" : "Running"}</span>
-    <span class="spend mono">{usd(s.spentTodayUsd)} of {usd(s.dailyCapUsd)} today</span>
+    <span class="spend mono" title="Resets in {resetsIn(s.resetsAt)}">{s.usedPercent}% used today</span>
     <span class="spend mono model" title="Model in use">{s.demo ? "demo" : s.model}</span>
   {/if}
 </div>
