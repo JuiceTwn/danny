@@ -1,0 +1,25 @@
+# @danny/api
+
+Multi-tenant API. See `../../docs/STACK.md` for the decisions.
+
+```bash
+# 1. A Postgres 16 server, a database, and two roles:
+#    danny_owner (owns the tables, runs migrations) and danny_app (runtime, restricted)
+# 2. Environment: copy .env.example and fill it in
+npm run db:migrate
+npm run create-owner -- you@example.com 'a long password' 'Your Name'
+npm run dev
+```
+
+Tests need a throwaway Postgres: `bash scripts/test-db.sh`, then `npm test`.
+
+Routes (all JSON, session cookie, same-origin check on writes):
+
+| | |
+|---|---|
+| `POST /v1/invite-requests` | public, from the marketing site |
+| `POST /v1/auth/accept-invite`, `login`, `logout` · `GET /v1/me` | |
+| `GET/POST /v1/memory`, `DELETE /v1/memory/:id` | |
+| `GET/POST /v1/approvals`, `POST /v1/approvals/:id/decision` | recorded, never executed |
+| `GET/PATCH /v1/settings` | daily spend cap and kill switch |
+| `GET /v1/admin/invite-requests`, `POST .../:id/approve`, `POST /v1/admin/invites`, `GET /v1/admin/usage` | owner only |
