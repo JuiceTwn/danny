@@ -110,7 +110,9 @@ describe("goal checks", () => {
     expect(await runDueGoalChecks(deps(), noon)).toBeGreaterThanOrEqual(1);
     expect(searches.at(-1)!.prompt).toContain("flats to rent Leeds");
     expect((await chatText(u.c)).at(-1)).toContain("Headingley");
-    expect((await chatText(u.c)).at(-1)).toContain("https://example.com/a");
+    expect((await chatText(u.c)).at(-1)).toContain("[example.com](https://example.com/a)");
+    expect((await chatText(u.c)).at(-1)).toMatch(/^\*\*Find a flat in Leeds\*\*\n/);
+    expect(searches.at(-1)!.prompt).toContain("Skip generic job-board");
     expect(await spend(u.userId)).toBeGreaterThan(before + 20_000); // two searches at 1 cent each, plus tokens
     const [row] = await ctx.owner.db.select().from(goals).where(eq(goals.userId, u.userId));
     expect(ctx.vault.open(row!.workspaceId, row!.lastFindingEnc!)).toContain("Headingley");
@@ -501,9 +503,21 @@ describe("learning how to help", () => {
 });
 
 describe("plain text and late sends", () => {
-  it("strips markdown that slips into a background message", async () => {
-    const { plainText } = await import("../src/lib/background.js");
-    expect(plainText("**Today**\n* one\n# Goals\nuse `x` and __this__")).toBe("Today\n- one\nGoals\nuse x and this");
+  it("tidies what the app does not draw: headings become bold labels, odd bullets become dashes, bold stays", async () => {
+    const { tidy } = await import("../src/lib/format.js");
+    expect(tidy("# Goals\n* one\n2) two\nuse `x` and __this__ and **that**\n\n\n\nend")).toBe("**Goals**\n- one\n- two\nuse x and **this** and **that**\n\nend");
+  });
+
+  it("cuts a reply that ran out of room back to a clean end, never mid-word", async () => {
+    const { cutToComplete, sourceLinks, unmark } = await import("../src/lib/format.js");
+    expect(cutToComplete("- **A**: pay 45K. [x](https://a.co)\n- **B**: hours Monday to Friday, 8:00 AM - 5:00 P")).toBe("- **A**: pay 45K. [x](https://a.co)");
+    expect(cutToComplete("Done. All good.")).toBe("Done. All good.");
+    expect(cutToComplete("One sentence here. Then it stops half wa")).toBe("One sentence here.");
+    // sources: one per website, at most four, shown as links
+    const many = ["https://www.ziprecruiter.com/a", "https://www.ziprecruiter.com/b", "https://ca.indeed.com/c", "https://www.glassdoor.ca/d", "https://x.co/e", "https://y.co/f"].map((url) => ({ title: "t", url }));
+    expect(sourceLinks(many)).toBe("\n\n**Sources**\n- [ziprecruiter.com](https://www.ziprecruiter.com/a)\n- [ca.indeed.com](https://ca.indeed.com/c)\n- [glassdoor.ca](https://www.glassdoor.ca/d)\n- [x.co](https://x.co/e)");
+    expect(sourceLinks([])).toBe("");
+    expect(unmark("**Role**: [Indeed](https://ca.indeed.com/x) pay\n- second")).toBe("Role: Indeed pay\nsecond");
   });
 
   it("a briefing turned on after the day is well under way is skipped, not sent as a late morning briefing", async () => {
@@ -511,14 +525,15 @@ describe("plain text and late sends", () => {
     await ctx.owner.db.update(users).set({ timezone: "America/Toronto" }).where(eq(users.id, u.userId));
     await u.c.post("/v1/tasks", { title: "Something open" });
     await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
-    searchReply = () => found("**Today**\nMorning.");
+    searchReply = () => found("# Today\nMorning.");
     expect(await runDueBriefings(deps(), new Date("2027-08-03T21:30:00Z"))).toBe(0); // 17:30 in Toronto
     expect((await chatText(u.c)).length).toBe(0);
     expect(await runDueBriefings(deps(), new Date("2027-08-03T22:00:00Z"))).toBe(0); // and not retried later the same day
     await runDueBriefings(deps(), new Date("2027-08-04T12:00:00Z")); // 08:00 next morning: sent, and without asterisks
     const sent = (await chatText(u.c)).at(-1)!;
     expect(sent).toContain("Morning.");
-    expect(sent).not.toContain("**");
+    expect(sent).toContain("**Today**"); // a heading became a bold label the app can draw
+    expect(sent).not.toContain("# ");
   });
 
   it("the same goes for the evening wrap-up", async () => {

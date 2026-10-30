@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Rich from "./Rich.svelte";
   import { onMount, tick } from "svelte";
   import { api, chatStream, type HistoryMsg } from "../lib/api";
   import { app, refresh } from "../lib/store.svelte";
@@ -115,7 +116,7 @@
         {#if r.kind === "user" || r.kind === "danny"}
           <div class="row {r.kind}" aria-live={r.kind === "danny" && busy ? "polite" : undefined}>
             <div class="who mono">{r.kind === "user" ? "You" : "Danny"}<span>{fmtTime(r.at)}</span></div>
-            <p class="text">{r.text}</p>
+            <div class="text">{#if r.kind === "danny"}<Rich text={r.text} />{:else}{r.text}{/if}</div>
           </div>
         {:else if r.kind === "note"}
           <div class="row note"><div class="who mono">Noted</div><p class="text">{r.text}</p></div>

@@ -21,7 +21,7 @@ export type ModelResult = {
 };
 export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; searches?: number };
 export type SearchRequest = { model: string; system: string; prompt: string; maxSearches: number; maxTokens: number };
-export type SearchResult = { text: string; sources: { title: string; url: string }[]; usage: Usage };
+export type SearchResult = { text: string; sources: { title: string; url: string }[]; usage: Usage; truncated?: boolean };
 
 /** The one seam to the model provider. Tests script it; production uses AnthropicModel. */
 export interface ModelClient {
@@ -43,24 +43,24 @@ export class AnthropicModel implements ModelClient {
       messages: [{ role: "user", content: req.prompt }],
       tools: [{ type: SEARCH_TOOL, name: "web_search", max_uses: req.maxSearches } as unknown as Anthropic.ToolUnion],
     });
-    const seen = new Set<string>();
-    const sources: SearchResult["sources"] = [];
+    // Pages the answer actually cites come first. The rest of what was searched is only a fallback.
+    const cited: SearchResult["sources"] = [];
+    const found: SearchResult["sources"] = [];
     let text = "";
-    for (const b of res.content as unknown as { type: string; text?: string; content?: unknown }[]) {
-      if (b.type === "text") text += b.text ?? "";
-      else if (b.type === "web_search_tool_result" && Array.isArray(b.content)) {
-        for (const r of b.content as { url?: string; title?: string }[]) {
-          if (r.url && !seen.has(r.url) && sources.length < 8) {
-            seen.add(r.url);
-            sources.push({ title: r.title ?? r.url, url: r.url });
-          }
-        }
+    for (const b of res.content as unknown as { type: string; text?: string; content?: unknown; citations?: { url?: string; title?: string }[] }[]) {
+      if (b.type === "text") {
+        text += b.text ?? "";
+        for (const c of b.citations ?? []) if (c.url && !cited.some((x) => x.url === c.url)) cited.push({ title: c.title ?? c.url, url: c.url });
+      } else if (b.type === "web_search_tool_result" && Array.isArray(b.content)) {
+        for (const r of b.content as { url?: string; title?: string }[]) if (r.url && !found.some((x) => x.url === r.url)) found.push({ title: r.title ?? r.url, url: r.url });
       }
     }
+    const sources = (cited.length ? cited : found).slice(0, 8);
     const u = res.usage as typeof res.usage & { server_tool_use?: { web_search_requests?: number } };
     return {
       text: text.trim(),
       sources,
+      truncated: res.stop_reason === "max_tokens",
       usage: {
         inputTokens: u.input_tokens,
         outputTokens: u.output_tokens,

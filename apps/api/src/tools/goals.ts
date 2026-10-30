@@ -96,7 +96,7 @@ export const searchWeb = defineTool({
   run: async (ctx, { question }) => {
     if (!ctx.search) return "Web search isn't available.";
     const r = await ctx.search(question);
-    return r.ok ? `${WEB_FRAME}\n\n${r.text || "Nothing found."}${sourceList(r.sources)}` : r.reason;
+    return r.ok ? `${WEB_FRAME}\n\n${r.text || "Nothing found."}${sourceList(r.sources, r.text)}` : r.reason;
   },
 });
 
