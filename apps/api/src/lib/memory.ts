@@ -6,6 +6,7 @@ import type { Vault } from "./vault.js";
 
 export const KINDS = ["fact", "preference", "person", "plan", "place"] as const;
 export type Kind = (typeof KINDS)[number];
+export type Source = "chat" | "auto" | "app";
 export const MAX_MEMORIES = 300;
 export const MAX_FACT = 300;
 const CORE_MAX = 8; // pinned notes always in the prompt
@@ -19,6 +20,7 @@ export type MemoryView = {
   kind: Kind;
   subject: string | null;
   pinned: boolean;
+  source: Source;
   expiresAt: string | null;
   expired: boolean;
   createdAt: string;
@@ -35,6 +37,7 @@ const view = (vault: Vault, ws: string, r: Row, now = new Date()): MemoryView =>
   kind: (KINDS as readonly string[]).includes(r.kind) ? (r.kind as Kind) : "fact",
   subject: r.subjectEnc ? vault.open(ws, r.subjectEnc) : null,
   pinned: r.pinned,
+  source: r.source === "auto" || r.source === "app" ? r.source : "chat",
   expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
   expired: !!r.expiresAt && r.expiresAt <= now,
   createdAt: r.createdAt.toISOString(),
@@ -131,7 +134,7 @@ export type AddResult =
 
 const expiry = (d: string | null | undefined) => (d ? new Date(`${d}T23:59:59Z`) : null);
 
-export async function addMemory(a: Actor, input: MemoryInput, opts: { replaces?: string; source?: "chat" | "app" } = {}): Promise<AddResult> {
+export async function addMemory(a: Actor, input: MemoryInput, opts: { replaces?: string; source?: Source } = {}): Promise<AddResult> {
   const fact = input.fact.replace(/\s+/g, " ").trim().slice(0, MAX_FACT);
   const subject = input.subject?.trim().slice(0, 80) || null;
   return a.tenant(async (tx) => {
@@ -146,6 +149,8 @@ export async function addMemory(a: Actor, input: MemoryInput, opts: { replaces?:
         .update(memory)
         .set({
           contentEnc: seal(fact),
+          // A quiet update keeps the old wording, so the Memory tab's undo can put it back.
+          ...(opts.source === "auto" ? { previousEnc: seal(target.fact) } : {}),
           kind: input.kind ?? target.kind,
           subjectEnc: subject ? seal(subject) : null,
           expiresAt: input.expiresOn !== undefined ? expiry(input.expiresOn) : target.expiresAt ? new Date(target.expiresAt) : null,
@@ -180,6 +185,7 @@ export async function addMemory(a: Actor, input: MemoryInput, opts: { replaces?:
         kind: input.kind ?? "fact",
         subjectEnc: subject ? seal(subject) : null,
         pinned: input.pinned ?? false,
+        source: opts.source ?? "chat",
         expiresAt: expiry(input.expiresOn),
       })
       .returning();

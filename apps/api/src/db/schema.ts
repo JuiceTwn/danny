@@ -44,6 +44,7 @@ export const users = pgTable(
     quietEnd: integer("quiet_end").notNull().default(7),
     units: text("units").notNull().default("metric"), // metric | imperial, for weather
     learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
+    autoMemory: boolean("auto_memory").notNull().default(true), // let Danny save what you mention in passing, without being asked
     lastLearnedAt: timestamp("last_learned_at", { withTimezone: true }),
     lastTidiedAt: timestamp("last_tidied_at", { withTimezone: true }),
     createdAt: createdAt(),
@@ -122,6 +123,7 @@ export const memory = pgTable(
     contentEnc: bytea("content_enc").notNull(), // encrypted with the workspace key (see lib/vault.ts)
     kind: text("kind").notNull().default("fact"), // fact | preference | person | plan | place
     subjectEnc: bytea("subject_enc"), // who or what it is about ("Marlene"), when it is about someone or somewhere
+    source: text("source").notNull().default("chat"), // chat (Danny chose to save it) | auto (the quiet pass after a message) | app (typed in the Memory tab)
     pinned: boolean("pinned").notNull().default(false), // always in Danny's prompt
     expiresAt: timestamp("expires_at", { withTimezone: true }), // time-bound facts ("moving in March") stop being used after this
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),

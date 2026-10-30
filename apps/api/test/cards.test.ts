@@ -81,7 +81,7 @@ describe("cards in a chat turn", () => {
     const rows = await ctx.owner.db.select().from(messages).where(eq(messages.workspaceId, u.workspaceId));
     expect(rows.some((m) => m.uiEnc && m.uiEnc.toString("utf8").includes("SECRETWORD"))).toBe(false);
     // the tool result told Danny not to repeat what the card shows
-    expect(JSON.stringify(calls.at(-1)!.messages.at(-1))).toContain("shows the task as a card");
+    expect(JSON.stringify(calls.filter((c) => c.tools.length).at(-1)!.messages.at(-1))).toContain("shows the task as a card"); // the last chat call, not the quiet memory pass after it
   });
 
   it("quick replies are validated, limited to one set, and shown last", async () => {

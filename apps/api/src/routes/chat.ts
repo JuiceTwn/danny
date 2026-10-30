@@ -6,13 +6,16 @@ import type { Deps } from "../app.js";
 export const chatRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
   // One turn at a time per workspace. This also keeps parallel requests from running past the spend cap.
   // In-memory, so it holds for a single server process.
-  const busy = new Set<string>();
+  const busy = new Map<string, symbol>();
 
   app.post("/v1/chat", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
     const { workspaceId, userId } = req.auth!;
     const { message } = z.object({ message: z.string().trim().min(1).max(8000) }).parse(req.body);
     if (busy.has(workspaceId)) return reply.code(429).send({ error: "busy", message: "Danny is still on your last message." });
-    busy.add(workspaceId);
+    const mine = Symbol();
+    busy.set(workspaceId, mine);
+    // Free the workspace for the next message as soon as the reply is done, but never free someone else's turn.
+    const release = () => busy.get(workspaceId) === mine && busy.delete(workspaceId);
 
     reply.hijack();
     const raw = reply.raw;
@@ -23,12 +26,12 @@ export const chatRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
       if (!closed) raw.write(`data: ${JSON.stringify(e)}\n\n`);
     };
     try {
-      await runTurn(deps, { workspaceId, userId }, message, emit, () => closed);
+      await runTurn(deps, { workspaceId, userId }, message, emit, () => closed, release);
     } catch (err) {
       req.log.error(err);
       emit({ type: "error", code: "model_failed", message: "Something broke on our side. Try again." });
     } finally {
-      busy.delete(workspaceId);
+      release();
       raw.end();
     }
   });
