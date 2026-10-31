@@ -103,6 +103,10 @@ export type Settings = {
   costTodayUsd?: number;
   priceInputPerMtokUsd?: number;
   priceOutputPerMtokUsd?: number;
+  priceSource?: "list" | "env" | "unknown-model";
+  priceListInputPerMtokUsd?: number | null;
+  priceListOutputPerMtokUsd?: number | null;
+  priceDiffersFromList?: boolean;
 };
 export type Approval = { id: string; kind: string; title: string; payload: Record<string, unknown>; status: string; createdAt: string; decidedAt: string | null; executed: boolean; canExecute: boolean; execution: "running" | "done" | "failed" | "unknown" | null; executionNote: string | null };
 export type Connection = { id: string; provider: string; label: string; status: string; createdAt: string; calendar?: boolean };

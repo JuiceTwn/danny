@@ -27,7 +27,7 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
         model: config.model,
         canSetCap: isOwner,
         ...(isOwner
-          ? { dailyCapUsd: usd(ws!.dailyCapMicros), spentTodayUsd: usd(spent), costTodayUsd: usd(cost), priceInputPerMtokUsd: config.price.inputPerMtokUsd, priceOutputPerMtokUsd: config.price.outputPerMtokUsd }
+          ? { dailyCapUsd: usd(ws!.dailyCapMicros), spentTodayUsd: usd(spent), costTodayUsd: usd(cost), priceInputPerMtokUsd: config.price.inputPerMtokUsd, priceOutputPerMtokUsd: config.price.outputPerMtokUsd, priceSource: config.priceInfo.source, priceListInputPerMtokUsd: config.priceInfo.list?.input ?? null, priceListOutputPerMtokUsd: config.priceInfo.list?.output ?? null, priceDiffersFromList: config.priceInfo.differsFromList }
           : {}),
       };
     });

@@ -226,7 +226,12 @@
       {#if s}
         <p class="mono big">{s.demo ? "None (demo mode)" : s.model}</p>
         {#if s.canSetCap}
-          <p class="mono">{usd(s.priceInputPerMtokUsd ?? 0)} per million tokens in, {usd(s.priceOutputPerMtokUsd ?? 0)} out</p>
+          <p class="mono">{usd(s.priceInputPerMtokUsd ?? 0)} per million tokens in, {usd(s.priceOutputPerMtokUsd ?? 0)} out · {s.priceSource === "env" ? "set by hand in .env" : s.priceSource === "list" ? "Anthropic's list price" : "model not in the price book"}</p>
+          {#if s.priceDiffersFromList}
+            <p class="warn">These differ from Anthropic's list price for {s.model} ({usd(s.priceListInputPerMtokUsd ?? 0)} in, {usd(s.priceListOutputPerMtokUsd ?? 0)} out). Remove PRICE_INPUT_PER_MTOK_USD and PRICE_OUTPUT_PER_MTOK_USD from .env on the server, then restart, to use the list price.</p>
+          {:else if s.priceSource === "unknown-model"}
+            <p class="warn">{s.model} isn't in the price book, so Danny is pricing it as the dearest model to be safe. Set the two PRICE lines in .env.</p>
+          {/if}
           <p>Each message sends your recent chat and memory along with it, so a short reply still costs more than its length. Change it with the MODEL setting on the server.</p>
         {:else}
           <p>Each message sends your recent chat and memory along with it, so a short reply uses more than its length suggests.</p>
@@ -423,6 +428,7 @@
   .lamp.off { background: var(--need); }
   .big { font-size: 1rem; color: var(--run); }
   .big.off { color: var(--need); }
+  .warn { color: var(--need); }
   .wide { min-width: 200px; }
   .meter { width: 100%; height: 24px; border: 2px solid var(--paper); position: relative; }
   .meter b { position: absolute; inset: 0 auto 0 0; background: var(--run); }

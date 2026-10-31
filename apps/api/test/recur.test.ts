@@ -38,6 +38,8 @@ let owner: Client;
 beforeAll(async () => {
   ctx = await setupApp({ complete: async () => ({ content: [], stopReason: "end_turn", usage: { input: 0, output: 0 } }) as never }, createRegistry());
   owner = (await seedOwner(ctx)).c;
+  // UTC, so "a day later" is always 24 hours whatever day the tests run. Daylight saving is covered by the addRepeat tests above.
+  await owner.patch("/v1/profile", { timezone: "UTC" });
 });
 afterAll(() => ctx.close());
 

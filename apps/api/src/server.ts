@@ -29,6 +29,8 @@ if (!google.configured) {
   if (saved) google.configure(saved, "app");
   else app.log.info("Google is not set up yet. The owner can do it in the app, under Settings > Connections.");
 }
+if (config.priceInfo.source === "unknown-model") app.log.warn(`Model ${config.model} is not in the price book (lib/pricing.ts): pricing it as the dearest model so usage is never under-counted. Add it, or set PRICE_INPUT_PER_MTOK_USD and PRICE_OUTPUT_PER_MTOK_USD.`);
+if (config.priceInfo.differsFromList) app.log.warn(`PRICE_INPUT_PER_MTOK_USD / PRICE_OUTPUT_PER_MTOK_USD in .env (${config.price.inputPerMtokUsd} / ${config.price.outputPerMtokUsd}) differ from the list price for ${config.model} (${config.priceInfo.list?.input} / ${config.priceInfo.list?.output}). Remove them from .env to use the list price.`);
 if (!config.vapid) app.log.warn("VAPID keys not set: reminders show in the chat but are not pushed");
 const stopScheduler = config.scheduler ? startScheduler({ db, vault, push, log: app.log, health, config, model, google }) : () => {};
 

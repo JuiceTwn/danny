@@ -256,7 +256,7 @@ describe("spend cap and kill switch", () => {
 
   it("only the owner sees dollars and sets a cap, and only for their own workspace", async () => {
     const s = (await owner.get("/v1/settings")).body;
-    expect(s).toMatchObject({ canSetCap: true, dailyCapUsd: expect.any(Number), spentTodayUsd: expect.any(Number), costTodayUsd: expect.any(Number) });
+    expect(s).toMatchObject({ canSetCap: true, dailyCapUsd: expect.any(Number), spentTodayUsd: expect.any(Number), costTodayUsd: expect.any(Number), priceInputPerMtokUsd: 0.1, priceOutputPerMtokUsd: 0.5, priceSource: "list", priceDiffersFromList: false });
     const original = s.dailyCapUsd;
     expect((await owner.patch("/v1/settings", { dailyCapUsd: 0.5 })).body.dailyCapUsd).toBe(0.5);
     expect((await owner.patch("/v1/settings", { dailyCapUsd: 9999 })).status).toBe(400);

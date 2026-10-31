@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { resolvePrice } from "./lib/pricing.js";
+
+// An empty line in .env (PRICE_X=) means "not set", not zero.
+const optionalNumber = z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().min(0).optional());
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -27,11 +31,11 @@ const schema = z.object({
   WEB_DIR: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   MODEL: z.string().default("claude-haiku-5-5"),
-  // Haiku 5.5 list price, per million tokens, for prompts up to 100k tokens (platform.claude.com/docs/en/about-claude/pricing).
-  // This is what a request REALLY costs. What the user is charged is that rounded up to the next cent (see lib/spend.ts).
-  // Change these together with MODEL: Sonnet 5.5 is 2 and 10, Opus 5.5 is 4 and 20.
-  PRICE_INPUT_PER_MTOK_USD: z.coerce.number().default(0.1),
-  PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(0.5),
+  // Leave these OUT of .env: with nothing set, the price is Anthropic's list price for MODEL (lib/pricing.ts), so changing MODEL
+  // changes the price with it. Set them only for a negotiated price. The owner's Settings screen says when they are set by hand.
+  // What a request REALLY costs; what the user is charged is that rounded up to the next cent (lib/spend.ts).
+  PRICE_INPUT_PER_MTOK_USD: optionalNumber,
+  PRICE_OUTPUT_PER_MTOK_USD: optionalNumber,
   // Voice typing (speech to text). Without a key the mic button stays hidden. Get one at elevenlabs.io and put it in .env, never in chat.
   ELEVENLABS_API_KEY: z.string().optional(),
   STT_MODEL: z.string().default("scribe_v2"),
@@ -69,6 +73,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   if (c.NODE_ENV === "production" && c.COOKIE_SECURE !== "true") {
     throw new Error("COOKIE_SECURE must be true in production");
   }
+  const price = resolvePrice(c.MODEL, { input: c.PRICE_INPUT_PER_MTOK_USD, output: c.PRICE_OUTPUT_PER_MTOK_USD });
   return {
     env: c.NODE_ENV,
     port: c.PORT,
@@ -95,6 +100,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     vapid: c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY ? { publicKey: c.VAPID_PUBLIC_KEY, privateKey: c.VAPID_PRIVATE_KEY, subject: c.VAPID_SUBJECT } : null,
     google: c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET ? { clientId: c.GOOGLE_CLIENT_ID, clientSecret: c.GOOGLE_CLIENT_SECRET, redirectUri: `${c.APP_URL.replace(/\/$/, "")}/v1/connections/google/callback` } : null,
     scheduler: c.SCHEDULER === "true" && c.NODE_ENV !== "test",
-    price: { inputPerMtokUsd: c.PRICE_INPUT_PER_MTOK_USD, outputPerMtokUsd: c.PRICE_OUTPUT_PER_MTOK_USD, searchUsd: c.PRICE_SEARCH_USD },
+    price: { inputPerMtokUsd: price.input, outputPerMtokUsd: price.output, searchUsd: c.PRICE_SEARCH_USD },
+    priceInfo: { source: price.source, list: price.list, differsFromList: price.differsFromList },
   };
 }
