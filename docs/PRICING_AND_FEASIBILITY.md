@@ -14,7 +14,7 @@ Anthropic's own [pricing page](https://platform.claude.com/docs/en/about-claude/
 | Opus 5.5 | $4 | $5 | $0.20 | $20 |
 | Haiku 4.5 | $1 | $1.25 | $0.10 | $5 |
 
-Haiku 5.5 is **10x cheaper than Haiku 4.5** on every line. The defaults in `apps/api/src/config.ts` (`PRICE_INPUT_PER_MTOK_USD=1`, `PRICE_OUTPUT_PER_MTOK_USD=5`) are the Haiku 4.5 prices, while the default model is `claude-haiku-5-5`. The meter therefore charges about 10x what a request really costs. Cache multipliers (read 0.1x, write 1.25x) are the same for both, so the ratio holds on every request.
+Haiku 5.5 is **10x cheaper than Haiku 4.5** on every line. The defaults in `apps/api/src/config.ts` (`PRICE_INPUT_PER_MTOK_USD=1`, `PRICE_OUTPUT_PER_MTOK_USD=5`) are the Haiku 4.5 prices, while the default model is `claude-haiku-5-5`. The meter therefore **was** charging about 10x what a request really costs. This is fixed in code (`config.ts` now uses the Haiku 5.5 prices); a server that sets the prices in its own `.env` keeps what it set. Cache multipliers (read 0.1x, write 1.25x) are the same for both, so the ratio holds on every request.
 
 ## 2. The math
 
@@ -79,9 +79,9 @@ Sensitivity (blended turn):
 
 The worst case on Haiku is still under two-tenths of a cent. **Caching matters most on Sonnet:** a cold Sonnet call costs 4x a warm one.
 
-### 2.4 What the free allowance really is
+### 2.4 What the free allowance is now
 
-The $1/day meter allowance buys 1 / 0.0081 = **about 122 chat turns**. Those 122 turns cost you 122 x 0.0008 = **about $0.10** in real money. If you fix the prices, either the same $1 buys 10x more turns, or you cut the free cap to about $0.10 of meter and keep today's behaviour.
+With the prices fixed and every request rounded up to a cent (section 2.7), the $1/day allowance is **100 ordinary chat messages** (100 x $0.01). The real cost of those 100 messages is 100 x $0.0008 = **about $0.08 a day**, or about $2.40 a month for someone who uses all of it every day.
 
 ### 2.5 Everything that is not a chat turn
 
@@ -119,6 +119,47 @@ The $1/day meter allowance buys 1 / 0.0081 = **about 122 chat turns**. Those 122
 Two things jump out:
 - **Chat on Haiku is almost free** (750 turns a month is about $0.60). In the Typical column, the 15% of turns routed to Sonnet cost $1.69 of the $2.21 chat total. **Routing is the biggest lever you have.** Use Haiku by default and Sonnet only when a turn needs it.
 - After that, the costs are **watched goals** (search-driven), **voice** and **phone calls**. Those are what to meter and price separately.
+
+### 2.7 Rounding up to the penny
+
+**Rule:** every request is billed in whole cents and always rounded **up**. Zero stays zero; exactly one cent stays one cent. Formula: `billed = ceil(real cost / $0.01) x $0.01`. The ledger keeps both numbers.
+
+**What counts as one request** (so cents are not charged twice):
+- a chat message, including every model call, tool step and search it makes, and the quiet memory pass after it: **one request**, rounded once;
+- a search or briefing, a goal check, a wrap-up: one request each;
+- a voice recording: one request;
+- a call: listening and speaking over the whole call are **one request**, rounded once, not a cent per sentence.
+
+Billing is incremental: each cost is billed as the new rounded total minus what was already billed. A request that costs $0.0008, then $0.0008 more, then $0.0112 more bills 1 cent, then 0, then 1 cent. Total $0.0128, billed $0.02.
+
+| Request | Real cost | Billed | Markup |
+|---|---|---|---|
+| Chat message, Haiku 5.5 | $0.0008 | **$0.01** | 12.3x |
+| Chat message, Sonnet 5.5 | $0.0150 | **$0.02** | 1.3x |
+| Chat message with one search (Haiku) | $0.0120 | **$0.02** | 1.7x |
+| Morning briefing (2 searches) | $0.0227 | **$0.03** | 1.3x |
+| Goal check | $0.0115 | **$0.02** | 1.7x |
+| Evening wrap-up | $0.0008 | **$0.01** | 12.3x |
+| Voice recording (any length up to 2 min) | $0.0002 to $0.007 | **$0.01** | up to 50x |
+| 10-minute call | $0.33 | **$0.33** | 1.0x |
+| 4-minute booking call | $0.536 | **$0.54** | 1.0x |
+
+**The effect is biggest on cheap requests.** Rounding takes a $0.0008 Haiku message to a full cent (12x) but barely moves an expensive one. That is what makes a flat "one request, one cent" price work, and it is also why rounding matters most if you route most turns to Haiku.
+
+Per user per month, with rounding (same usage as 2.6):
+
+| | Real cost | Billed | Billed / real |
+|---|---|---|---|
+| Light | $1.58 | $4.56 | 2.9x |
+| Typical | $6.51 | $14.50 | 2.2x |
+| Heavy | $25.72 | $51.00 | 2.0x |
+
+Where it comes from, Typical: chat $2.21 real becomes $8.62 billed (750 messages, 85% at 1 cent, 15% at 2 cents); goals $1.39 becomes $2.40; briefing $0.68 becomes $0.90; the rest stays within a few cents.
+
+How to use it:
+- **As a meter and allowance, it is exact:** the free tier is 100 requests a day, and a paid plan can be "N requests a month" plus separately priced calls.
+- **As the price itself, it is a usage price:** Typical would pay $14.50 at one cent a message. A $20 flat plan is higher than that, so a flat plan is the better offer for the light and typical user, and usage pricing suits heavy users who would otherwise lose money (Heavy $51 billed against $25.72 real).
+- **Calls and bookings round to about their real cost,** so those stay priced by what they cost plus your margin.
 
 ## 3. What to charge
 
