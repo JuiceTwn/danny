@@ -72,19 +72,13 @@
       error = "That didn't go through. Try again.";
     }
   }
-
-  const tomorrow9 = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(9, 0, 0, 0);
-    return d.toISOString();
-  };
 </script>
 
 {#snippet card(t: Task, big: boolean)}
   <li class:big>
     <div class="body">
       <p class="title">{t.title}</p>
+      {#if t.firstStep}<span class="mono">First step: {t.firstStep}</span>{/if}
       {#if t.remindAt || t.dueAt}
         <span class="mono">{t.remindAt ? `Reminds ${fmtWhen(t.remindAt)}` : `Due ${fmtWhen(t.dueAt!)}`}{t.repeat ? ` · Repeats ${t.repeat.every === 1 ? `every ${t.repeat.unit}` : `every ${t.repeat.every} ${t.repeat.unit}s`}` : ""}</span>
       {/if}
@@ -93,7 +87,9 @@
       <div class="ask" role="group" aria-label="Snooze until">
         <button class="btn small" onclick={() => act(`/v1/tasks/${t.id}/snooze`, { minutes: 10 })}>10 min</button>
         <button class="btn small" onclick={() => act(`/v1/tasks/${t.id}/snooze`, { minutes: 60 })}>1 hour</button>
-        <button class="btn small" onclick={() => act(`/v1/tasks/${t.id}/snooze`, { until: tomorrow9() })}>Tomorrow</button>
+        <button class="btn small" onclick={() => act(`/v1/tasks/${t.id}/snooze`, { when: "tonight" })}>Tonight</button>
+        <button class="btn small" onclick={() => act(`/v1/tasks/${t.id}/snooze`, { when: "tomorrow" })}>Tomorrow</button>
+        <button class="btn small" onclick={() => act(`/v1/tasks/${t.id}/snooze`, { when: "weekend" })}>Weekend</button>
         <button class="btn small" onclick={() => (snoozing = "")}>Cancel</button>
       </div>
     {:else}

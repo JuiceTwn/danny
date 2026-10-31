@@ -6,15 +6,15 @@ import { withTenant } from "../db/client.js";
 import { auditLog, pushSubscriptions, users } from "../db/schema.js";
 import { isAllowedPushEndpoint } from "../lib/push.js";
 import { REPEAT_UNITS } from "../lib/recur.js";
-import { completeTask, createTask, deleteTask, listTasks, snoozeTask, TaskError, type Actor } from "../lib/tasks.js";
-import { isValidTimezone } from "../lib/time.js";
+import { completeTask, createTask, deleteTask, listTasks, presetTime, setFirstStep, snoozeTask, TaskError, type Actor } from "../lib/tasks.js";
+import { isValidTimezone, SNOOZE_PRESETS } from "../lib/time.js";
 import { VOICES, type Voice } from "../lib/voice.js";
 
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, 24 hour");
 
-type PrefRow = { briefingEnabled: boolean; briefingMinute: number; wrapupEnabled: boolean; wrapupMinute: number; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean };
+type PrefRow = { briefingEnabled: boolean; briefingMinute: number; wrapupEnabled: boolean; wrapupMinute: number; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean };
 export const prefsView = (u: PrefRow) => ({
   briefingEnabled: u.briefingEnabled,
   briefingTime: hhmm(u.briefingMinute),
@@ -26,8 +26,9 @@ export const prefsView = (u: PrefRow) => ({
   units: u.units,
   learnEnabled: u.learnEnabled,
   autoMemory: u.autoMemory,
+  adhdMode: u.adhdMode,
 });
-export const prefColumns = { briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute, wrapupEnabled: users.wrapupEnabled, wrapupMinute: users.wrapupMinute, voice: users.voice, quietStart: users.quietStart, quietEnd: users.quietEnd, units: users.units, learnEnabled: users.learnEnabled, autoMemory: users.autoMemory };
+export const prefColumns = { briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute, wrapupEnabled: users.wrapupEnabled, wrapupMinute: users.wrapupMinute, voice: users.voice, quietStart: users.quietStart, quietEnd: users.quietEnd, units: users.units, learnEnabled: users.learnEnabled, autoMemory: users.autoMemory, adhdMode: users.adhdMode };
 
 const when = z.iso.datetime({ offset: true });
 
@@ -55,9 +56,10 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
         dueAt: when.nullish(),
         remindAt: when.nullish(),
         repeat: z.object({ every: z.number().int().min(1).max(366), unit: z.enum(REPEAT_UNITS) }).nullish(),
+        firstStep: z.string().trim().min(1).max(200).nullish(),
       })
       .parse(req.body);
-    const item = await createTask(actor(req), { title: b.title, dueAt: b.dueAt ? new Date(b.dueAt) : null, remindAt: b.remindAt ? new Date(b.remindAt) : null, repeat: b.repeat ?? null });
+    const item = await createTask(actor(req), { title: b.title, dueAt: b.dueAt ? new Date(b.dueAt) : null, remindAt: b.remindAt ? new Date(b.remindAt) : null, repeat: b.repeat ?? null, firstStep: b.firstStep ?? null });
     return reply.code(201).send({ item });
   });
 
@@ -68,10 +70,16 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
 
   app.post("/v1/tasks/:id/snooze", async (req, reply) => {
     const b = z
-      .union([z.object({ minutes: z.number().int().min(1).max(60 * 24 * 14) }), z.object({ until: when })])
+      .union([z.object({ minutes: z.number().int().min(1).max(60 * 24 * 14) }), z.object({ until: when }), z.object({ when: z.enum(SNOOZE_PRESETS) })])
       .parse(req.body);
-    const until = "minutes" in b ? new Date(Date.now() + b.minutes * 60_000) : new Date(b.until);
+    const until = "minutes" in b ? new Date(Date.now() + b.minutes * 60_000) : "until" in b ? new Date(b.until) : await presetTime(actor(req), b.when);
+    if (!until) return reply.code(400).send({ error: "invalid_request", message: "There's no tonight left. Pick later or tomorrow." });
     return (await snoozeTask(actor(req), id(req), until)) ? { ok: true, remindAt: until.toISOString() } : reply.code(404).send({ error: "not_found" });
+  });
+
+  app.put("/v1/tasks/:id/first-step", async (req, reply) => {
+    const { step } = z.object({ step: z.string().trim().max(200) }).parse(req.body);
+    return (await setFirstStep(actor(req), id(req), step || null)) ? { ok: true } : reply.code(404).send({ error: "not_found" });
   });
 
   app.delete("/v1/tasks/:id", async (req, reply) => ((await deleteTask(actor(req), id(req))) ? { ok: true } : reply.code(404).send({ error: "not_found" })));
@@ -123,6 +131,7 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
         units: z.enum(["metric", "imperial"]).optional(),
         learnEnabled: z.boolean().optional(),
         autoMemory: z.boolean().optional(),
+        adhdMode: z.boolean().optional(),
       })
       .parse(req.body);
     if (body.timezone !== undefined && !isValidTimezone(body.timezone)) return reply.code(400).send({ error: "invalid_request", message: "Unknown timezone." });
@@ -138,6 +147,7 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
     if (body.units !== undefined) set.units = body.units;
     if (body.learnEnabled !== undefined) set.learnEnabled = body.learnEnabled;
     if (body.autoMemory !== undefined) set.autoMemory = body.autoMemory;
+    if (body.adhdMode !== undefined) set.adhdMode = body.adhdMode;
     if (Object.keys(set).length) {
       await db.update(users).set(set).where(eq(users.id, userId));
       const { timezone: _tz, ...prefs } = body;

@@ -44,6 +44,7 @@ export const users = pgTable(
     quietEnd: integer("quiet_end").notNull().default(7),
     units: text("units").notNull().default("metric"), // metric | imperial, for weather
     learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
+    adhdMode: boolean("adhd_mode").notNull().default(false), // opt-in: Danny breaks things down, offers one thing at a time and plans snoozes with you
     autoMemory: boolean("auto_memory").notNull().default(true), // let Danny save what you mention in passing, without being asked
     lastLearnedAt: timestamp("last_learned_at", { withTimezone: true }),
     lastTidiedAt: timestamp("last_tidied_at", { withTimezone: true }),
@@ -243,6 +244,8 @@ export const tasks = pgTable(
     repeatEvery: integer("repeat_every"),
     repeatUnit: text("repeat_unit"), // day | week | month | year
     repeatLeadMin: integer("repeat_lead_min"), // remind this many minutes before each due date ("a week before the birthday")
+    firstStepEnc: bytea("first_step_enc"), // the smallest first move ("find last year's return"), shown with the task
+    snoozeCount: integer("snooze_count").notNull().default(0), // how many times it has been pushed back; reset when a repeat rolls over
     createdAt: createdAt(),
   },
   (t) => [index("tasks_ws_idx").on(t.workspaceId, t.status, t.remindAt)],

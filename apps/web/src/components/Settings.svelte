@@ -40,6 +40,7 @@
   let units = $state("metric");
   let learnOn = $state(true);
   let autoMemOn = $state(true);
+  let adhdOn = $state(false);
   $effect(() => {
     if (app.me) {
       quietStart = app.me.user.quietStart;
@@ -47,6 +48,7 @@
       units = app.me.user.units;
       learnOn = app.me.user.learnEnabled;
       autoMemOn = app.me.user.autoMemory;
+      adhdOn = app.me.user.adhdMode;
     }
   });
   const HOURS = Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, "0")}:00`] as const);
@@ -88,7 +90,7 @@
       error = "Couldn't forget those. Try again.";
     }
   }
-  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean };
+  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean; adhdMode?: boolean };
   const VOICES = [
     ["foreman", "Foreman: short and dry"],
     ["warm", "Warm: friendly and encouraging"],
@@ -128,7 +130,7 @@
     briefBusy = true;
     error = "";
     try {
-      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean }>("PATCH", "/v1/profile", patch);
+      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean }>("PATCH", "/v1/profile", patch);
       if (app.me) {
         app.me.user.briefingEnabled = r.briefingEnabled;
         app.me.user.briefingTime = r.briefingTime;
@@ -140,6 +142,7 @@
         app.me.user.units = r.units;
         app.me.user.learnEnabled = r.learnEnabled;
         app.me.user.autoMemory = r.autoMemory;
+        app.me.user.adhdMode = r.adhdMode;
       }
     } catch {
       error = "Couldn't save that. Try again.";
@@ -356,6 +359,12 @@
       <h2 class="display">Remembering</h2>
       <p>{autoMemOn ? "After you tell him something about your life or work, Danny quietly keeps what's worth keeping, without being asked. You see it in the chat with an Undo, and in the Memory tab." : "Danny only remembers what you ask him to. Nothing is saved on his own."}</p>
       <button class="btn {autoMemOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ autoMemory: !autoMemOn })}>{autoMemOn ? "Only remember what I ask" : "Let him remember on his own"}</button>
+    </section>
+
+    <section>
+      <h2 class="display">Starting help</h2>
+      <p>{adhdOn ? "On. Danny turns a brain dump into tasks, gives you one thing at a time with a tiny first step, breaks things down when they feel too big, and plans a snooze with you instead of letting a task sit. He never scolds." : "Off. Turn it on if starting is the hard part: Danny will break things down, offer one thing at a time, and help you put things off honestly."}</p>
+      <button class="btn {adhdOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ adhdMode: !adhdOn })}>{adhdOn ? "Turn off starting help" : "Turn on starting help"}</button>
     </section>
 
     <section>

@@ -1,13 +1,14 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
 import { auditLog, tasks, users } from "../db/schema.js";
 import { nextOccurrence, REPEAT_UNITS, type Repeat, type RepeatUnit } from "./recur.js";
+import { snoozeTarget, type SnoozePreset } from "./time.js";
 import type { Vault } from "./vault.js";
 
 /** What task code needs to know about who is acting. A tool context fits this shape. */
 export type Actor = { workspaceId: string; userId: string; vault: Vault; tenant: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T> };
 
-export type TaskView = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: Repeat | null; createdAt: string };
+export type TaskView = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: Repeat | null; firstStep: string | null; snoozeCount: number; createdAt: string };
 
 /** A message the user can fix and retry, as opposed to a bug. */
 export class TaskError extends Error {}
@@ -20,10 +21,12 @@ const view = (vault: Vault, workspaceId: string, r: typeof tasks.$inferSelect): 
   dueAt: iso(r.dueAt),
   remindAt: iso(r.remindAt),
   repeat: r.repeatEvery && REPEAT_UNITS.includes(r.repeatUnit as RepeatUnit) ? { every: r.repeatEvery, unit: r.repeatUnit as RepeatUnit } : null,
+  firstStep: r.firstStepEnc ? vault.open(workspaceId, r.firstStepEnc) : null,
+  snoozeCount: r.snoozeCount,
   createdAt: r.createdAt.toISOString(),
 });
 
-export async function createTask(a: Actor, input: { title: string; dueAt?: Date | null; remindAt?: Date | null; repeat?: Repeat | null }, now = new Date()) {
+export async function createTask(a: Actor, input: { title: string; dueAt?: Date | null; remindAt?: Date | null; repeat?: Repeat | null; firstStep?: string | null }, now = new Date()) {
   const due = input.dueAt ?? null;
   let remind = input.remindAt ?? null;
   // A deadline with no explicit reminder reminds at the deadline.
@@ -41,6 +44,7 @@ export async function createTask(a: Actor, input: { title: string; dueAt?: Date 
         workspaceId: a.workspaceId,
         userId: a.userId,
         titleEnc: a.vault.seal(a.workspaceId, input.title),
+        firstStepEnc: input.firstStep ? a.vault.seal(a.workspaceId, input.firstStep) : null,
         dueAt: anchor,
         remindAt: remind,
         repeatEvery: repeat?.every ?? null,
@@ -89,7 +93,7 @@ export async function completeTask(a: Actor, id: string, now = new Date()): Prom
       let dueAt = nextOccurrence(t.dueAt ?? t.remindAt ?? now, repeat, tz, now);
       while (dueAt.getTime() - lead <= now.getTime()) dueAt = nextOccurrence(dueAt, repeat, tz, now);
       const remindAt = new Date(dueAt.getTime() - lead);
-      await tx.update(tasks).set({ dueAt, remindAt, nudgeCount: 0 }).where(eq(tasks.id, id));
+      await tx.update(tasks).set({ dueAt, remindAt, nudgeCount: 0, snoozeCount: 0 }).where(eq(tasks.id, id));
       next = dueAt.toISOString();
     } else {
       await tx.update(tasks).set({ status: "done", remindAt: null, completedAt: now }).where(eq(tasks.id, id));
@@ -108,12 +112,31 @@ export async function snoozeTask(a: Actor, id: string, until: Date, now = new Da
   return a.tenant(async (tx) => {
     const rows = await tx
       .update(tasks)
-      .set({ remindAt: until, nudgeCount: 0 })
+      .set({ remindAt: until, nudgeCount: 0, snoozeCount: sql`${tasks.snoozeCount} + 1` })
       .where(and(eq(tasks.id, id), eq(tasks.userId, a.userId), eq(tasks.status, "open")))
       .returning({ id: tasks.id });
     if (rows.length) await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.snooze", detail: { id, until: until.toISOString() } });
     return rows.length > 0;
   });
+}
+
+/** Give a task its smallest first move, or clear it with null. Returns false when there is no such open task. */
+export async function setFirstStep(a: Actor, id: string, step: string | null) {
+  return a.tenant(async (tx) => {
+    const rows = await tx
+      .update(tasks)
+      .set({ firstStepEnc: step ? a.vault.seal(a.workspaceId, step) : null })
+      .where(and(eq(tasks.id, id), eq(tasks.userId, a.userId), eq(tasks.status, "open")))
+      .returning({ id: tasks.id });
+    if (rows.length) await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.first_step", detail: { id } });
+    return rows.length > 0;
+  });
+}
+
+/** Where a snooze preset lands for this person, or null when it makes no sense right now. */
+export async function presetTime(a: Actor, preset: SnoozePreset, now = new Date()) {
+  const [u] = await a.tenant((tx) => tx.select({ tz: users.timezone, qs: users.quietStart, qe: users.quietEnd }).from(users).where(eq(users.id, a.userId)));
+  return snoozeTarget(preset, now, u?.tz ?? "UTC", { start: u?.qs ?? 22, end: u?.qe ?? 7 });
 }
 
 export async function deleteTask(a: Actor, id: string) {

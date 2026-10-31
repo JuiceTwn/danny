@@ -13,12 +13,20 @@
   let done = $state<Record<string, string>>({}); // task id -> what just happened, until the list catches up
   let failed = $state("");
 
-  async function act(id: string, what: "done" | "snooze") {
+  let choosing = $state(""); // the task whose snooze choices are open
+  const SNOOZES = [
+    { label: "1 hour", body: { minutes: 60 }, said: "Snoozed an hour" },
+    { label: "Tonight", body: { when: "tonight" }, said: "Back tonight" },
+    { label: "Tomorrow", body: { when: "tomorrow" }, said: "Back tomorrow morning" },
+    { label: "Weekend", body: { when: "weekend" }, said: "Back on the weekend" },
+  ];
+  async function act(id: string, what: "done" | (typeof SNOOZES)[number]) {
     failed = "";
     try {
       if (what === "done") await api("POST", `/v1/tasks/${id}/done`, {});
-      else await api("POST", `/v1/tasks/${id}/snooze`, { minutes: 60 });
-      done[id] = what === "done" ? "Done" : "Snoozed an hour";
+      else await api("POST", `/v1/tasks/${id}/snooze`, what.body);
+      choosing = "";
+      done[id] = what === "done" ? "Done" : what.said;
       onchange();
     } catch {
       failed = id;
@@ -33,15 +41,21 @@
     <div class="card task" class:finished={status(c.id) !== ""}>
       <div class="main">
         <p class="t">{c.title}</p>
+        {#if c.firstStep}<span class="mono">First step: {c.firstStep}</span>{/if}
         {#if c.remindAt || c.dueAt}<span class="mono">{c.remindAt ? `Reminds ${fmtWhen(c.remindAt)}` : `Due ${fmtWhen(c.dueAt!)}`}</span>{/if}
         {#if failed === c.id}<span class="mono bad">That didn't go through. Try again.</span>{/if}
       </div>
       {#if status(c.id)}
         <span class="badge mono">{status(c.id)}</span>
+      {:else if choosing === c.id}
+        <div class="acts" role="group" aria-label="Snooze until">
+          {#each SNOOZES as s}<button class="btn small" onclick={() => act(c.id, s)}>{s.label}</button>{/each}
+          <button class="btn small" onclick={() => (choosing = "")}>Cancel</button>
+        </div>
       {:else}
         <div class="acts">
           <button class="btn small primary" onclick={() => act(c.id, "done")} aria-label="Done: {c.title}">Done</button>
-          <button class="btn small" onclick={() => act(c.id, "snooze")} aria-label="Snooze an hour: {c.title}">Snooze 1h</button>
+          <button class="btn small" onclick={() => (choosing = c.id)} aria-label="Snooze: {c.title}">Snooze</button>
         </div>
       {/if}
     </div>

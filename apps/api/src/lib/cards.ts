@@ -9,7 +9,7 @@ const https = z.url().max(500).refine((u) => /^https?:\/\//i.test(u), "web links
 
 export const CardSchema = z.discriminatedUnion("kind", [
   // A task the user can finish or snooze right there.
-  z.object({ kind: z.literal("task"), id: z.uuid(), title: text(200), remindAt: z.iso.datetime({ offset: true }).nullable().default(null), dueAt: z.iso.datetime({ offset: true }).nullable().default(null) }),
+  z.object({ kind: z.literal("task"), id: z.uuid(), title: text(200), remindAt: z.iso.datetime({ offset: true }).nullable().default(null), dueAt: z.iso.datetime({ offset: true }).nullable().default(null), firstStep: text(200).nullable().default(null) }),
   // A day of calendar.
   z.object({
     kind: z.literal("events"),

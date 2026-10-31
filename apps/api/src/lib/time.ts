@@ -73,3 +73,33 @@ export function localDayBounds(date: Date, tz: string) {
     end: zonedToUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, 0, tz),
   };
 }
+
+export const SNOOZE_PRESETS = ["later", "tonight", "tomorrow", "weekend", "monday"] as const;
+export type SnoozePreset = (typeof SNOOZE_PRESETS)[number];
+
+/**
+ * Where "tonight", "tomorrow morning" or "the weekend" lands on this person's own clock, so nobody has to do clock maths to put
+ * something off. Returns null when the preset makes no sense right now (it is already after 6pm, so there is no "tonight" left).
+ */
+export function snoozeTarget(preset: SnoozePreset, now: Date, tz: string, q: Quiet = DEFAULT_QUIET): Date | null {
+  const p = parts(now, tz);
+  const at = (daysAhead: number, h: number) => {
+    const d = new Date(Date.UTC(p.y, p.mo - 1, p.d + daysAhead));
+    return zonedToUtc(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), h, 0, tz);
+  };
+  const weekday = new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay(); // 0 = Sunday
+  switch (preset) {
+    case "later": {
+      const t = new Date(now.getTime() + 3 * 3_600_000);
+      return inQuietHours(t, tz, q) ? nextQuietEnd(t, tz, q) : t;
+    }
+    case "tonight":
+      return p.h < 18 ? at(0, 19) : null;
+    case "tomorrow":
+      return at(1, 9);
+    case "weekend":
+      return at(((6 - weekday) % 7) || 7, 9);
+    case "monday":
+      return at(((1 - weekday + 7) % 7) || 7, 9);
+  }
+}

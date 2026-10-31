@@ -212,6 +212,7 @@ describe("chat", () => {
       ["whats_next", "read"],
       ["complete_task", "internal"],
       ["snooze_task", "internal"],
+      ["set_first_step", "internal"],
       ["add_goal", "internal"],
       ["list_goals", "read"],
       ["update_goal", "internal"],
