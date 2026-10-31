@@ -94,6 +94,23 @@ describe("invite-only signup", () => {
     expect(approved.body.inviteUrl).toContain("/accept?token=");
   });
 
+  it("the owner sees the total and can download the whole list as a CSV; nobody else can", async () => {
+    const email = uniqueEmail("csv");
+    await ctx.app.inject({ method: "POST", url: "/v1/invite-requests", payload: { email } });
+    const list = await owner.get("/v1/admin/invite-requests");
+    expect(list.body.total).toBeGreaterThanOrEqual(1);
+    const csv = await owner.get("/v1/admin/invite-requests.csv");
+    expect(csv.status).toBe(200);
+    expect(String(csv.headers["content-type"])).toContain("text/csv");
+    expect(String(csv.headers["content-disposition"])).toContain("attachment");
+    const lines = csv.raw.body.split("\r\n");
+    expect(lines[0]).toBe("email,signed_up_at,status");
+    expect(lines.some((l: string) => l.startsWith(`"${email}",`))).toBe(true);
+    const user = await signUp(ctx, owner, "NotOwner");
+    expect((await user.c.get("/v1/admin/invite-requests.csv")).status).toBe(403);
+    expect((await client(ctx).get("/v1/admin/invite-requests.csv")).status).toBe(401);
+  });
+
   it("only the owner can invite", async () => {
     const user = await signUp(ctx, owner, "Plain");
     expect((await user.c.post("/v1/admin/invites", { email: uniqueEmail("x") })).status).toBe(403);

@@ -28,7 +28,20 @@ export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, v
 
   app.get("/v1/admin/invite-requests", async () => {
     const items = await db.select().from(inviteRequests).orderBy(desc(inviteRequests.createdAt)).limit(200);
-    return { items };
+    const [count] = await db.select({ total: sql<number>`count(*)::int` }).from(inviteRequests);
+    return { items, total: count?.total ?? 0 };
+  });
+
+  // The whole list as a spreadsheet file. A cell starting with = + - or @ is prefixed so a spreadsheet never runs it as a formula.
+  app.get("/v1/admin/invite-requests.csv", async (_req, reply) => {
+    const rows = await db.select().from(inviteRequests).orderBy(desc(inviteRequests.createdAt)).limit(50_000);
+    const cell = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replaceAll('"', '""')}"`;
+    const csv = ["email,signed_up_at,status", ...rows.map((r) => [cell(r.email), r.createdAt.toISOString(), r.status].join(","))].join("\r\n") + "\r\n";
+    return reply
+      .header("content-type", "text/csv; charset=utf-8")
+      .header("content-disposition", 'attachment; filename="danny-waitlist.csv"')
+      .header("cache-control", "no-store")
+      .send(csv);
   });
 
   app.post("/v1/admin/invite-requests/:id/approve", async (req, reply) => {

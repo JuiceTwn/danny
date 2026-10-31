@@ -7,6 +7,7 @@
   type Use = { userId: string; email: string; todayUsd: number; last30DaysUsd: number };
 
   let requests = $state<Req[]>([]);
+  let total = $state(0);
   let usage = $state<Use[]>([]);
   let email = $state("");
   let link = $state<{ email: string; url: string } | null>(null);
@@ -62,7 +63,9 @@
 
   async function load() {
     try {
-      requests = (await api<{ items: Req[] }>("GET", "/v1/admin/invite-requests")).items;
+      const q = await api<{ items: Req[]; total: number }>("GET", "/v1/admin/invite-requests");
+      requests = q.items;
+      total = q.total;
       usage = (await api<{ users: Use[] }>("GET", "/v1/admin/usage")).users;
     } catch {
       error = "Couldn't load owner data.";
@@ -123,6 +126,9 @@
 
     <section>
       <h2 class="display">Asked for an invite</h2>
+      {#if total > 0}
+        <p class="mono">{total} on the list{total > requests.length ? `, newest ${requests.length} shown` : ""}. <a href="/v1/admin/invite-requests.csv" download>Download all (CSV)</a></p>
+      {/if}
       {#if requests.length === 0}<p class="muted">Nobody yet.</p>{/if}
       <ul>
         {#each requests as r (r.id)}

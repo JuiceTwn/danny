@@ -6,6 +6,7 @@
   --body:"Barlow",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
+[hidden]{display:none!important}
 *,*::before,*::after{box-sizing:border-box}
 html{background:var(--graphite);color:var(--paper);-webkit-text-size-adjust:100%}
 body{margin:0;font:400 1.125rem/1.5 var(--body);min-height:100vh}

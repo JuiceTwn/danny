@@ -22,9 +22,9 @@
     f.addEventListener("submit",function(e){
       e.preventDefault();
       var url=window.DANNY_INVITE_URL||(appOrigin&&appOrigin+"/v1/invite-requests");
-      if(!url){msg.textContent="Preview build: invite requests aren't connected yet. Nothing was saved.";return}
+      if(!url){msg.textContent="Preview build: the list isn't connected here. Nothing was saved.";return}
       fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:f.email.value})})
-        .then(function(r){msg.textContent=r.ok?"Got it. You'll hear from us if you're in.":"That didn't go through. Try again."})
+        .then(function(r){msg.textContent=r.ok?"You're on the list. We'll email you when your spot opens.":"That didn't go through. Try again."})
         .catch(function(){msg.textContent="That didn't go through. Try again."});
     });
   });
