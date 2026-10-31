@@ -114,6 +114,11 @@ h1 .sq{display:inline-block;width:.15em;height:.15em;background:var(--run);margi
 .chip:hover{background:var(--run);color:var(--graphite)}
 @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes blink{50%{opacity:.25}}
+/* the bar */
+.bar{border-top:1px solid var(--line);text-align:left}
+.bar h2{font-size:clamp(3.2rem,9vw,8.5rem);max-width:16ch}
+.bar h2 i{font-style:normal;color:var(--run);white-space:nowrap}
+.tag.later{background:transparent;border:1px solid var(--muted);color:var(--muted)}
 /* what he does */
 .does{border-top:1px solid var(--line)}
 .does .hd{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:20px;margin-bottom:clamp(32px,6vh,64px)}
@@ -197,11 +202,19 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   <div class="in"><h2 class="display rv">Danny asks. You stamp it.</h2></div>
 </section>
 
+<section class="sec bar">
+  <div class="in">
+    <p class="mono rv" style="margin-bottom:20px">The bar</p>
+    <h2 class="display rv">If a <i>$4,000/mo</i> assistant can do it, so can Danny.</h2>
+    <p class="lede rv">That's the standard he's held to. Here's the list, and where he is on it today.</p>
+  </div>
+</section>
+
 <section class="sec does" id="does">
   <div class="in">
     <div class="hd rv">
-      <h2 class="h2 display">What he does.</h2>
-      <p class="lede" style="margin:0">The everyday admin that piles up. Small things, done on time.</p>
+      <h2 class="h2 display">The list.</h2>
+      <p class="lede" style="margin:0">The everyday admin that piles up, and then some. Small things, done on time.</p>
     </div>
     <ul class="jobs">
       <li class="rv"><b>Repeats</b><span>Bins, rent, renewals, birthdays.<em>Tell him once. He reminds you every time, and a week ahead if you want it.</em></span><span class="tag run">Live</span></li>
@@ -213,9 +226,11 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
       <li class="rv"><b>Hunts</b><span>A job, a car, a flat.<em>He checks the web on a schedule and only speaks up when something new shows.</em></span><span class="tag run">Live</span></li>
       <li class="rv"><b>Lists</b><span>Groceries, packing, questions for the doctor.<em>Add by typing or talking. Share one with whoever you live with.</em></span><span class="tag off">Next</span></li>
       <li class="rv"><b>Talk</b><span>Type it, say it, or call him.<em>He answers out loud in his own voice. You can talk over him to stop him.</em></span><span class="tag run">Live</span></li>
+      <li class="rv"><b>Bookings</b><span>He rings to book it.<em>The dentist, the table, the plumber. He makes the call, you approve what he'll say.</em></span><span class="tag later">Later</span></li>
+      <li class="rv"><b>Your home</b><span>Lights, heat, locks.<em>Say it and it's done. Anything that opens a door asks you first.</em></span><span class="tag later">Later</span></li>
       <li class="rv"><b>Your week</b><span>A Sunday recap.<em>What he handled for you, what's still open, what's coming.</em></span><span class="tag off">Next</span></li>
     </ul>
-    <p class="mono key rv">Live works today. Next is being built.</p>
+    <p class="mono key rv">Live works today. Next is being built. Later is on the list.</p>
   </div>
 </section>
 
