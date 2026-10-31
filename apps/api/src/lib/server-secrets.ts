@@ -28,3 +28,25 @@ export async function saveGoogleCredentials(db: Db, vault: Vault, v: SavedGoogle
 }
 
 export const clearGoogleCredentials = (db: Db) => db.delete(serverSecrets).where(eq(serverSecrets.name, "google"));
+
+// API keys typed into the app. Sealed like the Google credentials, one row each, named "key:<id>".
+export async function loadApiKeys(db: Db, vault: Vault): Promise<Record<string, string>> {
+  const rows = await db.select().from(serverSecrets);
+  const out: Record<string, string> = {};
+  for (const r of rows) {
+    if (!r.name.startsWith("key:")) continue;
+    try {
+      out[r.name.slice(4)] = vault.openJson<{ value: string }>(SCOPE, r.secretEnc).value;
+    } catch {
+      /* sealed with a key this server no longer has: treat as not set */
+    }
+  }
+  return out;
+}
+
+export async function saveApiKey(db: Db, vault: Vault, id: string, value: string) {
+  const secretEnc = vault.sealJson(SCOPE, { value });
+  await db.insert(serverSecrets).values({ name: `key:${id}`, secretEnc }).onConflictDoUpdate({ target: serverSecrets.name, set: { secretEnc, updatedAt: new Date() } });
+}
+
+export const clearApiKey = (db: Db, id: string) => db.delete(serverSecrets).where(eq(serverSecrets.name, `key:${id}`));

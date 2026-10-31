@@ -9,12 +9,13 @@ import { withTenant } from "../db/client.js";
 import { auditLog, inviteRequests, invites } from "../db/schema.js";
 import { newToken, sha256 } from "../lib/crypto.js";
 import { SCOPES } from "../lib/google.js";
-import { clearGoogleCredentials, googleRedirectUri, saveGoogleCredentials } from "../lib/server-secrets.js";
+import { clearApiKey, clearGoogleCredentials, googleRedirectUri, saveApiKey, saveGoogleCredentials } from "../lib/server-secrets.js";
+import { KEY_DEFS } from "../lib/api-keys.js";
 
 const usd = (micros: number) => micros / 1_000_000;
 
 // Server-owner tools. Invite-only signup: nobody gets in until the owner approves them here.
-export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, vault, google }) => {
+export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, vault, google, keys, fetchFn }) => {
   app.addHook("preHandler", async (req, reply) => {
     if (!req.auth?.isOwner) return reply.code(403).send({ error: "owner_only" });
   });
@@ -92,6 +93,40 @@ export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, v
     const { workspaceId, userId } = req.auth!;
     await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "google.clear", detail: {} }));
     return googleView();
+  });
+
+  // ---- API keys, typed into the app instead of editing .env. One box per entry in KEY_DEFS. A key goes in and never comes back out.
+  const keysView = () => ({
+    keys: KEY_DEFS.map((d) => ({ id: d.id, label: d.label, needed: d.needed, why: d.why, steps: d.steps, url: d.url, source: keys!.source(d.id) })),
+  });
+  app.get("/v1/admin/keys", async () => keysView());
+
+  app.put("/v1/admin/keys/:id", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const { id } = z.object({ id: z.string().max(40) }).parse(req.params);
+    const def = KEY_DEFS.find((d) => d.id === id);
+    if (!def) return reply.code(404).send({ error: "unknown_key" });
+    if (keys!.source(id) === "env") return reply.code(409).send({ error: "set_by_environment", message: `${def.label} is set in the server's .env file, so it can't be changed here.` });
+    const { value } = z.object({ value: z.string().trim().min(8).max(400).regex(/^\S+$/, "A key has no spaces. Check you copied just the key.") }).parse(req.body);
+    const verdict = await def.check(value, fetchFn ?? fetch);
+    if (verdict === "bad") return reply.code(400).send({ error: "invalid_key", message: `${def.label} didn't accept that key. Check you copied all of it.` });
+    if (verdict === "unreachable") return reply.code(502).send({ error: "key_unreachable", message: `Couldn't reach ${def.label} to check it. Try again in a minute.` });
+    await saveApiKey(db, vault, id, value);
+    keys!.setSaved(id, value);
+    const { workspaceId, userId } = req.auth!;
+    await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "key.set", detail: { id } }));
+    return keysView();
+  });
+
+  app.delete("/v1/admin/keys/:id", async (req, reply) => {
+    const { id } = z.object({ id: z.string().max(40) }).parse(req.params);
+    const def = KEY_DEFS.find((d) => d.id === id);
+    if (!def) return reply.code(404).send({ error: "unknown_key" });
+    if (keys!.source(id) === "env") return reply.code(409).send({ error: "set_by_environment", message: `${def.label} is set in the server's .env file, so it can't be changed here.` });
+    await clearApiKey(db, id);
+    keys!.setSaved(id, null);
+    const { workspaceId, userId } = req.auth!;
+    await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "key.clear", detail: { id } }));
+    return keysView();
   });
 
   // ---- Update and backup without SSH. The app never runs anything: it drops an empty file named check, backup or update

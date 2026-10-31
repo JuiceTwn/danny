@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **API keys in the Owner tab.** One box per key Danny can use, each saying what it is for, marked Needed or Optional, with the steps to get it and a link. Paste a key, tap Save: Danny checks it with the provider first (free calls, fixed addresses), seals it like the Google credentials, and starts using it at once, with no restart. A key never comes back out of the API, is not written to the audit log (which records only which key changed), and one set in `.env` wins and shows as set on the server. Remove takes a second tap. Today: Anthropic (needed: without it Danny is in demo mode) and ElevenLabs (optional: voice typing). To add a key for a new feature, add one entry to `KEY_DEFS` in `lib/api-keys.ts`: after the next update the owner sees a new box. No migration. Not tested against the real providers: check your first key saves.
+
 - **Voice typing.** A mic button next to Send: tap, speak, tap again, and your words appear in the box to read and fix. It never sends by itself. Recordings go to ElevenLabs' speech to text through the server (`POST /v1/transcribe`) and are not kept. Up to about two minutes each. It goes through the stop switch, the daily allowance and the spend ledger like everything else, billed by the second (`PRICE_STT_PER_HOUR_USD`, default 0.22: check ElevenLabs' current price). Needs `ELEVENLABS_API_KEY` in `.env`; without it the button stays hidden. No migration. Needs a real iPhone check from the Home Screen app, which the tests can't cover. Say in the privacy policy that voice goes to a third party.
 
 Danny works for you without being asked.

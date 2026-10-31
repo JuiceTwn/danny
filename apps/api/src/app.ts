@@ -13,6 +13,7 @@ import type { Db } from "./db/client.js";
 import { Health } from "./lib/health.js";
 import { GoogleService } from "./lib/google.js";
 import type { PushSender } from "./lib/push.js";
+import { ApiKeys } from "./lib/api-keys.js";
 import type { Transcriber } from "./lib/transcribe.js";
 import type { Vault } from "./lib/vault.js";
 import type { ToolRegistry } from "./tools/registry.js";
@@ -33,7 +34,7 @@ import { styleRoutes } from "./routes/style.js";
 import { previewRoutes } from "./routes/preview.js";
 import { transcribeRoutes } from "./routes/transcribe.js";
 
-export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch; previewFetch?: import("./lib/preview.js").FetchPage; transcriber?: Transcriber | null };
+export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch; previewFetch?: import("./lib/preview.js").FetchPage; transcriber?: Transcriber | null; keys?: ApiKeys };
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -44,6 +45,7 @@ declare module "fastify" {
 export async function buildApp(deps: Deps) {
   // There is always a Google service. It is "not configured" until the server has a client ID and secret, which the owner can enter in the app.
   deps.google ??= new GoogleService(null);
+  deps.keys ??= new ApiKeys({ anthropic: deps.config.anthropicApiKey, elevenlabs: deps.config.elevenlabsApiKey });
   const { config } = deps;
   const app = Fastify({
     logger: config.env === "test" ? false : { redact: ["req.headers.cookie", "req.headers.authorization"] },

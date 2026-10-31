@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { ApiKeys } from "../lib/api-keys.js";
 
 export type TextBlock = { type: "text"; text: string };
 export type ToolUseBlock = { type: "tool_use"; id: string; name: string; input: unknown };
@@ -112,5 +113,26 @@ export class DemoModel implements ModelClient {
     const text = "Demo mode. No Anthropic key is set on this server, so I can't think yet. Memory, approvals and the spend cap all work.";
     onText(text);
     return { content: [{ type: "text", text }], stopReason: "end_turn", usage: { inputTokens: 0, outputTokens: 0 } };
+  }
+}
+
+/** Uses whatever Anthropic key is set right now, so a key typed into the app works at once. No key means demo mode. */
+export class LiveModel implements ModelClient {
+  private demo = new DemoModel();
+  private cached: { key: string; model: AnthropicModel } | null = null;
+  constructor(private readonly keys: ApiKeys) {}
+
+  private current(): ModelClient {
+    const key = this.keys.get("anthropic");
+    if (!key) return this.demo;
+    if (this.cached?.key !== key) this.cached = { key, model: new AnthropicModel(key) };
+    return this.cached.model;
+  }
+  complete(req: ModelRequest, onText: (delta: string) => void) {
+    return this.current().complete(req, onText);
+  }
+  get search() {
+    const m = this.current();
+    return m.search?.bind(m);
   }
 }

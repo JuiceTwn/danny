@@ -3,21 +3,33 @@ import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { BLOCKED_MESSAGE } from "../brain/run.js";
 import { checkBudget, recordSpend } from "../lib/spend.js";
+import { ElevenLabsTranscriber, type Transcriber } from "../lib/transcribe.js";
 
 // Two minutes of speech at most. A typical phone recording is well under 24 KB a second, so the size cap enforces the time cap.
 const MAX_SECONDS = 120;
 const BYTES_PER_SECOND = 24_000;
 const MAX_BYTES = MAX_SECONDS * BYTES_PER_SECOND;
 
-export const transcribeRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, transcriber }) => {
+export const transcribeRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, transcriber: injected, keys, fetchFn }) => {
   // The browser sends the recording as the raw request body.
   app.addContentTypeParser(/^audio\/.+/, { parseAs: "buffer", bodyLimit: MAX_BYTES }, (_req, body, done) => done(null, body));
 
   // One recording at a time per workspace, so parallel requests can't run past the spend cap.
   const busy = new Set<string>();
 
+  // Uses whatever ElevenLabs key is set right now, so a key typed into the app works at once.
+  let cached: { key: string; t: Transcriber } | null = null;
+  const current = (): Transcriber | null => {
+    if (injected) return injected;
+    const key = keys!.get("elevenlabs");
+    if (!key) return null;
+    if (cached?.key !== key) cached = { key, t: new ElevenLabsTranscriber(key, config.voice.model, fetchFn) };
+    return cached.t;
+  };
+
   app.post("/v1/transcribe", { bodyLimit: MAX_BYTES, config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req, reply) => {
-    if (!transcriber || !config.voice) return reply.code(503).send({ error: "voice_unavailable", message: "Voice typing isn't turned on." });
+    const transcriber = current();
+    if (!transcriber) return reply.code(503).send({ error: "voice_unavailable", message: "Voice typing isn't turned on." });
     const { workspaceId, userId } = req.auth!;
     const audio = req.body;
     if (!Buffer.isBuffer(audio) || audio.length < 500) return reply.code(400).send({ error: "no_audio", message: "That recording was empty." });
@@ -41,7 +53,7 @@ export const transcribeRoutes: FastifyPluginAsync<Deps> = async (app, { db, conf
       }
       const costMicros = Math.ceil((seconds / 3600) * config.voice.pricePerHourUsd * 1_000_000);
       await withTenant(db, workspaceId, (tx) =>
-        recordSpend(tx, { workspaceId, userId, model: `stt:${config.voice!.model}`, inputTokens: 0, outputTokens: 0, costMicros }),
+        recordSpend(tx, { workspaceId, userId, model: `stt:${config.voice.model}`, inputTokens: 0, outputTokens: 0, costMicros }),
       );
       return { text };
     } finally {

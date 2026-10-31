@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
-  import { api } from "../lib/api";
+  import { api, ApiError } from "../lib/api";
+  import { refresh } from "../lib/store.svelte";
   import { fmtDay, usd } from "../lib/router.svelte";
 
   type Req = { id: string; email: string; status: string; createdAt: string };
@@ -61,7 +62,60 @@
   }
   onDestroy(() => clearTimeout(timer));
 
+
+  // API keys. One box per key the server knows about, so a feature that needs a new key shows up here after the next update.
+  type KeyRow = { id: string; label: string; needed: "required" | "optional"; why: string; steps: string[]; url: string; source: "none" | "app" | "env" };
+  let keyRows = $state<KeyRow[]>([]);
+  let drafts = $state<Record<string, string>>({});
+  let keyBusy = $state("");
+  let keyMsg = $state<Record<string, { ok: boolean; text: string }>>({});
+  let confirmRemove = $state("");
+  // Needed and missing first, then optional and missing, then the ones already set.
+  const rank = (k: KeyRow) => (k.source === "none" ? (k.needed === "required" ? 0 : 1) : 2);
+  const sortedKeys = $derived([...keyRows].sort((a, b) => rank(a) - rank(b)));
+  const keyProblem = (e: unknown) =>
+    e instanceof ApiError && e.code === "invalid_request" ? "That doesn't look like a key. Paste just the key, with no spaces." : e instanceof ApiError && e.message ? e.message : "Couldn't save that key. Try again.";
+
+  async function loadKeys() {
+    try {
+      keyRows = (await api<{ keys: KeyRow[] }>("GET", "/v1/admin/keys")).keys;
+    } catch {
+      /* the rest of the page still works */
+    }
+  }
+  async function saveKey(k: KeyRow) {
+    const value = (drafts[k.id] ?? "").trim();
+    if (!value || keyBusy) return;
+    keyBusy = k.id;
+    keyMsg[k.id] = { ok: true, text: "" };
+    try {
+      keyRows = (await api<{ keys: KeyRow[] }>("PUT", `/v1/admin/keys/${k.id}`, { value })).keys;
+      drafts[k.id] = "";
+      keyMsg[k.id] = { ok: true, text: "Checked and saved. It works right away." };
+      void refresh();
+    } catch (e) {
+      keyMsg[k.id] = { ok: false, text: keyProblem(e) };
+    } finally {
+      keyBusy = "";
+    }
+  }
+  async function removeKey(k: KeyRow) {
+    if (confirmRemove !== k.id) {
+      confirmRemove = k.id;
+      return;
+    }
+    confirmRemove = "";
+    try {
+      keyRows = (await api<{ keys: KeyRow[] }>("DELETE", `/v1/admin/keys/${k.id}`)).keys;
+      keyMsg[k.id] = { ok: true, text: "Removed." };
+      void refresh();
+    } catch (e) {
+      keyMsg[k.id] = { ok: false, text: keyProblem(e) };
+    }
+  }
+
   async function load() {
+    void loadKeys();
     try {
       const q = await api<{ items: Req[]; total: number }>("GET", "/v1/admin/invite-requests");
       requests = q.items;
@@ -106,6 +160,42 @@
 <div class="page">
   <div class="col">
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+    <section class="keys">
+      <h2 class="display">API keys</h2>
+      <p class="muted">Paste a key and tap Save. Danny checks it first, then uses it right away. No computer needed.</p>
+      {#each sortedKeys as k (k.id)}
+        <div class="keybox">
+          <div class="keyhead">
+            <b>{k.label}</b>
+            {#if k.source !== "none"}<span class="tag run">Set</span>
+            {:else if k.needed === "required"}<span class="tag need">Needed</span>
+            {:else}<span class="tag off">Optional</span>{/if}
+          </div>
+          <p>{k.why}</p>
+          {#if k.source === "env"}
+            <p class="mono">Set on the server. It can't be changed here.</p>
+          {:else}
+            {#if k.source === "none"}
+              <ol class="how">{#each k.steps as step}<li>{step}</li>{/each}</ol>
+              <a class="btn small" href={k.url} target="_blank" rel="noopener noreferrer">Open {k.label}</a>
+            {/if}
+            <form class="row" onsubmit={(e) => { e.preventDefault(); void saveKey(k); }}>
+              <label class="sr" for="key-{k.id}">{k.label} key</label>
+              <input
+                id="key-{k.id}" class="input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
+                placeholder={k.source === "app" ? "Paste a new key to replace it" : "Paste the key here"} bind:value={drafts[k.id]}
+              />
+              <button class="btn primary" disabled={!drafts[k.id]?.trim() || keyBusy === k.id}>{keyBusy === k.id ? "Checking" : "Save"}</button>
+            </form>
+            {#if k.source === "app"}
+              <button class="btn small" type="button" onclick={() => removeKey(k)}>{confirmRemove === k.id ? "Tap again to remove" : "Remove"}</button>
+            {/if}
+          {/if}
+          {#if keyMsg[k.id]?.text}<p class:bad={!keyMsg[k.id]!.ok} class="mono" role="status">{keyMsg[k.id]!.text}</p>{/if}
+        </div>
+      {/each}
+    </section>
 
     {#if link}
       <section class="linkbox" aria-live="polite">
@@ -224,6 +314,11 @@
   .row { flex-wrap: wrap; }
   li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+  .keybox { width: 100%; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 16px; background: var(--panel); border: 1px solid var(--line); }
+  .keyhead { display: flex; align-items: center; gap: 10px; font-size: 1.125rem; }
+  .how { margin: 0; padding-left: 20px; list-style: decimal; color: var(--paper); }
+  .how li { display: list-item; border: 0; padding: 2px 0; }
+  .keybox .row .input { flex: 1; min-width: 0; }
   .scroll { width: 100%; overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; font: 500 .75rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 8px 12px 8px 0; }
