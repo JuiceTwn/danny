@@ -93,3 +93,6 @@ If Danny was first set up on the bare domain, so it serves the app where the hom
 What people will notice: they sign in again at the new address, and re-enable notifications and re-add the app to the Home Screen from there (cookies, push subscriptions and installed apps belong to the address they were created on). The old address stops serving the app. A small file, `site/sw.js`, removes the old app's cached copy from browsers that visited before, so they see the homepage and not a stale app.
 
 `site/concepts.html` and the `a-workorder`, `b-shiftlog` and `c-console` folders are design alternatives, not part of the homepage. They are served too, at their own paths, until you delete them.
+
+## Privacy Policy and Terms
+`site/privacy.html` and `site/terms.html` are generated from `tools/legal/data.mjs`. To add a connection or a company that receives data, add one entry there and run `node tools/legal/build.mjs` (CI fails if the pages are stale). Fill in the `[BRACKETED]` fields and set `draft: false` only after a lawyer has reviewed them. Google will not verify the Gmail connection without a public privacy policy.

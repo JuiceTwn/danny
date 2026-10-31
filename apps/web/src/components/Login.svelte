@@ -3,6 +3,9 @@
   import { boot } from "../lib/store.svelte";
   import Logo from "./Logo.svelte";
 
+  // The legal pages live on the main site; the app is on app.<domain>.
+  const site = location.origin.replace("//app.", "//");
+
   let email = $state("");
   let password = $state("");
   let busy = $state(false);
@@ -38,6 +41,7 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <button class="btn primary" disabled={busy}>{busy ? "Signing in" : "Sign in"}</button>
     <p class="mono">Invite only. Got an invite link? Open it.</p>
+    <p class="mono">By signing in you agree to the <a href="{site}/terms.html">Terms</a> and <a href="{site}/privacy.html">Privacy Policy</a>.</p>
   </form>
 </main>
 
