@@ -100,6 +100,7 @@ export type Settings = {
   canSetCap: boolean;
   dailyCapUsd?: number;
   spentTodayUsd?: number;
+  costTodayUsd?: number;
   priceInputPerMtokUsd?: number;
   priceOutputPerMtokUsd?: number;
 };

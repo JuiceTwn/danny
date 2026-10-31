@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, workspaces } from "../db/schema.js";
-import { spentToday, todayUtc } from "../lib/spend.js";
+import { costToday, spentToday, todayUtc } from "../lib/spend.js";
 
 const usd = (micros: number) => micros / 1_000_000;
 
@@ -14,6 +14,7 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
     return withTenant(db, workspaceId, async (tx) => {
       const [ws] = await tx.select().from(workspaces).where(eq(workspaces.id, workspaceId));
       const spent = await spentToday(tx, workspaceId);
+      const cost = isOwner ? await costToday(tx, workspaceId) : 0;
       const usedPercent = ws!.dailyCapMicros > 0 ? Math.min(100, Math.round((spent / ws!.dailyCapMicros) * 100)) : 100;
       const resetsAt = new Date(Date.parse(`${todayUtc()}T00:00:00Z`) + 86_400_000).toISOString();
       return {
@@ -26,7 +27,7 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
         model: config.model,
         canSetCap: isOwner,
         ...(isOwner
-          ? { dailyCapUsd: usd(ws!.dailyCapMicros), spentTodayUsd: usd(spent), priceInputPerMtokUsd: config.price.inputPerMtokUsd, priceOutputPerMtokUsd: config.price.outputPerMtokUsd }
+          ? { dailyCapUsd: usd(ws!.dailyCapMicros), spentTodayUsd: usd(spent), costTodayUsd: usd(cost), priceInputPerMtokUsd: config.price.inputPerMtokUsd, priceOutputPerMtokUsd: config.price.outputPerMtokUsd }
           : {}),
       };
     });

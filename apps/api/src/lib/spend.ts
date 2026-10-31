@@ -21,6 +21,15 @@ export async function spentToday(tx: Tx, workspaceId: string) {
   return Number(row?.total ?? 0);
 }
 
+/** What today's requests really cost, unrounded. The allowance counts the rounded-up amount instead (spentToday). */
+export async function costToday(tx: Tx, workspaceId: string) {
+  const [row] = await tx
+    .select({ total: sql<string>`coalesce(sum(${spendLedger.exactMicros}), 0)` })
+    .from(spendLedger)
+    .where(and(eq(spendLedger.workspaceId, workspaceId), eq(spendLedger.day, todayUtc())));
+  return Number(row?.total ?? 0);
+}
+
 export type Budget =
   | { ok: true; spentMicros: number; capMicros: number }
   | { ok: false; reason: "kill_switch" | "cap_reached"; spentMicros: number; capMicros: number };

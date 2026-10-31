@@ -5,7 +5,7 @@
   import { fmtDay, usd } from "../lib/router.svelte";
 
   type Req = { id: string; email: string; status: string; createdAt: string };
-  type Use = { userId: string; email: string; todayUsd: number; last30DaysUsd: number; last30DaysCostUsd: number };
+  type Use = { userId: string; email: string; todayCostUsd: number; last30DaysCostUsd: number };
 
   let requests = $state<Req[]>([]);
   let total = $state(0);
@@ -283,12 +283,13 @@
     </section>
 
     <section>
-      <h2 class="display">Spend by person</h2>
+      <h2 class="display">Cost by person</h2>
+      <p class="muted">What each person's requests really cost, in tokens, searches and speech. Not what they were billed (usage is rounded up to the cent).</p>
       <div class="scroll">
         <table>
-          <thead><tr><th>Person</th><th>Today</th><th>30 days billed</th><th>30 days real cost</th></tr></thead>
+          <thead><tr><th>Person</th><th>Today</th><th>30 days</th></tr></thead>
           <tbody>
-            {#each usage as u (u.userId)}<tr><td>{u.email}</td><td>{usd(u.todayUsd)}</td><td>{usd(u.last30DaysUsd)}</td><td>${u.last30DaysCostUsd.toFixed(3)}</td></tr>{/each}
+            {#each usage as u (u.userId)}<tr><td>{u.email}</td><td>${u.todayCostUsd.toFixed(4)}</td><td>${u.last30DaysCostUsd.toFixed(3)}</td></tr>{/each}
           </tbody>
         </table>
       </div>

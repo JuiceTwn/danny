@@ -188,16 +188,10 @@ export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, v
 
   // Spend per user across all workspaces, via a read-only database function (see migration 0002).
   app.get("/v1/admin/usage", async () => {
-    const rows = await db.execute<{ user_id: string; email: string; today_micros: string; month_micros: string; month_exact_micros: string }>(sql`select * from admin_usage()`);
-    // todayUsd and last30DaysUsd are what was billed (every request rounded up to the cent). last30DaysCostUsd is what the requests really cost us.
+    const rows = await db.execute<{ user_id: string; email: string; today_cost_micros: string; month_cost_micros: string }>(sql`select * from admin_usage()`);
+    // What each person's requests really cost us (tokens, searches, speech), unrounded. Not what they were billed: that is rounded up to the cent.
     return {
-      users: rows.map((r) => ({
-        userId: r.user_id,
-        email: r.email,
-        todayUsd: usd(Number(r.today_micros)),
-        last30DaysUsd: usd(Number(r.month_micros)),
-        last30DaysCostUsd: usd(Number(r.month_exact_micros)),
-      })),
+      users: rows.map((r) => ({ userId: r.user_id, email: r.email, todayCostUsd: usd(Number(r.today_cost_micros)), last30DaysCostUsd: usd(Number(r.month_cost_micros)) })),
     };
   });
 };

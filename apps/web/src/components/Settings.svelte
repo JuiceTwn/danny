@@ -241,7 +241,7 @@
         <p class="mono">{s.usedPercent}% used · resets in {resetsIn(s.resetsAt)}</p>
         <p>{s.usedPercent >= 100 ? "You've used all of today's allowance. Danny is back at midnight UTC." : "Danny stops for the day when the bar is full. It resets at midnight UTC."}</p>
         {#if s.canSetCap}
-          <p class="mono">{usd(s.spentTodayUsd ?? 0)} used of {usd(s.dailyCapUsd ?? 0)}</p>
+          <p class="mono">{usd(s.spentTodayUsd ?? 0)} used of {usd(s.dailyCapUsd ?? 0)} · real cost ${(s.costTodayUsd ?? 0).toFixed(4)}</p>
         {/if}
       {/if}
       {#if s?.canSetCap}

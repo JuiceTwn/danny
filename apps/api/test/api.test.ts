@@ -219,6 +219,7 @@ describe("spend cap and kill switch", () => {
     // a usage meter, not dollars
     expect(s).not.toHaveProperty("dailyCapUsd");
     expect(s).not.toHaveProperty("spentTodayUsd");
+    expect(s).not.toHaveProperty("costTodayUsd");
     const [ws] = await ctx.owner.db.select().from(workspaces).where(eq(workspaces.id, u.workspaceId));
     expect(ws!.dailyCapMicros).toBe(1_000_000);
 
@@ -255,7 +256,7 @@ describe("spend cap and kill switch", () => {
 
   it("only the owner sees dollars and sets a cap, and only for their own workspace", async () => {
     const s = (await owner.get("/v1/settings")).body;
-    expect(s).toMatchObject({ canSetCap: true, dailyCapUsd: expect.any(Number), spentTodayUsd: expect.any(Number) });
+    expect(s).toMatchObject({ canSetCap: true, dailyCapUsd: expect.any(Number), spentTodayUsd: expect.any(Number), costTodayUsd: expect.any(Number) });
     const original = s.dailyCapUsd;
     expect((await owner.patch("/v1/settings", { dailyCapUsd: 0.5 })).body.dailyCapUsd).toBe(0.5);
     expect((await owner.patch("/v1/settings", { dailyCapUsd: 9999 })).status).toBe(400);
@@ -281,6 +282,7 @@ describe("spend cap and kill switch", () => {
       recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1, outputTokens: 1, costMicros: 123_000 }),
     );
     const usage = (await owner.get("/v1/admin/usage")).body.users;
-    expect(usage.find((x: any) => x.email === u.email)).toMatchObject({ todayUsd: 0.13, last30DaysUsd: 0.13, last30DaysCostUsd: 0.123 }); // billed rounds 12.3 cents up to 13; the real cost stays 12.3
+    expect(usage.find((x: any) => x.email === u.email)).toMatchObject({ todayCostUsd: 0.123, last30DaysCostUsd: 0.123 }); // real cost, not the 13 cents billed
+    expect(usage.find((x: any) => x.email === u.email)).not.toHaveProperty("todayUsd"); // no billed usage in the owner's per-person view
   });
 });
