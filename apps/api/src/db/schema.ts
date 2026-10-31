@@ -202,7 +202,10 @@ export const spendLedger = pgTable(
     model: text("model").notNull(),
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
+    // What counts against the allowance and what the user is charged: every request rounded UP to the next whole cent.
     costMicros: bigint("cost_micros", { mode: "number" }).notNull(), // US$ x 1,000,000
+    // What the request really cost us, unrounded, so the owner can see the margin. 0 on rows from before it was recorded.
+    exactMicros: bigint("exact_micros", { mode: "number" }).notNull().default(0),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("spend_ws_day_idx").on(t.workspaceId, t.day)],

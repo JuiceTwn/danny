@@ -10,7 +10,7 @@ import { readStyle, styleBlock } from "../lib/style.js";
 import { FORMAT } from "../lib/format.js";
 import { voiceOf } from "../lib/voice.js";
 import { budgetedSearch } from "../lib/search.js";
-import { checkBudget, costMicros, recordSpend } from "../lib/spend.js";
+import { Bill, checkBudget, costMicros, recordSpend } from "../lib/spend.js";
 import type { Vault } from "../lib/vault.js";
 import type { Block, ModelClient, Msg, ToolResultBlock } from "./model.js";
 import type { GoogleService } from "../lib/google.js";
@@ -107,6 +107,8 @@ export async function runTurn(
   const { db, config, model, tools, vault, google } = deps;
   const { workspaceId, userId } = who;
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, workspaceId, fn);
+  // Everything this message costs (the model calls and any searches it makes) is rounded up to the cent together, once.
+  const bill = new Bill();
   const ctx: ToolCtx = {
     workspaceId,
     userId,
@@ -115,7 +117,7 @@ export async function runTurn(
     google,
     fetchFn: deps.fetchFn,
     tenant,
-    search: model.search ? (question) => budgetedSearch({ db, config, model }, { workspaceId, userId }, { prompt: question }) : undefined,
+    search: model.search ? (question) => budgetedSearch({ db, config, model }, { workspaceId, userId }, { prompt: question, bill }) : undefined,
   };
 
   const setup = await tenant(async (tx) => {
@@ -206,7 +208,7 @@ export async function runTurn(
         inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
         outputTokens: res.usage.outputTokens,
         costMicros: costMicros(res.usage, config.price),
-      }),
+      }, bill),
     );
 
     const assistant: Msg = { role: "assistant", content: res.content };
@@ -217,7 +219,7 @@ export async function runTurn(
       onSettled();
       if (setup.autoMemory && !savedByDanny && !isClosed()) {
         const reply = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-        const notes = await autoRemember({ db, config, model }, ctx, { message: text, reply, today: localIso(now, setup.timezone).slice(0, 10) });
+        const notes = await autoRemember({ db, config, model }, ctx, { message: text, reply, today: localIso(now, setup.timezone).slice(0, 10) }, bill);
         if (notes.length) emit({ type: "memory", notes });
       }
       return;

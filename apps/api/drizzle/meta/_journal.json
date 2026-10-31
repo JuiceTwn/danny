@@ -141,6 +141,13 @@
       "when": 1793426563931,
       "tag": "0019_task_repeat",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793428819255,
+      "tag": "0020_penny_rounding",
+      "breakpoints": true
     }
   ]
 }

@@ -36,9 +36,38 @@ export async function checkBudget(tx: Tx, workspaceId: string): Promise<Budget> 
   return { ok: true, spentMicros, capMicros };
 }
 
+/** One cent, in the micro-dollars the ledger counts in. */
+export const CENT_MICROS = 10_000;
+
+/** Usage is always rounded UP to the next whole cent, never down: 0.1 cents of real cost is billed as 1 cent. Zero stays zero. */
+export const ceilToCent = (micros: number) => Math.ceil(micros / CENT_MICROS) * CENT_MICROS;
+
+/**
+ * Groups several costs that make up one request, so they round up together instead of one cent each.
+ * A chat turn is a few model calls; a phone call is many bursts of speech. Each is billed as one request.
+ * Each cost is billed the moment it happens, as the new rounded total minus what was already billed.
+ */
+export class Bill {
+  exact = 0;
+  billed = 0;
+  add(exactMicros: number) {
+    this.exact += exactMicros;
+    const total = ceilToCent(this.exact);
+    const now = total - this.billed;
+    this.billed = total;
+    return now;
+  }
+}
+
+/**
+ * `costMicros` is what the request really cost. The ledger stores that as `exactMicros` and stores the billed
+ * amount (rounded up to the cent, as part of `bill` when one is given) as `costMicros`, which is what the daily allowance counts.
+ */
 export async function recordSpend(
   tx: Tx,
   e: { workspaceId: string; userId: string; model: string; inputTokens: number; outputTokens: number; costMicros: number },
+  bill?: Bill,
 ) {
-  await tx.insert(spendLedger).values({ ...e, day: todayUtc() });
+  const billed = bill ? bill.add(e.costMicros) : ceilToCent(e.costMicros);
+  await tx.insert(spendLedger).values({ ...e, costMicros: billed, exactMicros: e.costMicros, day: todayUtc() });
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { addMemory, KINDS, lineOf, recall, words, type Kind } from "./memory.js";
 import { budgetedAnswer, type SearchDeps } from "./search.js";
+import type { Bill } from "./spend.js";
 import type { Actor } from "./tasks.js";
 
 /** Below this a message is a greeting or a one-word command: not worth a model call. */
@@ -41,6 +42,8 @@ export async function autoRemember(
   deps: SearchDeps,
   a: Actor,
   input: { message: string; reply: string; today: string },
+  // The message it is noticing things in: its cost rounds up together with the reply, so remembering is not a second cent.
+  bill?: Bill,
 ): Promise<Noticed[]> {
   const message = input.message.replace(/\s+/g, " ").trim();
   if (message.length < AUTO_MIN_CHARS || words(message).length < 3) return [];
@@ -51,6 +54,7 @@ export async function autoRemember(
     const r = await budgetedAnswer(deps, a, {
       system: SYSTEM,
       maxTokens: 400,
+      bill,
       // The notes come first: they change slowly, so the start of the prompt can be read from the cache.
       prompt: [
         `Notes already held:\n${known.map((m) => `${m.id} | ${lineOf(m)}`).join("\n") || "none"}`,

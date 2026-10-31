@@ -70,9 +70,10 @@ describe("chat", () => {
     expect(r.events).toEqual([{ type: "text", text: "Morning. What's first?" }, { type: "done" }]);
     const hist = (await u.c.get("/v1/chat/history")).body.messages;
     expect(hist.map((m: any) => [m.role, m.text])).toEqual([["user", "hey danny"], ["assistant", "Morning. What's first?"]]);
-    // 1000 in x $1/Mtok + 200 out x $5/Mtok = $0.002
+    // Really cost: 1000 in x $0.10/Mtok + 200 out x $0.50/Mtok = $0.0002. Billed: rounded up to the next cent.
     const ledger = await ctx.owner.db.select().from(spendLedger).where(eq(spendLedger.workspaceId, u.workspaceId));
-    expect(ledger.reduce((n, r) => n + r.costMicros, 0) / 1_000_000).toBeCloseTo(0.002, 6);
+    expect(ledger.reduce((n, r) => n + r.exactMicros, 0) / 1_000_000).toBeCloseTo(0.0002, 7);
+    expect(ledger.reduce((n, r) => n + r.costMicros, 0)).toBe(10_000);
   });
 
   it("remembers facts through the tool, and uses them next time", async () => {
