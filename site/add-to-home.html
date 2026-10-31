@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add Danny to your Home Screen</title>
+<link rel="stylesheet" href="base.css">
+<style>
+:root{--T:14s}
+body{display:grid;place-items:center;min-height:100svh;padding:32px 20px}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:clamp(32px,6vw,80px);align-items:center;max-width:960px;width:100%}
+h1{font-size:clamp(2.6rem,6vw,4.5rem)}
+.caps{display:grid;margin-top:28px;min-height:7.5rem}
+.caps p{grid-area:1/1;font:600 clamp(1.6rem,3vw,2.4rem)/1.1 var(--display);text-transform:uppercase;opacity:0;animation:var(--T) infinite both}
+.caps b{color:var(--run);font-weight:700}
+.caps small{display:block;margin-top:10px;font:400 1.05rem/1.4 var(--body);text-transform:none;color:var(--muted)}
+.c1{animation-name:c1}.c2{animation-name:c2}.c3{animation-name:c3}.c4{animation-name:c4}
+@keyframes c1{0%,1%{opacity:0;transform:translateY(8px)}3%,20%{opacity:1;transform:none}22%,100%{opacity:0}}
+@keyframes c2{0%,22%{opacity:0;transform:translateY(8px)}25%,48%{opacity:1;transform:none}50%,100%{opacity:0}}
+@keyframes c3{0%,50%{opacity:0;transform:translateY(8px)}53%,70%{opacity:1;transform:none}72%,100%{opacity:0}}
+@keyframes c4{0%,72%{opacity:0;transform:translateY(8px)}75%,96%{opacity:1;transform:none}99%,100%{opacity:0}}
+.dots{display:flex;gap:10px;margin-top:20px}
+.dots i{width:44px;height:4px;background:var(--line);display:block;animation:var(--T) infinite both}
+.d1{animation-name:d1}.d2{animation-name:d2}.d3{animation-name:d3}.d4{animation-name:d4}
+@keyframes d1{0%,100%{background:var(--line)}1%,21%{background:var(--run)}22%{background:var(--line)}}
+@keyframes d2{0%,22%{background:var(--line)}23%,49%{background:var(--run)}50%,100%{background:var(--line)}}
+@keyframes d3{0%,50%{background:var(--line)}51%,71%{background:var(--run)}72%,100%{background:var(--line)}}
+@keyframes d4{0%,72%{background:var(--line)}73%,98%{background:var(--run)}99%,100%{background:var(--line)}}
+.note{margin-top:28px}
+/* phone */
+.phone{width:290px;height:600px;background:#000;border:2px solid var(--line);border-radius:42px;padding:10px;box-shadow:0 0 0 9px var(--panel),0 30px 80px rgba(0,0,0,.5);cursor:pointer}
+.screen{position:relative;width:100%;height:100%;border-radius:32px;overflow:hidden;background:#fff;color:#111}
+.stage.paused *{animation-play-state:paused!important}
+.sc{position:absolute;inset:0;opacity:0;animation:var(--T) infinite both}
+.s1{animation-name:s1}.s2{animation-name:s2}.s3{animation-name:s3}.s4{animation-name:s4}
+@keyframes s1{0%{opacity:0}1.5%,21%{opacity:1}23%,100%{opacity:0}}
+@keyframes s2{0%,21%{opacity:0}23%,49%{opacity:1}51%,100%{opacity:0}}
+@keyframes s3{0%,49%{opacity:0}51%,71%{opacity:1}73%,100%{opacity:0}}
+@keyframes s4{0%,71%{opacity:0}73%,97%{opacity:1}99%,100%{opacity:0}}
+.sb{height:44px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 24px 6px;font:600 .8rem/1 var(--body)}
+.notch{position:absolute;top:8px;left:50%;width:84px;height:24px;margin-left:-42px;background:#000;border-radius:14px}
+/* safari page */
+.page{background:#0f1211;color:var(--paper);position:absolute;inset:44px 0 78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px}
+.page svg{width:54px;height:54px}
+.page h4{margin:0;font:700 2rem/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.fake{width:100%;height:38px;background:#171b19;border:1px solid #2a312d}
+.fakebtn{width:100%;height:38px;background:var(--run)}
+.url{position:absolute;left:12px;right:12px;bottom:46px;height:30px;border-radius:10px;background:#e8e8ec;display:flex;align-items:center;justify-content:center;font:500 .72rem/1 var(--body);color:#333}
+.bar{position:absolute;left:0;right:0;bottom:0;height:46px;background:#f6f6f8;display:flex;justify-content:space-around;align-items:center;border-top:1px solid #d6d6da}
+.bar svg{width:22px;height:22px;stroke:#3478f6;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.share{position:relative}
+/* tap ripples */
+.tap{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(205,240,60,.55);border:2px solid var(--run);opacity:0;pointer-events:none;animation:var(--T) infinite both;z-index:5}
+.tap1{left:50%;bottom:23px;animation-name:tap1}
+.tap2{left:50%;top:487px;animation-name:tap2}
+.tap3{right:8px;top:57px;animation-name:tap3}
+@keyframes tap1{0%,13%{opacity:0;transform:scale(.4)}15%{opacity:1;transform:scale(.8)}19%{opacity:0;transform:scale(1.5)}100%{opacity:0}}
+@keyframes tap2{0%,41%{opacity:0;transform:scale(.4)}43%{opacity:1;transform:scale(.8)}47%{opacity:0;transform:scale(1.5)}100%{opacity:0}}
+@keyframes tap3{0%,65%{opacity:0;transform:scale(.4)}67%{opacity:1;transform:scale(.8)}71%{opacity:0;transform:scale(1.5)}100%{opacity:0}}
+/* share sheet */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#f2f2f6;border-radius:18px 18px 0 0;padding:14px 12px 22px;animation:sheet var(--T) infinite both;color:#111}
+@keyframes sheet{0%,22%{transform:translateY(105%)}28%,49%{transform:none}51%,100%{transform:translateY(105%)}}
+.sheet .ttl{display:flex;align-items:center;gap:10px;padding:2px 4px 12px;border-bottom:1px solid #d6d6da;margin-bottom:8px}
+.ico{width:36px;height:36px;border-radius:9px;background:#0f1211;display:grid;place-items:center}
+.ico svg{width:22px;height:22px}
+.sheet .ttl b{font:600 .85rem/1.2 var(--body);display:block}
+.sheet .ttl span{font:400 .72rem/1.2 var(--body);color:#777}
+.row{display:flex;justify-content:space-between;align-items:center;background:#fff;padding:13px 14px;font:500 .88rem/1 var(--body);border-bottom:1px solid #ececf0}
+.row:first-of-type{border-radius:10px 10px 0 0}.row:last-child{border-radius:0 0 10px 10px;border:0}
+.row svg{width:18px;height:18px;stroke:#111;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.hl{animation:hl var(--T) infinite both}
+@keyframes hl{0%,38%{background:#fff;box-shadow:none}41%,49%{background:#ebf7bd;box-shadow:inset 0 0 0 2px var(--run)}51%,100%{background:#fff}}
+/* add dialog */
+.sc3{background:#f2f2f6}
+.nav{display:flex;justify-content:space-between;align-items:center;padding:6px 18px 12px;font:500 .9rem/1 var(--body);color:#3478f6}
+.nav b{color:#111;font-weight:600}
+.addbtn{font-weight:700;animation:addhl var(--T) infinite both}
+@keyframes addhl{0%,64%{opacity:1}67%,71%{opacity:.35}}
+.card{background:#fff;margin:6px 16px;border-radius:12px}
+.card .a{display:flex;gap:12px;align-items:center;padding:14px;border-bottom:1px solid #ececf0}
+.card .a .ico{width:52px;height:52px;border-radius:12px}
+.card .a .ico svg{width:32px;height:32px}
+.card .a div{font:500 1rem/1.2 var(--body)}
+.card .u{padding:12px 14px;font:400 .78rem/1.3 var(--body);color:#888}
+.hint3{margin:14px 22px;font:400 .76rem/1.4 var(--body);color:#777}
+/* home screen */
+.s4{background:linear-gradient(160deg,#2a3b45,#101820 55%,#1d2b1a)}
+.grid{position:absolute;inset:70px 14px auto;display:grid;grid-template-columns:repeat(4,1fr);gap:22px 8px}
+.app{display:flex;flex-direction:column;align-items:center;gap:5px;font:500 .62rem/1 var(--body);color:#fff}
+.app i{width:54px;height:54px;border-radius:13px;background:rgba(255,255,255,.16);display:block}
+.app.danny i{background:#0f1211;display:grid;place-items:center;box-shadow:0 0 0 2px var(--run);animation:pop var(--T) infinite both}
+.app.danny i svg{width:34px;height:34px}
+.app.danny{animation:popl var(--T) infinite both}
+@keyframes pop{0%,73%{transform:scale(.2)}78%{transform:scale(1.18)}82%,100%{transform:scale(1)}}
+@keyframes popl{0%,73%{opacity:0}75%,100%{opacity:1}}
+.dock{position:absolute;left:12px;right:12px;bottom:14px;height:76px;border-radius:26px;background:rgba(255,255,255,.18);display:flex;justify-content:space-around;align-items:center}
+.dock i{width:54px;height:54px;border-radius:13px;background:rgba(255,255,255,.22)}
+.ok{position:absolute;left:50%;top:408px;transform:translateX(-50%);background:var(--run);color:#0f1211;font:700 1rem/1 var(--display);letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;white-space:nowrap;animation:ok var(--T) infinite both}
+@keyframes ok{0%,84%{opacity:0;transform:translate(-50%,6px)}88%,97%{opacity:1;transform:translate(-50%,0)}99%,100%{opacity:0}}
+@media (max-width:760px){.wrap{grid-template-columns:1fr;justify-items:center;text-align:center}.caps{min-height:8.5rem}.dots{justify-content:center}}
+@media (prefers-reduced-motion:reduce){
+  .sc,.caps p,.sheet,.tap,.app.danny,.app.danny i,.ok{animation:none}
+  .s1,.s2,.s3,.tap,.ok{display:none}.s4{opacity:1}.app.danny{opacity:1}
+  .caps p{position:static;opacity:1;margin-bottom:12px}.caps{display:block}.dots{display:none}
+}
+</style></head>
+<body>
+<div class="wrap">
+  <div>
+    <p class="mono" style="margin-bottom:16px">iPhone · Safari</p>
+    <h1 class="display">Put Danny on your Home Screen.</h1>
+    <div class="caps" aria-live="off">
+      <p class="c1"><b>1.</b> Open Danny in Safari.<small>Use the link from your invite. It has to be Safari, not an in-app browser.</small></p>
+      <p class="c2"><b>2.</b> Tap Share, then Add to Home Screen.<small>The square with the arrow, at the bottom. Scroll the list if you don't see it.</small></p>
+      <p class="c3"><b>3.</b> Tap Add.<small>Leave the name as Danny.</small></p>
+      <p class="c4"><b>4.</b> Open Danny from the Home Screen.<small>Do it from there, not from Safari, so reminders and notifications can work.</small></p>
+    </div>
+    <div class="dots"><i class="d1"></i><i class="d2"></i><i class="d3"></i><i class="d4"></i></div>
+    <p class="note mono">Android: open the browser menu and tap Install app. Tap the phone to pause.</p>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="phone" id="phone" role="img" aria-label="Animation: open Danny in Safari, tap Share, tap Add to Home Screen, tap Add, then open the Danny icon from the Home Screen">
+      <div class="screen">
+        <div class="notch"></div>
+
+        <!-- 1 Safari -->
+        <div class="sc s1">
+          <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+          <div class="page">
+            <svg viewBox="0 0 64 64"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg>
+            <h4>Danny</h4><div class="fake"></div><div class="fake"></div><div class="fakebtn"></div>
+          </div>
+          <div class="url">🔒 app.dannyassistant.com</div>
+          <div class="bar">
+            <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+            <svg class="share" viewBox="0 0 24 24"><path d="M12 15V3M8 7l4-4 4 4M6 11H5v10h14V11h-1"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M5 4h14v17l-7-5-7 5z"/></svg>
+            <svg viewBox="0 0 24 24"><rect x="4" y="6" width="13" height="13" rx="2"/><path d="M8 3h11a2 2 0 012 2v11"/></svg>
+          </div>
+          <div class="tap tap1"></div>
+        </div>
+
+        <!-- 2 Share sheet -->
+        <div class="sc s2">
+          <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+          <div class="page"><svg viewBox="0 0 64 64"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg><h4>Danny</h4></div>
+          <div class="dim"></div>
+          <div class="sheet">
+            <div class="ttl"><div class="ico"><svg viewBox="0 0 64 64"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg></div><div><b>Danny</b><span>app.dannyassistant.com</span></div></div>
+            <div class="row">Copy <svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></svg></div>
+            <div class="row">Add to Bookmarks <svg viewBox="0 0 24 24"><path d="M5 4h14v17l-7-5-7 5z"/></svg></div>
+            <div class="row hl">Add to Home Screen <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg></div>
+            <div class="row">Find on Page <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg></div>
+          </div>
+          <div class="tap tap2"></div>
+        </div>
+
+        <!-- 3 Add dialog -->
+        <div class="sc sc3 s3">
+          <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+          <div class="nav"><span>Cancel</span><b>Add to Home Screen</b><span class="addbtn">Add</span></div>
+          <div class="card">
+            <div class="a"><div class="ico"><svg viewBox="0 0 64 64"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg></div><div>Danny</div></div>
+            <div class="u">https://app.dannyassistant.com</div>
+          </div>
+          <p class="hint3">An icon will be added to your Home Screen so you can quickly access this website.</p>
+          <div class="tap tap3"></div>
+        </div>
+
+        <!-- 4 Home screen -->
+        <div class="sc s4">
+          <div class="sb" style="color:#fff"><span>9:41</span><span>5G ▮▮▮</span></div>
+          <div class="grid">
+            <div class="app"><i></i>Photos</div><div class="app"><i></i>Maps</div><div class="app"><i></i>Notes</div>
+            <div class="app danny"><i><svg viewBox="0 0 64 64"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg></i>Danny</div>
+            <div class="app"><i></i>Mail</div><div class="app"><i></i>Clock</div><div class="app"><i></i>Wallet</div><div class="app"><i></i>Music</div>
+          </div>
+          <div class="ok">Open it from here</div>
+          <div class="dock"><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.getElementById("phone").addEventListener("click",function(){document.getElementById("stage").classList.toggle("paused")});
+</script>
+</body></html>
