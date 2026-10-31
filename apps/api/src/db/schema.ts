@@ -245,6 +245,8 @@ export const tasks = pgTable(
     repeatUnit: text("repeat_unit"), // day | week | month | year
     repeatLeadMin: integer("repeat_lead_min"), // remind this many minutes before each due date ("a week before the birthday")
     firstStepEnc: bytea("first_step_enc"), // the smallest first move ("find last year's return"), shown with the task
+    lastNudgeAt: timestamp("last_nudge_at", { withTimezone: true }), // when a reminder last buzzed, so a check-in waits a day after the nudges give up
+    checkinAt: timestamp("checkin_at", { withTimezone: true }), // when Danny last asked about this task unprompted
     snoozeCount: integer("snooze_count").notNull().default(0), // how many times it has been pushed back; reset when a repeat rolls over
     createdAt: createdAt(),
   },

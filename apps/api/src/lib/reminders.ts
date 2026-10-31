@@ -5,7 +5,7 @@ import { auditLog, conversations, messages, pushSubscriptions, tasks, users } fr
 import { inQuietHours, nextQuietEnd } from "./time.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import type { Health } from "./health.js";
-import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueMemoryTidy, runDueWrapups, runStalledGoalCheckins, type BackgroundDeps } from "./background.js";
+import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueMemoryTidy, runDueWrapups, runStalledGoalCheckins, runTaskCheckins, type BackgroundDeps } from "./background.js";
 import type { Vault } from "./vault.js";
 
 /**
@@ -67,7 +67,7 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
 
         const title = vault.open(d.workspace_id, t.titleEnc);
         const text = nudgeText(title, t.nudgeCount);
-        await tx.update(tasks).set({ nudgeCount: t.nudgeCount + 1, remindAt: nextNudgeAt(t.nudgeCount + 1, now) }).where(eq(tasks.id, t.id));
+        await tx.update(tasks).set({ nudgeCount: t.nudgeCount + 1, remindAt: nextNudgeAt(t.nudgeCount + 1, now), lastNudgeAt: now }).where(eq(tasks.id, t.id));
 
         // It also lands in the chat, so it is there even if push is off or the phone was asleep.
         let [conv] = await tx.select().from(conversations).where(eq(conversations.userId, d.user_id)).limit(1);
@@ -110,6 +110,7 @@ export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
         await runDueWrapups(bg);
         await runDueGoalChecks(bg);
         await runStalledGoalCheckins(bg);
+        await runTaskCheckins(bg);
         await runDueLearning(bg);
         await runDueMemoryTidy(bg);
       }

@@ -9,6 +9,7 @@ import { eventLine, listEvents } from "./calendar.js";
 import { summarize as githubSummary, waitingOnYou } from "./github.js";
 import { githubToken } from "../tools/github.js";
 import { goalView } from "./goals.js";
+import type { Card } from "./cards.js";
 import type { GoogleService } from "./google.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import { FORMAT, tidy, unmark } from "./format.js";
@@ -41,11 +42,12 @@ async function deliver(
   text: string,
   note: { title: string; body: string },
   buzz: boolean,
+  cards: Card[] = [],
 ) {
   const subs = await withTenant(db, workspaceId, async (tx) => {
     let [conv] = await tx.select().from(conversations).where(eq(conversations.userId, userId)).limit(1);
     conv ??= (await tx.insert(conversations).values({ workspaceId, userId }).returning())[0]!;
-    await tx.insert(messages).values({ workspaceId, conversationId: conv.id, role: "assistant", contentEnc: vault.sealJson(workspaceId, tidy(text)) });
+    await tx.insert(messages).values({ workspaceId, conversationId: conv.id, role: "assistant", contentEnc: vault.sealJson(workspaceId, tidy(text)), uiEnc: cards.length ? vault.sealJson(workspaceId, cards) : null });
     const rows = await tx.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
     return rows.map((s) => ({ id: s.id, sub: vault.openJson<PushSub>(workspaceId, s.subEnc) }));
   });
@@ -302,6 +304,63 @@ export async function runStalledGoalCheckins(deps: BackgroundDeps, now = new Dat
     }
   }
   return asked;
+}
+
+type DueCheckin = { workspace_id: string; user_id: string; task_id: string; timezone: string; reason: "quiet" | "put_off" };
+
+/**
+ * For people who turned Starting help on: ask, once, about a task that has gone quiet (the reminders gave up a day ago) or been put off
+ * three times. Fixed, kind wording and no model call, so it costs nothing. At most one per person per day (enforced in the database
+ * function and again when the task is claimed), never in quiet hours, and the same task at most every three days. The message comes with
+ * the task and tap-replies, so answering takes one touch. Returns how many were sent.
+ */
+export async function runTaskCheckins(deps: BackgroundDeps, now = new Date()) {
+  const { db, vault } = deps;
+  const due = (await db.execute<DueCheckin>(sql`select * from due_task_checkins(${now.toISOString()}::timestamptz)`)) as unknown as DueCheckin[];
+  let sent = 0;
+  const seen = new Set<string>(); // one per person per pass
+  for (const d of due) {
+    const who = { workspaceId: d.workspace_id, userId: d.user_id };
+    try {
+      if (seen.has(d.user_id)) continue;
+      if (inQuietHours(now, d.timezone, await quietOf(db, d.user_id))) continue; // nothing is claimed, so it comes round again at a human hour
+      const t = await withTenant(db, d.workspace_id, async (tx) => {
+        // Claim it, only if nobody else was asked about in the last day. Two schedulers can't both send.
+        const [row] = await tx
+          .update(tasks)
+          .set({ checkinAt: now })
+          .where(
+            and(
+              eq(tasks.id, d.task_id),
+              eq(tasks.status, "open"),
+              or(isNull(tasks.checkinAt), lt(tasks.checkinAt, sql`${now.toISOString()}::timestamptz - interval '3 days'`)),
+              sql`not exists (select 1 from tasks o where o.user_id = ${d.user_id} and o.checkin_at > ${now.toISOString()}::timestamptz - interval '1 day' and o.id <> ${d.task_id})`,
+            ),
+          )
+          .returning();
+        return row ?? null;
+      });
+      if (!t) continue;
+      seen.add(d.user_id);
+      const title = vault.open(d.workspace_id, t.titleEnc);
+      const step = t.firstStepEnc ? vault.open(d.workspace_id, t.firstStepEnc) : null;
+      const text =
+        d.reason === "put_off"
+          ? `"${title}" has been pushed back ${t.snoozeCount} times. That's allowed. ${step ? `The first step is: ${step}. ` : ""}Want to make it smaller, or want me to do part of it for you?`
+          : `"${title}" has been sitting there a while. No pressure. ${step ? `The first step is: ${step}. ` : ""}Want to make it smaller, or put it off to a time that suits you?`;
+      const options = d.reason === "put_off" ? ["Make it smaller", "Help me do it", "Tomorrow morning"] : ["Make it smaller", "Tonight", "Tomorrow morning"];
+      const cards: Card[] = [
+        { kind: "task", id: t.id, title: title.slice(0, 200), remindAt: null, dueAt: t.dueAt ? t.dueAt.toISOString() : null, firstStep: step ? step.slice(0, 200) : null },
+        { kind: "replies", options },
+      ];
+      await deliver(deps, who, text, { title, body: d.reason === "put_off" ? `Pushed back ${t.snoozeCount} times. Want a smaller step?` : "Still here. Want a smaller step?" }, true, cards);
+      await withTenant(db, d.workspace_id, (tx) => tx.insert(auditLog).values({ workspaceId: d.workspace_id, userId: d.user_id, action: "task.checkin", detail: { id: t.id, reason: d.reason } }));
+      sent++;
+    } catch (err) {
+      deps.log?.error({ err, task: d.task_id }, "task check-in failed");
+    }
+  }
+  return sent;
 }
 
 type DueLearning = { workspace_id: string; user_id: string };

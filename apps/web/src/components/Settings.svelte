@@ -363,7 +363,7 @@
 
     <section>
       <h2 class="display">Starting help</h2>
-      <p>{adhdOn ? "On. Danny turns a brain dump into tasks, gives you one thing at a time with a tiny first step, breaks things down when they feel too big, and plans a snooze with you instead of letting a task sit. He never scolds." : "Off. Turn it on if starting is the hard part: Danny will break things down, offer one thing at a time, and help you put things off honestly."}</p>
+      <p>{adhdOn ? "On. Danny turns a brain dump into tasks, gives you one thing at a time with a tiny first step, breaks things down when they feel too big, and plans a snooze with you instead of letting a task sit. If a task goes quiet or keeps getting put off, he asks once, kindly, at most one task a day. He never scolds." : "Off. Turn it on if starting is the hard part: Danny will break things down, offer one thing at a time, and help you put things off honestly."}</p>
       <button class="btn {adhdOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ adhdMode: !adhdOn })}>{adhdOn ? "Turn off starting help" : "Turn on starting help"}</button>
     </section>
 
