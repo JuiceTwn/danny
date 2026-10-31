@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Danny — One assistant. You're the boss.</title>
-<meta name="description" content="Danny keeps track of the work, drafts what needs doing, and asks before anything goes out.">
+<meta name="description" content="Danny handles the small stuff you keep forgetting: bills, dates, replies, errands. He drafts it, and asks before anything goes out.">
 <link rel="stylesheet" href="base.css">
 <style>
 :root{--gap:clamp(96px,16vh,200px);--pad:clamp(20px,5vw,72px)}
@@ -26,7 +26,7 @@ h1 .ln span{display:block;transform:translateY(105%);animation:up .9s cubic-bezi
 h1 .ln:nth-child(2) span{animation-delay:.14s}
 h1 .sq{display:inline-block;width:.15em;height:.15em;background:var(--run);margin-left:.05em}
 @keyframes up{to{transform:none}}
-.hero .sub{font-size:clamp(1.2rem,2vw,1.6rem);max-width:30ch;margin-top:clamp(24px,4vh,44px);opacity:0;animation:fade .8s .7s forwards}
+.hero .sub{font-size:clamp(1.2rem,2vw,1.6rem);max-width:36ch;margin-top:clamp(24px,4vh,44px);opacity:0;animation:fade .8s .7s forwards}
 .hero .cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:32px;opacity:0;animation:fade .8s .9s forwards}
 @keyframes fade{to{opacity:1}}
 .cue{position:absolute;right:var(--pad);bottom:clamp(48px,9vh,110px);writing-mode:vertical-rl;color:var(--paper)}
@@ -114,6 +114,16 @@ h1 .sq{display:inline-block;width:.15em;height:.15em;background:var(--run);margi
 .chip:hover{background:var(--run);color:var(--graphite)}
 @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes blink{50%{opacity:.25}}
+/* what he does */
+.does{border-top:1px solid var(--line)}
+.does .hd{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:20px;margin-bottom:clamp(32px,6vh,64px)}
+.jobs li{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,8fr) 5.5rem;gap:24px;padding:clamp(22px,4vh,40px) 0;border-top:1px solid var(--line);align-items:baseline}
+.jobs li:last-child{border-bottom:1px solid var(--line)}
+.jobs b{font:500 .8125rem/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--run)}
+.jobs span{font:600 clamp(1.4rem,2.6vw,2.3rem)/1.15 var(--display);text-transform:uppercase;letter-spacing:.01em}
+.jobs span em{display:block;margin-top:8px;font:400 1.05rem/1.4 var(--body);text-transform:none;letter-spacing:0;font-style:normal;color:#c9d0c8;max-width:52ch}
+.jobs .tag{justify-self:end}
+.does .key{margin-top:28px}
 /* stop */
 .stopsec{border-top:1px solid var(--line);text-align:center}
 .estop{display:block;width:100%;max-width:1100px;margin:56px auto 0;aspect-ratio:3.2/1;border:6px solid var(--need);background:var(--need);color:var(--graphite);font:700 clamp(4rem,14vw,11rem)/1 var(--display);text-transform:uppercase;letter-spacing:.08em;cursor:pointer;border-radius:0}
@@ -133,7 +143,8 @@ body.stopped .stsec i{background:var(--need)}
 .link{background:none;border:0;padding:14px 0;color:var(--muted);text-decoration:underline;cursor:pointer;font:500 .8125rem/1 var(--mono);text-transform:uppercase;letter-spacing:.06em}
 footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;border-top:1px solid var(--line)}
 @media (max-width:860px){
-  .two,.dm,.stage .in,.talk li{grid-template-columns:1fr}
+  .two,.dm,.stage .in,.talk li,.jobs li{grid-template-columns:1fr}
+  .jobs li{gap:10px}.jobs .tag{justify-self:start}
   .nav .r a.hide-m{display:none}
   .nav .r{gap:20px}
   .cue{display:none}
@@ -155,7 +166,7 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
 <body>
 <header class="nav" id="nav">
   <a class="brand" href="#" aria-label="Danny home"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg>Danny</a>
-  <nav class="r"><a class="l hide-m" href="#parts">What he does</a><a class="l hide-m" href="#demo">See it work</a><a class="l hide-m" href="#safe">How it stays safe</a><a class="l" href="#get">Join the list</a></nav>
+  <nav class="r"><a class="l hide-m" href="#does">What he does</a><a class="l hide-m" href="#demo">See it work</a><a class="l hide-m" href="#safe">How it stays safe</a><a class="l" href="#get">Join the list</a></nav>
 </header>
 
 <section class="hero">
@@ -164,7 +175,7 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   <div class="scrim"></div>
   <div class="in">
     <h1 class="display"><span class="ln"><span>One assistant.</span></span><span class="ln"><span>You're the boss<i class="sq"></i></span></span></h1>
-    <p class="sub">Danny keeps track of the work, drafts what needs doing, and asks before anything goes out.</p>
+    <p class="sub">Danny handles the small stuff you keep forgetting: bills, dates, replies, errands. He drafts it, and asks before anything goes out.</p>
     <div class="cta"><a class="btn primary" href="#get">Join the list</a><a class="btn" href="#safe">How it stays in check</a></div>
   </div>
   <span class="cue mono">Scroll</span>
@@ -186,6 +197,28 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   <div class="in"><h2 class="display rv">Danny asks. You stamp it.</h2></div>
 </section>
 
+<section class="sec does" id="does">
+  <div class="in">
+    <div class="hd rv">
+      <h2 class="h2 display">What he does.</h2>
+      <p class="lede" style="margin:0">The everyday admin that piles up. Small things, done on time.</p>
+    </div>
+    <ul class="jobs">
+      <li class="rv"><b>Repeats</b><span>Bins, rent, renewals, birthdays.<em>Tell him once. He reminds you every time, and a week ahead if you want it.</em></span><span class="tag run">Live</span></li>
+      <li class="rv"><b>Nudges</b><span>Reminders that come back.<em>If you ignore one, he asks again later. Never at night. You can snooze it or drop it.</em></span><span class="tag run">Live</span></li>
+      <li class="rv"><b>Bills and letters</b><span>Snap a photo. He reads it.<em>He pulls out the amount and the due date, and sets the reminder. You confirm with a tap.</em></span><span class="tag off">Next</span></li>
+      <li class="rv"><b>Mail</b><span>He reads. He drafts. You send.<em>Replies wait on a card showing exactly who gets what. Nothing goes out without your tap.</em></span><span class="tag run">Live</span></li>
+      <li class="rv"><b>Forwarded mail</b><span>Forward it to Danny.<em>A booking, a school notice, a receipt. He finds the date and what you need to do about it.</em></span><span class="tag off">Next</span></li>
+      <li class="rv"><b>Your day</b><span>Morning rundown, evening wrap-up.<em>Weather, calendar, what's open. At night: what got done and the top three for tomorrow.</em></span><span class="tag run">Live</span></li>
+      <li class="rv"><b>Hunts</b><span>A job, a car, a flat.<em>He checks the web on a schedule and only speaks up when something new shows.</em></span><span class="tag run">Live</span></li>
+      <li class="rv"><b>Lists</b><span>Groceries, packing, questions for the doctor.<em>Add by typing or talking. Share one with whoever you live with.</em></span><span class="tag off">Next</span></li>
+      <li class="rv"><b>Talk</b><span>Type it, say it, or call him.<em>He answers out loud in his own voice. You can talk over him to stop him.</em></span><span class="tag run">Live</span></li>
+      <li class="rv"><b>Your week</b><span>A Sunday recap.<em>What he handled for you, what's still open, what's coming.</em></span><span class="tag off">Next</span></li>
+    </ul>
+    <p class="mono key rv">Live works today. Next is being built.</p>
+  </div>
+</section>
+
 <section class="sec" id="demo">
   <div class="in dm">
     <div class="rv">
@@ -197,8 +230,10 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
         <button role="tab" data-s="email">Email</button>
         <button role="tab" data-s="remember">Remembers</button>
         <button role="tab" data-s="watch">Watches</button>
+        <button role="tab" data-s="repeat">Repeats</button>
+        <button role="tab" data-s="bill">Snap a bill &middot; Soon</button>
       </div>
-      <p class="hint mono" style="margin-top:20px">A sample conversation. Names, prices and listings are made up. The buttons work: tap them.</p>
+      <p class="hint mono" id="dm-hint" style="margin-top:20px"></p>
     </div>
     <div class="rv">
       <div class="phone" aria-label="Danny chat demo">
@@ -278,7 +313,7 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   var DISCORD_URL="";
   var dc=$("discord");if(dc&&DISCORD_URL){dc.href=DISCORD_URL;dc.hidden=false}
   // chat demo: scripted, nothing leaves the page
-  var feed=$("dm-feed"),capEl=$("dm-cap"),tabs=$("dm-tabs"),token=0,started=false,st={};
+  var feed=$("dm-feed"),capEl=$("dm-cap"),hint=$("dm-hint"),tabs=$("dm-tabs"),token=0,started=false,st={};
   var NOTE={ok:["Done","run"],no:["Held","off"]};
   var SC={
     morning:{cap:"He starts the day for you: the weather, your calendar, what's open, what moved.",steps:[
@@ -304,6 +339,21 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
       {d:"Your sister's 40th is March 14. That's in 9 days. Want gift ideas?",skip:"undo"},
       {chips:[{t:"Yes",then:[{d:"On it. I'll keep it under what you usually spend."}]},{t:"I've got it",then:[{d:"Good. I'll drop it."}]}],skip:"undo"},
       {d:"Nothing I know of. You had me forget the one note, so I'm not tracking a birthday.",only:"undo"}
+    ]},
+    repeat:{cap:"Say it once. He keeps the schedule, and brings it back every time.",steps:[
+      {u:"Bins go out Tuesday nights. And rent's on the 1st."},
+      {d:"Two repeats. Bins every Tuesday at 7. Rent on the 1st, with a nudge three days ahead."},
+      {card:{no:"Repeats",title:"Bins out",rows:[["Repeats","Every Tuesday, 7:00 pm"]],tag:["Set","run"],buttons:[["undo","Undo"]],result:{undo:["Dropped","off"]},free:1}},
+      {card:{no:"Repeats",title:"Rent",rows:[["Repeats","Every month, the 1st"],["Heads-up","3 days before"]],tag:["Set","run"],buttons:[["undo","Undo"]],result:{undo:["Dropped","off"]},free:1}},
+      {sep:"Tuesday, 7:00 pm"},
+      {d:"Bins out."},
+      {chips:[{t:"Done",then:[{d:"Done. Next one's Tuesday."}]},{t:"Snooze 1 hour",then:[{d:"Back at 8:00."}]}]}
+    ]},
+    bill:{soon:1,cap:"Take a photo of the bill. He reads it and sets the reminder.",steps:[
+      {u:"Photo: hydro bill"},
+      {d:"Read it. $142.60, due November 18."},
+      {card:{no:"Bill",title:"Hydro bill",rows:[["Amount","$142.60"],["Due","Nov 18"],["Remind","Nov 15, 9:00 am"]],buttons:[["ok","Set reminder",1],["drop","Drop"]],
+        result:{ok:["Set","run"],drop:["Dropped","off"]},then:{ok:[{d:"Set. I'll nudge you the 15th."}],drop:[{d:"Dropped. Nothing saved."}]}}}
     ]},
     watch:{cap:"Tell him what you're hunting for. He checks, and only speaks up when something new shows.",steps:[
       {u:"I'm looking for a used Tacoma. Under $30k, under 100k miles."},
@@ -340,7 +390,7 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
       else if(s.card){
         var c=s.card,n=add(card(c));await sleep(700);
         if(c.free){
-          n.addEventListener("click",function(e){var k=e.target.getAttribute&&e.target.getAttribute("data-k");if(!k||st[k])return;st[k]=true;n.classList.add("done");n._tag.textContent=c.result[k][0];n._tag.className="tag "+c.result[k][1]});
+          (function(n,c){n.addEventListener("click",function(e){var k=e.target.getAttribute&&e.target.getAttribute("data-k");if(!k||n.classList.contains("done"))return;st[k]=true;n.classList.add("done");n._tag.textContent=c.result[k][0];n._tag.className="tag "+c.result[k][1]})})(n,c);
         }else if(c.buttons){
           var k=await wait(n);if(my!==token)return;
           n.classList.add("done");n._tag.textContent=c.result[k][0];n._tag.className="tag "+c.result[k][1];
@@ -356,12 +406,13 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   }
   function play(key){
     token++;st={};feed.textContent="";capEl.textContent=SC[key].cap;
+    hint.textContent=SC[key].soon?"Coming soon. This is how it will work. Names and amounts are made up.":"A sample conversation. Names, prices and listings are made up. The buttons work: tap them.";
     tabs.querySelectorAll("button").forEach(function(b){b.setAttribute("aria-selected",b.getAttribute("data-s")===key)});
     run(SC[key].steps,token)
   }
   tabs.addEventListener("click",function(e){var k=e.target.getAttribute&&e.target.getAttribute("data-s");if(k)play(k)});
   function first(){if(!started){started=true;play("morning")}}
-  capEl.textContent=SC.morning.cap;tabs.firstElementChild.setAttribute("aria-selected","true");
+  capEl.textContent=SC.morning.cap;hint.textContent="A sample conversation. Names, prices and listings are made up. The buttons work: tap them.";tabs.firstElementChild.setAttribute("aria-selected","true");
   if("IntersectionObserver" in window){new IntersectionObserver(function(es,o){if(es[0].isIntersecting){o.disconnect();first()}},{threshold:.35}).observe(feed)}else first();
   var es=$("estop");es.addEventListener("click",function(){var s=document.body.classList.toggle("stopped");es.setAttribute("aria-pressed",s);es.textContent=s?"Start":"Stop";$("st-w").textContent=s?"Stopped":"Running"});
 })();
