@@ -130,9 +130,12 @@ body.stopped .stsec i{background:var(--need)}
 .talk span{font:600 clamp(1.6rem,3.2vw,2.8rem)/1.15 var(--display);text-transform:uppercase;letter-spacing:.01em}
 /* get */
 .get{border-top:1px solid var(--line)}
+.how{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr);gap:20px;align-items:start}
+.how video{width:100%;display:block;border:2px solid var(--line);background:var(--panel)}
 .link{background:none;border:0;padding:14px 0;color:var(--muted);text-decoration:underline;cursor:pointer;font:500 .8125rem/1 var(--mono);text-transform:uppercase;letter-spacing:.06em}
 footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;border-top:1px solid var(--line)}
 @media (max-width:860px){
+  .how{grid-template-columns:minmax(0,130px) minmax(0,1fr)}
   .two,.dm,.stage .in,.talk li{grid-template-columns:1fr}
   .nav .r a.hide-m{display:none}
   .nav .r{gap:20px}
@@ -242,7 +245,7 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
     </div>
     <div class="rv">
       <p class="mono" style="margin-bottom:16px">Steps for your device</p>
-      <div data-for="ios"><ol class="steps"><li>Open the Danny app link from your invite in Safari (iOS 16.4 or later).</li><li>Tap Share.</li><li>Tap Add to Home Screen.</li></ol></div>
+      <div data-for="ios"><div class="how"><video id="howv" muted playsinline loop autoplay preload="metadata" poster="add-to-home-poster.jpg" aria-label="How to add Danny to your iPhone Home Screen"><source src="danny-add-to-home.mp4" type="video/mp4"></video><ol class="steps"><li>Open the Danny app link from your invite in Safari (iOS 16.4 or later).</li><li>Tap Share.</li><li>Tap Add to Home Screen.</li></ol></div></div>
       <div data-for="android"><button class="btn primary" data-install style="margin-bottom:16px">Install Danny</button><ol class="steps"><li>No Install button? Open the browser menu.</li><li>Tap Install app.</li></ol></div>
       <div data-for="desktop"><ol class="steps"><li>Open the Danny app link from your invite in Chrome or Edge.</li><li>Click the install icon in the address bar.</li><li>Click Install.</li></ol></div>
       <button class="link" data-toggle-all>Not your device? Show all</button>
@@ -275,7 +278,7 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   addEventListener("scroll",frame,{passive:true});frame();
   // hero video: if the file isn't there, the poster stays
   var v=$("hv");v.addEventListener("error",function(){v.style.display="none"},true);
-  if(reduce){v.removeAttribute("autoplay");v.pause()}
+  if(reduce){v.removeAttribute("autoplay");v.pause();var hv=$("howv");if(hv){hv.removeAttribute("autoplay");hv.pause();hv.controls=true}}
   // chat demo: scripted, nothing leaves the page
   var feed=$("dm-feed"),capEl=$("dm-cap"),tabs=$("dm-tabs"),token=0,started=false,st={};
   var NOTE={ok:["Done","run"],no:["Held","off"]};
