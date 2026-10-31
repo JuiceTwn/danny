@@ -2,6 +2,7 @@ import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
+import websocket from "@fastify/websocket";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { sql } from "drizzle-orm";
@@ -14,6 +15,7 @@ import { Health } from "./lib/health.js";
 import { GoogleService } from "./lib/google.js";
 import type { PushSender } from "./lib/push.js";
 import { ApiKeys } from "./lib/api-keys.js";
+import { TurnLock } from "./lib/turn-lock.js";
 import type { Transcriber } from "./lib/transcribe.js";
 import type { Vault } from "./lib/vault.js";
 import type { ToolRegistry } from "./tools/registry.js";
@@ -33,8 +35,9 @@ import { interestRoutes } from "./routes/interests.js";
 import { styleRoutes } from "./routes/style.js";
 import { previewRoutes } from "./routes/preview.js";
 import { transcribeRoutes } from "./routes/transcribe.js";
+import { callRoutes } from "./routes/call.js";
 
-export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch; previewFetch?: import("./lib/preview.js").FetchPage; transcriber?: Transcriber | null; keys?: ApiKeys };
+export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch; previewFetch?: import("./lib/preview.js").FetchPage; transcriber?: Transcriber | null; keys?: ApiKeys; turnLock?: TurnLock; call?: import("./lib/call/providers.js").CallProviders; callOptions?: import("./lib/call/session.js").CallOptions };
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -45,6 +48,7 @@ declare module "fastify" {
 export async function buildApp(deps: Deps) {
   // There is always a Google service. It is "not configured" until the server has a client ID and secret, which the owner can enter in the app.
   deps.google ??= new GoogleService(null);
+  deps.turnLock ??= new TurnLock();
   deps.keys ??= new ApiKeys({ anthropic: deps.config.anthropicApiKey, elevenlabs: deps.config.elevenlabsApiKey });
   const { config } = deps;
   const app = Fastify({
@@ -63,7 +67,8 @@ export async function buildApp(deps: Deps) {
         styleSrc: ["'self'"],
         imgSrc: ["'self'", "data:"],
         fontSrc: ["'self'", "data:"],
-        connectSrc: ["'self'"],
+        // Calls use a WebSocket back to this same address. Some browsers don't count "self" for ws://, so name it.
+        connectSrc: ["'self'", ...[...config.appOrigins].map((o) => o.replace(/^http/, "ws"))],
         manifestSrc: ["'self'"],
         workerSrc: ["'self'"],
         objectSrc: ["'none'"],
@@ -75,6 +80,8 @@ export async function buildApp(deps: Deps) {
     },
   });
   await app.register(cookie);
+  // Audio frames from the phone are small (a tenth of a second is about 3 KB).
+  await app.register(websocket, { options: { maxPayload: 64 * 1024 } });
   // Rate limits protect the API. Static files for the app itself are not counted.
   await app.register(rateLimit, { global: true, max: 300, timeWindow: "1 minute", allowList: (req) => !req.url.startsWith("/v1/") });
 
@@ -128,6 +135,7 @@ export async function buildApp(deps: Deps) {
     await r.register(styleRoutes, deps);
     await r.register(previewRoutes, deps);
     await r.register(transcribeRoutes, deps);
+    await r.register(callRoutes, deps);
     await r.register(adminRoutes, deps);
   });
 

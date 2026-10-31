@@ -96,6 +96,7 @@ export type Settings = {
   model: string;
   demo: boolean;
   voiceTyping: boolean;
+  callMode: boolean;
   canSetCap: boolean;
   dailyCapUsd?: number;
   spentTodayUsd?: number;

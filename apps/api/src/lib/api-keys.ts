@@ -42,8 +42,8 @@ export const KEY_DEFS: KeyDef[] = [
     id: "elevenlabs",
     label: "ElevenLabs",
     needed: "optional",
-    why: "Voice typing: the mic button in chat.",
-    steps: ["Open elevenlabs.io and sign in.", "Open your profile, then API keys.", "Create a key. Allow Speech to Text.", "Copy it and paste it here."],
+    why: "Danny's voice: voice typing (the mic button) and calls (the Call button).",
+    steps: ["Open elevenlabs.io and sign in.", "Open your profile, then API keys.", "Create a key. Allow Speech to Text and Text to Speech.", "Copy it and paste it here."],
     url: "https://elevenlabs.io/app/settings/api-keys",
     // A key limited to speech to text gets "missing permissions" here, which still means the key is real.
     check: (key, f) => ping(f, "https://api.elevenlabs.io/v1/models", { "xi-api-key": key }, (_status, body) => !/permission/i.test(body)),

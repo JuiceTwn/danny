@@ -35,6 +35,15 @@ const schema = z.object({
   STT_MODEL: z.string().default("scribe_v2"),
   // Placeholder: check ElevenLabs' current price for speech to text before real traffic.
   PRICE_STT_PER_HOUR_USD: z.coerce.number().default(0.22),
+  // Call mode: Danny's voice, live. The voice is an ElevenLabs voice ID (the default is a deep, calm one from their library; change it to any voice you like).
+  ELEVENLABS_VOICE_ID: z.string().default("JBFqnCBsd6RMkjVDRZzb"),
+  // A low-latency speech model. Check it is valid for your account (GET /v1/models, can_do_text_to_speech).
+  TTS_MODEL: z.string().default("eleven_flash_v2_5"),
+  // Placeholders: check ElevenLabs' current prices. Speaking is billed per 1,000 characters, live listening per hour.
+  PRICE_TTS_PER_1K_CHARS_USD: z.coerce.number().default(0.05),
+  PRICE_STT_LIVE_PER_HOUR_USD: z.coerce.number().default(0.39),
+  // One call never runs longer than this. The daily allowance also stops it.
+  CALL_MAX_MINUTES: z.coerce.number().default(10),
   // Anthropic bills each web search separately, on top of tokens.
   PRICE_SEARCH_USD: z.coerce.number().default(0.01),
   // Where the Owner tab drops update and backup requests, and reads the results. A root-owned script on the server does the work (deploy/ops.sh).
@@ -79,6 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     model: c.MODEL,
     elevenlabsApiKey: c.ELEVENLABS_API_KEY || undefined,
     voice: { model: c.STT_MODEL, pricePerHourUsd: c.PRICE_STT_PER_HOUR_USD },
+    call: { voiceId: c.ELEVENLABS_VOICE_ID, ttsModel: c.TTS_MODEL, ttsPer1kCharsUsd: c.PRICE_TTS_PER_1K_CHARS_USD, sttLivePerHourUsd: c.PRICE_STT_LIVE_PER_HOUR_USD, maxMinutes: c.CALL_MAX_MINUTES },
     opsDir: c.OPS_DIR,
     vapid: c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY ? { publicKey: c.VAPID_PUBLIC_KEY, privateKey: c.VAPID_PRIVATE_KEY, subject: c.VAPID_SUBJECT } : null,
     google: c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET ? { clientId: c.GOOGLE_CLIENT_ID, clientSecret: c.GOOGLE_CLIENT_SECRET, redirectUri: `${c.APP_URL.replace(/\/$/, "")}/v1/connections/google/callback` } : null,

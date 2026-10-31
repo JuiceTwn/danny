@@ -11,11 +11,9 @@ export const chatRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
   app.post("/v1/chat", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
     const { workspaceId, userId } = req.auth!;
     const { message } = z.object({ message: z.string().trim().min(1).max(8000) }).parse(req.body);
-    if (busy.has(workspaceId)) return reply.code(429).send({ error: "busy", message: "Danny is still on your last message." });
-    const mine = Symbol();
-    busy.set(workspaceId, mine);
     // Free the workspace for the next message as soon as the reply is done, but never free someone else's turn.
-    const release = () => busy.get(workspaceId) === mine && busy.delete(workspaceId);
+    const release = deps.turnLock!.tryAcquire(workspaceId);
+    if (!release) return reply.code(429).send({ error: "busy", message: "Danny is still on your last message." });
 
     reply.hijack();
     const raw = reply.raw;

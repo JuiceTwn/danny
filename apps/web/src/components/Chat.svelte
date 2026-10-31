@@ -3,7 +3,9 @@
   import { onDestroy, onMount, tick } from "svelte";
   import { api, chatStream, transcribe, type Card, type HistoryMsg, type Task } from "../lib/api";
   import { canRecord, DictateError, startRecording, type Recording } from "../lib/dictate";
+  import { canCall } from "../lib/call";
   import Cards from "./Cards.svelte";
+  import Call from "./Call.svelte";
   import Preview from "./Preview.svelte";
   import { app, refresh } from "../lib/store.svelte";
   import { fmtDay, fmtTime, go } from "../lib/router.svelte";
@@ -43,13 +45,28 @@
   };
   const onScroll = () => (stick = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 80);
 
-  onMount(async () => {
+  async function loadHistory() {
     try {
       const h = await api<{ messages: HistoryMsg[] }>("GET", "/v1/chat/history?limit=100");
       rows = h.messages.map((m) => ({ id: nextId++, kind: m.role === "user" ? "user" : "danny", text: m.text, at: m.at, cards: m.cards ?? [] }));
     } catch {
       /* start empty */
     }
+  }
+
+  // A call is part of the same conversation: when it ends, what was said is in the chat.
+  let calling = $state(false);
+  const callOn = $derived(Boolean(app.settings?.callMode) && canCall());
+  async function callEnded() {
+    calling = false;
+    stick = true;
+    await loadHistory();
+    await toBottom();
+    void refresh();
+  }
+
+  onMount(async () => {
+    await loadHistory();
     loaded = true;
     void loadOpenTasks();
     await toBottom();
@@ -290,12 +307,21 @@
       {#if busy}
         <button type="button" class="btn warn" onclick={() => controller?.abort()}>Stop</button>
       {:else if mic !== "recording"}
-        <button class="btn primary" disabled={!input.trim()}>Send</button>
+        {#if callOn && !input.trim() && mic === "idle"}
+          <button type="button" class="btn primary" onclick={() => (calling = true)} aria-label="Call Danny">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>
+            <span>Call</span>
+          </button>
+        {:else}
+          <button class="btn primary" disabled={!input.trim()}>Send</button>
+        {/if}
       {/if}
     </div>
     {#if micNote}<p class="col micnote mono" role="status">{micNote}</p>{/if}
   </form>
 </div>
+
+{#if calling}<Call onclose={callEnded} />{/if}
 
 <style>
   .chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -326,6 +352,7 @@
   textarea:focus { border-color: var(--run); outline: none; }
   .bar .btn { min-width: 96px; }
   .bar .mic { min-width: 52px; padding: 0 12px; }
+  .bar .btn span { margin-left: 8px; }
   .bar .mic.rec { background: var(--need); border-color: var(--need); color: var(--graphite); animation: pulse 1.4s ease-in-out infinite; }
   .bar .mic.rec .mono { color: var(--graphite); }
   .micnote { margin-top: 8px; color: var(--need); }

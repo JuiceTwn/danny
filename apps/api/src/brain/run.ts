@@ -72,6 +72,13 @@ Use search_web only for things that change or that you cannot know. It costs mon
 Each morning Danny can send a briefing of the day, their goals and news they care about. They turn it on in settings.
 Reminders reach them by notification and in this chat, and come back a few times if ignored. They can snooze any task.`;
 
+// On a call there is no screen to read: short sentences, no formatting, and nothing that depends on a card.
+const SPOKEN = `This is a live voice call, so everything you write is read aloud.
+Answer in one to three short sentences, the way a person talks. No lists, no markdown, no links, no emoji, no headings.
+Say times, dates and numbers the way you would say them out loud.
+Cards and buttons are not shown on a call, so say the key facts in words instead of relying on a card.
+If something needs the user's tap, say it is waiting on their tap in the app.`;
+
 export const BLOCKED_MESSAGE = {
   kill_switch: "Danny is stopped. Turn him back on in settings.",
   cap_reached: "You've used all of today's allowance. It resets at midnight UTC.",
@@ -95,6 +102,7 @@ export async function runTurn(
   isClosed: () => boolean = () => false,
   // Called as soon as the reply is done, before the quiet memory pass, so the caller can take the next message.
   onSettled: () => void = () => {},
+  opts: { spoken?: boolean } = {},
 ) {
   const { db, config, model, tools, vault, google } = deps;
   const { workspaceId, userId } = who;
@@ -142,7 +150,7 @@ export async function runTurn(
 
   const now = new Date();
   const system =
-    SYSTEM.replace("{{VOICE}}", voiceOf(setup.voice)) +
+    (opts.spoken ? SYSTEM.replace(FORMAT, SPOKEN) : SYSTEM).replace("{{VOICE}}", voiceOf(setup.voice)) +
     `\n\nUse the user's current time offset for every time you pass to a tool.` +
     (setup.style ? `\n\n${setup.style}` : "") +
     (setup.mem.shown

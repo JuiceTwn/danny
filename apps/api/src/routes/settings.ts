@@ -8,7 +8,7 @@ import { spentToday, todayUtc } from "../lib/spend.js";
 
 const usd = (micros: number) => micros / 1_000_000;
 
-export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, transcriber, keys }) => {
+export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, transcriber, keys, call }) => {
   // Everyone sees how much of today's allowance is used, as a percentage, like a chat app's usage meter. Only the owner sees dollars.
   async function read(workspaceId: string, isOwner: boolean) {
     return withTenant(db, workspaceId, async (tx) => {
@@ -22,6 +22,7 @@ export const settingsRoutes: FastifyPluginAsync<Deps> = async (app, { db, config
         killSwitch: ws!.killSwitch,
         demo: !keys!.has("anthropic"),
         voiceTyping: Boolean(transcriber) || keys!.has("elevenlabs"),
+        callMode: Boolean(call) || keys!.has("elevenlabs"),
         model: config.model,
         canSetCap: isOwner,
         ...(isOwner
