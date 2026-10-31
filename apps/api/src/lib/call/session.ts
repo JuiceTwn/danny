@@ -2,7 +2,7 @@ import type { Deps } from "../../app.js";
 import { runTurn } from "../../brain/run.js";
 import { withTenant } from "../../db/client.js";
 import { unmark } from "../format.js";
-import { checkBudget, recordSpend } from "../spend.js";
+import { Bill, checkBudget, recordSpend } from "../spend.js";
 import type { CallProviders, SttSession } from "./providers.js";
 
 /**
@@ -300,10 +300,13 @@ export class CallSession {
     await this.record(`tts:${ttsModel}`, Math.ceil((chars / 1000) * ttsPer1kCharsUsd * 1_000_000));
   }
 
+  /** Listening and speaking across the whole call round up together, as one request. */
+  private callBill = new Bill();
+
   private async record(model: string, costMicros: number) {
     const { workspaceId, userId } = this.who;
     try {
-      await withTenant(this.deps.db, workspaceId, (tx) => recordSpend(tx, { workspaceId, userId, model, inputTokens: 0, outputTokens: 0, costMicros }));
+      await withTenant(this.deps.db, workspaceId, (tx) => recordSpend(tx, { workspaceId, userId, model, inputTokens: 0, outputTokens: 0, costMicros }, this.callBill));
     } catch {
       /* a ledger hiccup must not drop the call; the next tick bills again */
     }

@@ -281,6 +281,6 @@ describe("spend cap and kill switch", () => {
       recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1, outputTokens: 1, costMicros: 123_000 }),
     );
     const usage = (await owner.get("/v1/admin/usage")).body.users;
-    expect(usage.find((x: any) => x.email === u.email)).toMatchObject({ todayUsd: 0.123, last30DaysUsd: 0.123 });
+    expect(usage.find((x: any) => x.email === u.email)).toMatchObject({ todayUsd: 0.13, last30DaysUsd: 0.13, last30DaysCostUsd: 0.123 }); // billed rounds 12.3 cents up to 13; the real cost stays 12.3
   });
 });

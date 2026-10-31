@@ -243,7 +243,8 @@ describe("a call", () => {
     await sleep(100);
     const rows = (await ctx.owner.db.select().from(spendLedger).where(eq(spendLedger.workspaceId, u.workspaceId))).filter((r) => r.model.startsWith("tts:"));
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.costMicros).toBe(Math.ceil((21 / 1000) * 0.05 * 1_000_000));
+    expect(rows[0]!.exactMicros).toBe(Math.ceil((21 / 1000) * 0.04 * 1_000_000)); // what it really cost
+    expect(rows[0]!.costMicros).toBe(10_000); // billed: rounded up to one cent
   });
 
   it("stops talking when you talk over it, and answers the new thing", async () => {

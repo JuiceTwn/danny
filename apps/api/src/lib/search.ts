@@ -2,7 +2,7 @@ import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
 import type { ModelClient } from "../brain/model.js";
 import { cutToComplete, FORMAT, sourceLinks, tidy } from "./format.js";
-import { checkBudget, costMicros, recordSpend } from "./spend.js";
+import { checkBudget, costMicros, recordSpend, type Bill } from "./spend.js";
 
 export type SearchDeps = { db: Db; config: Config; model: ModelClient };
 
@@ -21,7 +21,7 @@ export type Searched = { ok: true; text: string; sources: { title: string; url: 
 export async function budgetedSearch(
   { db, config, model }: SearchDeps,
   who: { workspaceId: string; userId: string },
-  req: { prompt: string; system?: string; maxSearches?: number; maxTokens?: number },
+  req: { prompt: string; system?: string; maxSearches?: number; maxTokens?: number; bill?: Bill },
 ): Promise<Searched> {
   if (!model.search) return { ok: false, reason: "Web search isn't available on this server." };
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn);
@@ -41,7 +41,7 @@ export async function budgetedSearch(
       inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
       outputTokens: res.usage.outputTokens,
       costMicros: costMicros(res.usage, config.price),
-    }),
+    }, req.bill),
   );
   const text = tidy(res.truncated ? cutToComplete(res.text) : res.text);
   return { ok: true, text, sources: res.sources };
@@ -54,7 +54,7 @@ export const sourceList = (sources: { title: string; url: string }[], text = "")
 export async function budgetedAnswer(
   { db, config, model }: SearchDeps,
   who: { workspaceId: string; userId: string },
-  req: { system: string; prompt: string; maxTokens?: number },
+  req: { system: string; prompt: string; maxTokens?: number; bill?: Bill },
 ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn);
   const b = await tenant((tx) => checkBudget(tx, who.workspaceId));
@@ -73,7 +73,7 @@ export async function budgetedAnswer(
       inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
       outputTokens: res.usage.outputTokens,
       costMicros: costMicros(res.usage, config.price),
-    }),
+    }, req.bill),
   );
   const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("").trim();
   return { ok: true, text };

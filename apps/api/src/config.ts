@@ -27,9 +27,11 @@ const schema = z.object({
   WEB_DIR: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   MODEL: z.string().default("claude-haiku-5-5"),
-  // Placeholders. Check against Anthropic's current pricing before real traffic.
-  PRICE_INPUT_PER_MTOK_USD: z.coerce.number().default(1),
-  PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(5),
+  // Haiku 5.5 list price, per million tokens, for prompts up to 100k tokens (platform.claude.com/docs/en/about-claude/pricing).
+  // This is what a request REALLY costs. What the user is charged is that rounded up to the next cent (see lib/spend.ts).
+  // Change these together with MODEL: Sonnet 5.5 is 2 and 10, Opus 5.5 is 4 and 20.
+  PRICE_INPUT_PER_MTOK_USD: z.coerce.number().default(0.1),
+  PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(0.5),
   // Voice typing (speech to text). Without a key the mic button stays hidden. Get one at elevenlabs.io and put it in .env, never in chat.
   ELEVENLABS_API_KEY: z.string().optional(),
   STT_MODEL: z.string().default("scribe_v2"),
@@ -39,8 +41,8 @@ const schema = z.object({
   ELEVENLABS_VOICE_ID: z.string().default("JBFqnCBsd6RMkjVDRZzb"),
   // A low-latency speech model. Check it is valid for your account (GET /v1/models, can_do_text_to_speech).
   TTS_MODEL: z.string().default("eleven_flash_v2_5"),
-  // Placeholders: check ElevenLabs' current prices. Speaking is billed per 1,000 characters, live listening per hour.
-  PRICE_TTS_PER_1K_CHARS_USD: z.coerce.number().default(0.05),
+  // ElevenLabs list prices (elevenlabs.io/pricing/api): Flash / Turbo speech $0.04 per 1,000 characters, live listening $0.39 per hour.
+  PRICE_TTS_PER_1K_CHARS_USD: z.coerce.number().default(0.04),
   PRICE_STT_LIVE_PER_HOUR_USD: z.coerce.number().default(0.39),
   // One call never runs longer than this. The daily allowance also stops it.
   CALL_MAX_MINUTES: z.coerce.number().default(10),

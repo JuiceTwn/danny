@@ -43,14 +43,15 @@ describe("voice typing", () => {
     const rows = await spent(u.workspaceId);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.model).toBe("stt:scribe_v2");
-    expect(rows[0]!.costMicros).toBe(1000); // 10 s at $0.0001 a second
+    expect(rows[0]!.exactMicros).toBe(1000); // 10 s at $0.0001 a second
+    expect(rows[0]!.costMicros).toBe(10_000); // billed: rounded up to one cent
   });
 
   it("charges for the longer of what the app says and what the size implies", async () => {
     const u = await signUp(ctx, owner, "Sneaky");
     // 240 KB is 10 s at the size cap's rate. Claiming 1 s must not make it cheaper.
     await speak(u.c, audio(240_000), { "x-audio-seconds": "1" });
-    expect((await spent(u.workspaceId))[0]!.costMicros).toBe(1000);
+    expect((await spent(u.workspaceId))[0]!.exactMicros).toBe(1000);
   });
 
   it("only works when signed in", async () => {

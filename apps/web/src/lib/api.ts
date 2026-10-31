@@ -122,4 +122,4 @@ export type GoogleSetup = { configured: boolean; source: "env" | "app" | "none";
 export type Interest = { id: string; topic: string };
 export type StyleNote = { id: string; kind: "said" | "observed"; note: string };
 export type Style = { instruction: string | null; location: string | null; notes: StyleNote[] };
-export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; createdAt: string };
+export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: "day" | "week" | "month" | "year" } | null; createdAt: string };

@@ -145,7 +145,7 @@ describe("auto memory: what you mention in passing is kept without being asked",
 
   it("does nothing, quietly, when the day's allowance is spent", async () => {
     const u = await signUp(ctx, owner, "Broke");
-    script = scripted([{ ...text("ok"), usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 } }, found({ op: "add", fact: "Should never be saved" })]);
+    script = scripted([{ ...text("ok"), usage: { inputTokens: 10_000_000, outputTokens: 10_000_000 } }, found({ op: "add", fact: "Should never be saved" })]);
     const events = await chat(u.c, "I really love long walks along the river at dusk");
     expect(events.map((e) => e.type)).toEqual(["text", "done"]);
     expect(script.calls).toHaveLength(1);

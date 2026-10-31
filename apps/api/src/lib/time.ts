@@ -9,7 +9,7 @@ export function isValidTimezone(tz: string) {
   }
 }
 
-function parts(date: Date, tz: string) {
+export function parts(date: Date, tz: string) {
   const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const o: Record<string, number> = {};
   for (const p of f.formatToParts(date)) if (p.type !== "literal") o[p.type] = Number(p.value);

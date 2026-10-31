@@ -202,7 +202,10 @@ export const spendLedger = pgTable(
     model: text("model").notNull(),
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
+    // What counts against the allowance and what the user is charged: every request rounded UP to the next whole cent.
     costMicros: bigint("cost_micros", { mode: "number" }).notNull(), // US$ x 1,000,000
+    // What the request really cost us, unrounded, so the owner can see the margin. 0 on rows from before it was recorded.
+    exactMicros: bigint("exact_micros", { mode: "number" }).notNull().default(0),
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("spend_ws_day_idx").on(t.workspaceId, t.day)],
@@ -236,6 +239,10 @@ export const tasks = pgTable(
     remindAt: timestamp("remind_at", { withTimezone: true }), // next time to nudge; null = nothing scheduled
     nudgeCount: integer("nudge_count").notNull().default(0),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    // Repeats every N days, weeks, months or years. Both null = a one-off. Finishing one occurrence moves the task to the next.
+    repeatEvery: integer("repeat_every"),
+    repeatUnit: text("repeat_unit"), // day | week | month | year
+    repeatLeadMin: integer("repeat_lead_min"), // remind this many minutes before each due date ("a week before the birthday")
     createdAt: createdAt(),
   },
   (t) => [index("tasks_ws_idx").on(t.workspaceId, t.status, t.remindAt)],
