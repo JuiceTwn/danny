@@ -146,6 +146,9 @@ body.stopped .stsec i{background:var(--need)}
 /* get */
 .get{border-top:1px solid var(--line)}
 .link{background:none;border:0;padding:14px 0;color:var(--muted);text-decoration:underline;cursor:pointer;font:500 .8125rem/1 var(--mono);text-transform:uppercase;letter-spacing:.06em}
+footer a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+footer a:hover,.mail:hover{color:var(--run)}
+.mail{color:inherit;text-decoration:underline;text-underline-offset:3px}
 footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;border-top:1px solid var(--line)}
 @media (max-width:860px){
   .two,.dm,.stage .in,.talk li,.jobs li{grid-template-columns:1fr}
@@ -299,12 +302,13 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
     <div class="rv">
       <p class="mono" style="margin-bottom:16px">While you wait</p>
       <a class="btn" id="discord" href="#" hidden target="_blank" rel="noopener">Join the Discord</a>
+      <p class="mono" style="margin-top:28px">Questions? <a class="mail" href="mailto:hello@dannyassistant.com">hello@dannyassistant.com</a></p>
       <div class="coming" style="margin-top:28px"><span>iPhone <b>Coming</b></span><span>Android <b>Coming</b></span><span>Mac / Windows <b>Coming</b></span></div>
     </div>
   </div>
 </section>
 
-<footer><span class="mono">Danny · working name · Ontario, Canada</span><span class="mono">Privacy · Terms — before invites go out</span></footer>
+<footer><span class="mono">Danny · working name · Ontario, Canada</span><span class="mono"><a href="mailto:hello@dannyassistant.com">hello@dannyassistant.com</a></span><span class="mono">Privacy · Terms — before invites go out</span></footer>
 
 <script src="shared.js"></script>
 <script>
