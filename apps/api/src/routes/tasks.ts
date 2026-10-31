@@ -5,6 +5,7 @@ import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, pushSubscriptions, users } from "../db/schema.js";
 import { isAllowedPushEndpoint } from "../lib/push.js";
+import { REPEAT_UNITS } from "../lib/recur.js";
 import { completeTask, createTask, deleteTask, listTasks, snoozeTask, TaskError, type Actor } from "../lib/tasks.js";
 import { isValidTimezone } from "../lib/time.js";
 import { VOICES, type Voice } from "../lib/voice.js";
@@ -48,12 +49,22 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
   });
 
   app.post("/v1/tasks", async (req, reply) => {
-    const b = z.object({ title: z.string().trim().min(1).max(300), dueAt: when.nullish(), remindAt: when.nullish() }).parse(req.body);
-    const item = await createTask(actor(req), { title: b.title, dueAt: b.dueAt ? new Date(b.dueAt) : null, remindAt: b.remindAt ? new Date(b.remindAt) : null });
+    const b = z
+      .object({
+        title: z.string().trim().min(1).max(300),
+        dueAt: when.nullish(),
+        remindAt: when.nullish(),
+        repeat: z.object({ every: z.number().int().min(1).max(366), unit: z.enum(REPEAT_UNITS) }).nullish(),
+      })
+      .parse(req.body);
+    const item = await createTask(actor(req), { title: b.title, dueAt: b.dueAt ? new Date(b.dueAt) : null, remindAt: b.remindAt ? new Date(b.remindAt) : null, repeat: b.repeat ?? null });
     return reply.code(201).send({ item });
   });
 
-  app.post("/v1/tasks/:id/done", async (req, reply) => ((await completeTask(actor(req), id(req))) ? { ok: true } : reply.code(404).send({ error: "not_found" })));
+  app.post("/v1/tasks/:id/done", async (req, reply) => {
+    const r = await completeTask(actor(req), id(req));
+    return r ? { ok: true, next: r.next } : reply.code(404).send({ error: "not_found" });
+  });
 
   app.post("/v1/tasks/:id/snooze", async (req, reply) => {
     const b = z

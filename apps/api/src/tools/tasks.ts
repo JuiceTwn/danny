@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { describeRepeat, REPEAT_UNITS } from "../lib/recur.js";
 import { completeTask, createTask, listTasks, pickNext, snoozeTask, TaskError } from "../lib/tasks.js";
 import { defineTool } from "./registry.js";
 
 const when = z.iso.datetime({ offset: true });
 const date = (s?: string) => (s ? new Date(s) : null);
-const line = (t: { id: string; title: string; dueAt: string | null; remindAt: string | null }) =>
-  `${t.id} | ${t.title}${t.dueAt ? ` | due ${t.dueAt}` : ""}${t.remindAt ? ` | reminds ${t.remindAt}` : ""}`;
+const line = (t: { id: string; title: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: (typeof REPEAT_UNITS)[number] } | null }) =>
+  `${t.id} | ${t.title}${t.dueAt ? ` | due ${t.dueAt}` : ""}${t.remindAt ? ` | reminds ${t.remindAt}` : ""}${t.repeat ? ` | ${describeRepeat(t.repeat)}` : ""}`;
 
 // Tool errors the user can fix come back as plain text so the model can explain them.
 const guard = async (f: () => Promise<string>) => {
@@ -22,14 +23,24 @@ export const addTask = defineTool({
   description:
     "Put something on the user's to-do list. Use this whenever they mention something they need to do or remember, even in passing. " +
     "Set `remind_at` when they want a nudge at a certain time. Set `due_at` for a deadline; a deadline with no `remind_at` reminds at the deadline. " +
-    "Times are ISO 8601 with the user's UTC offset, worked out from the current time given in the system prompt. Keep the title short and concrete.",
+    "Times are ISO 8601 with the user's UTC offset, worked out from the current time given in the system prompt. Keep the title short and concrete. " +
+    "For anything that comes round again (bins every Tuesday, rent on the 1st, a birthday, a yearly renewal, a pill every morning) set `repeat_every` and `repeat_unit` ONCE instead of adding it again each time: " +
+    "`due_at` is the first occurrence. For \"remind me a week before\" put `remind_at` that far before `due_at`; the gap is kept every cycle. Marking an occurrence done moves it to the next one.",
   kind: "internal",
-  input: z.object({ title: z.string().trim().min(1).max(300), due_at: when.optional(), remind_at: when.optional() }),
+  input: z.object({
+    title: z.string().trim().min(1).max(300),
+    due_at: when.optional(),
+    remind_at: when.optional(),
+    repeat_every: z.number().int().min(1).max(366).optional(),
+    repeat_unit: z.enum(REPEAT_UNITS).optional(),
+  }),
   run: (ctx, i) =>
     guard(async () => {
-      const t = await createTask(ctx, { title: i.title, dueAt: date(i.due_at), remindAt: date(i.remind_at) });
+      if (!i.repeat_unit !== !i.repeat_every) return "A repeat needs both a number and a unit (for example every 2 weeks).";
+      const repeat = i.repeat_unit && i.repeat_every ? { every: i.repeat_every, unit: i.repeat_unit } : null;
+      const t = await createTask(ctx, { title: i.title, dueAt: date(i.due_at), remindAt: date(i.remind_at), repeat });
       ctx.card?.({ kind: "task", id: t.id, title: t.title, remindAt: t.remindAt, dueAt: t.dueAt });
-      return `Added (${t.id}).${t.remindAt ? ` Will remind at ${t.remindAt}.` : " No reminder set."} The app shows the task as a card, so confirm in a few words.`;
+      return `Added (${t.id}).${t.remindAt ? ` Will remind at ${t.remindAt}.` : " No reminder set."}${t.repeat ? ` Repeats ${describeRepeat(t.repeat)}.` : ""} The app shows the task as a card, so confirm in a few words.`;
     }),
 });
 
@@ -61,10 +72,13 @@ export const whatsNext = defineTool({
 
 export const doneTask = defineTool({
   name: "complete_task",
-  description: "Mark a task done. Take the id from list_tasks. Say it plainly and move on; no cheering.",
+  description: "Mark a task done. Take the id from list_tasks. Say it plainly and move on; no cheering. A repeating task stays on the list and moves to its next date.",
   kind: "internal",
   input: z.object({ id: z.uuid() }),
-  run: async (ctx, { id }) => ((await completeTask(ctx, id)) ? "Marked done." : "No open task with that id."),
+  run: async (ctx, { id }) => {
+    const r = await completeTask(ctx, id);
+    return !r ? "No open task with that id." : r.next ? `Done. It repeats, so the next one is ${r.next}.` : "Marked done.";
+  },
 });
 
 export const snooze = defineTool({

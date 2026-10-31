@@ -86,7 +86,7 @@
     <div class="body">
       <p class="title">{t.title}</p>
       {#if t.remindAt || t.dueAt}
-        <span class="mono">{t.remindAt ? `Reminds ${fmtWhen(t.remindAt)}` : `Due ${fmtWhen(t.dueAt!)}`}</span>
+        <span class="mono">{t.remindAt ? `Reminds ${fmtWhen(t.remindAt)}` : `Due ${fmtWhen(t.dueAt!)}`}{t.repeat ? ` · Repeats ${t.repeat.every === 1 ? `every ${t.repeat.unit}` : `every ${t.repeat.every} ${t.repeat.unit}s`}` : ""}</span>
       {/if}
     </div>
     {#if snoozing === t.id}
