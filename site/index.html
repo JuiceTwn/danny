@@ -75,6 +75,45 @@ h1 .sq{display:inline-block;width:.15em;height:.15em;background:var(--run);margi
 @keyframes slam{from{transform:rotate(-7deg) scale(2);opacity:0}to{transform:rotate(-7deg) scale(1);opacity:1}}
 .ticket.done .tf .btn{opacity:.3;pointer-events:none}
 .hint{margin-top:18px}
+/* demo */
+.dm{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(40px,8vw,128px);align-items:center}
+.dm-tabs{display:flex;flex-wrap:wrap;gap:10px;margin-top:36px}
+.dm-tabs button{min-height:48px;padding:0 18px;background:transparent;border:2px solid var(--line);color:var(--paper);font:700 1.2rem/1 var(--display);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;border-radius:0}
+.dm-tabs button:hover{border-color:var(--paper)}
+.dm-tabs button[aria-selected="true"]{background:var(--run);border-color:var(--run);color:var(--graphite)}
+.phone{width:min(390px,100%);height:min(680px,88svh);margin:0 auto;background:var(--graphite);border:2px solid var(--line);border-radius:38px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 0 0 9px var(--panel),0 30px 80px rgba(0,0,0,.45)}
+.ph-top{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line);font:700 1.25rem/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.ph-top svg{width:24px;height:24px}
+.ph-top .tag{margin-left:auto}
+.feed{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth;scrollbar-width:none}
+.feed::-webkit-scrollbar{display:none}
+.msg{max-width:86%;padding:11px 14px;font-size:1rem;line-height:1.35;animation:pop .25s ease-out}
+.msg.d{align-self:flex-start;background:var(--panel);border:1px solid var(--line)}
+.msg.u{align-self:flex-end;background:var(--run);color:var(--graphite)}
+.msg.typing{display:flex;gap:5px;padding:15px 16px}
+.msg.typing i{width:7px;height:7px;background:var(--muted);display:block;animation:blink 1s infinite}
+.msg.typing i:nth-child(2){animation-delay:.15s}.msg.typing i:nth-child(3){animation-delay:.3s}
+.sep{align-self:center;margin:6px 0}
+.dm-card{align-self:stretch;background:var(--paper);color:var(--graphite);animation:pop .25s ease-out}
+.dm-card .h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:2px dashed var(--graphite)}
+.dm-card .h .mono{color:var(--graphite)}
+.dm-card .b{padding:14px 14px 10px}
+.dm-card .t{font:700 1.7rem/1 var(--display);text-transform:uppercase}
+.dm-card blockquote{margin:12px 0 0;padding:12px 14px;border-left:4px solid var(--graphite);background:#dfe4d9;font-size:1rem;line-height:1.35}
+.dm-card .row{display:grid;grid-template-columns:5.2rem 1fr;gap:8px;padding:7px 0;border-top:1px solid #c3cabd;font-size:.95rem;line-height:1.3}
+.dm-card .row:first-of-type{margin-top:12px}
+.dm-card .row b{font:500 .75rem/1.6 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:#5b655f}
+.dm-card .act{display:flex;flex-wrap:wrap;gap:8px;padding:6px 14px 14px}
+.dm-card .btn{min-height:42px;padding:0 16px;font-size:1.05rem;border-color:var(--graphite);color:var(--graphite)}
+.dm-card .btn:hover{background:var(--graphite);color:var(--paper)}
+.dm-card .btn.primary{background:var(--run)}
+.dm-card .btn.primary:hover{background:var(--graphite);color:var(--run)}
+.dm-card.done .btn{opacity:.3;pointer-events:none}
+.chips{align-self:flex-end;display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.chip{background:transparent;border:2px solid var(--run);color:var(--run);padding:9px 14px;font:600 .95rem/1 var(--body);cursor:pointer;border-radius:0}
+.chip:hover{background:var(--run);color:var(--graphite)}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes blink{50%{opacity:.25}}
 /* stop */
 .stopsec{border-top:1px solid var(--line);text-align:center}
 .estop{display:block;width:100%;max-width:1100px;margin:56px auto 0;aspect-ratio:3.2/1;border:6px solid var(--need);background:var(--need);color:var(--graphite);font:700 clamp(4rem,14vw,11rem)/1 var(--display);text-transform:uppercase;letter-spacing:.08em;cursor:pointer;border-radius:0}
@@ -94,8 +133,9 @@ body.stopped .stsec i{background:var(--need)}
 .link{background:none;border:0;padding:14px 0;color:var(--muted);text-decoration:underline;cursor:pointer;font:500 .8125rem/1 var(--mono);text-transform:uppercase;letter-spacing:.06em}
 footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;border-top:1px solid var(--line)}
 @media (max-width:860px){
-  .two,.stage .in,.talk li{grid-template-columns:1fr}
-  .nav .r a:not(:last-child){display:none}
+  .two,.dm,.stage .in,.talk li{grid-template-columns:1fr}
+  .nav .r a.hide-m{display:none}
+  .nav .r{gap:20px}
   .cue{display:none}
   .word{height:clamp(4.5rem,24vw,8rem)}
   .word .display{font-size:clamp(3.4rem,20vw,8rem)}
@@ -115,7 +155,7 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
 <body>
 <header class="nav" id="nav">
   <a class="brand" href="#" aria-label="Danny home"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg>Danny</a>
-  <nav class="r"><a class="l" href="#parts">What he does</a><a class="l" href="#safe">How it stays safe</a><a class="l" href="#get">Get the app</a><a class="l" href="/" data-app-link="/" hidden>Log in</a></nav>
+  <nav class="r"><a class="l hide-m" href="#parts">What he does</a><a class="l hide-m" href="#demo">See it work</a><a class="l hide-m" href="#safe">How it stays safe</a><a class="l" href="#get">Get the app</a><a class="l" href="/" data-app-link="/" hidden>Log in</a></nav>
 </header>
 
 <section class="hero">
@@ -146,17 +186,25 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   <div class="in"><h2 class="display rv">Danny asks. You stamp it.</h2></div>
 </section>
 
-<section class="sec">
-  <div class="in two">
-    <div class="rv"><p class="mono" style="margin-bottom:20px">Try it</p><h2 class="h2 display">One tap. Your call.</h2><p class="lede">This is what Danny hands you. Approve it, send it back, or drop it.</p></div>
-    <div class="rv" aria-live="polite">
-      <div class="ticket" id="ticket">
-        <div class="th"><span class="mono" id="t-no"></span><span class="tag need" id="t-tag">Needs you</span></div>
-        <div class="tb"><h3 id="t-title"></h3><p class="mono lab">Danny drafted this</p><blockquote id="t-body"></blockquote></div>
-        <div class="stamp" id="t-stamp">Approved</div>
-        <div class="tf"><button class="btn primary" data-act="approve">Approve</button><button class="btn" data-act="change">Change</button><button class="btn" data-act="drop">Drop</button></div>
+<section class="sec" id="demo">
+  <div class="in dm">
+    <div class="rv">
+      <p class="mono" style="margin-bottom:20px">See it work</p>
+      <h2 class="h2 display">A day with Danny.</h2>
+      <p class="lede" id="dm-cap"></p>
+      <div class="dm-tabs" id="dm-tabs" role="tablist" aria-label="Pick a moment">
+        <button role="tab" data-s="morning">Morning</button>
+        <button role="tab" data-s="email">Email</button>
+        <button role="tab" data-s="remember">Remembers</button>
+        <button role="tab" data-s="watch">Watches</button>
       </div>
-      <p class="hint mono" id="t-hint">Example. Nothing goes out until you tap.</p>
+      <p class="hint mono" style="margin-top:20px">A sample conversation. Names, prices and listings are made up. The buttons work: tap them.</p>
+    </div>
+    <div class="rv">
+      <div class="phone" aria-label="Danny chat demo">
+        <div class="ph-top"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="#cdf03c" fill-rule="evenodd" d="M10 8H38L56 26V38L38 56H10Z M22 20V44H34L44 34V30L34 20Z"/></svg>Danny<span class="tag run">Running</span></div>
+        <div class="feed" id="dm-feed" role="log" aria-live="polite"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -228,21 +276,92 @@ footer{padding:28px var(--pad) 48px;display:flex;flex-wrap:wrap;justify-content:
   // hero video: if the file isn't there, the poster stays
   var v=$("hv");v.addEventListener("error",function(){v.style.display="none"},true);
   if(reduce){v.removeAttribute("autoplay");v.pause()}
-  // ticket
-  var orders=[
-    {no:"Work order 0412",title:"Reply to Marlene",body:"Hi Marlene, Tuesday works. Quote's $1,800, two weeks out. Want me to hold the slot?"},
-    {no:"Work order 0413",title:"Follow up with Priya",body:"Hi Priya, checking in on the logo files. Need anything from me to get them across?"},
-    {no:"Work order 0414",title:"Note for Dave's quote",body:"Net 30. Two revision rounds included. Third round billed hourly."}
-  ],i=0,t=$("ticket");
-  function show(){var o=orders[i];$("t-no").textContent=o.no;$("t-title").textContent=o.title;$("t-body").textContent=o.body;$("t-tag").textContent="Needs you";$("t-tag").className="tag need";t.className="ticket"}
-  show();
-  t.addEventListener("click",function(e){
-    var a=e.target.dataset&&e.target.dataset.act;if(!a||t.classList.contains("done"))return;
-    $("t-stamp").textContent={approve:"Approved",change:"Sent back",drop:"Dropped"}[a];t.classList.add("done");if(a!=="approve")t.classList.add("drop");
-    $("t-tag").textContent=a==="approve"?"Done":"Held";$("t-tag").className="tag "+(a==="approve"?"run":"off");
-    $("t-hint").textContent=a==="approve"?"Recorded. Danny asks, you decide.":"Your call. Danny doesn't send it.";
-    setTimeout(function(){i=(i+1)%orders.length;show();$("t-hint").textContent="Next one. Nothing goes out until you tap."},2600);
-  });
+  // chat demo: scripted, nothing leaves the page
+  var feed=$("dm-feed"),capEl=$("dm-cap"),tabs=$("dm-tabs"),token=0,started=false,st={};
+  var NOTE={ok:["Done","run"],no:["Held","off"]};
+  var SC={
+    morning:{cap:"He starts the day for you: the weather, your calendar, what's open, what moved.",steps:[
+      {d:"Morning. Here's your day."},
+      {card:{title:"Thursday",rows:[["Weather","Cold, 4\u00b0C. Coat day. Rain after 3."],["Calendar","Dentist 10:30. Call with Priya at 2:00."],["Open","Send Dave's quote. Renew the van insurance."],["Goals","Two new listings on your truck search."]]}},
+      {d:"The insurance runs out Friday. Want a nudge this afternoon?"},
+      {chips:[{t:"Yes, 3pm",then:[{d:"Set for 3:00 today."}]},{t:"Not now",then:[{d:"Okay. It stays on your list."}]}]}
+    ]},
+    email:{cap:"He reads, drafts, and waits. Nothing is sent until you tap.",steps:[
+      {u:"Marlene wrote about Tuesday. Reply for me."},
+      {d:"Read it. She wants Tuesday and a quote. Draft's ready."},
+      {card:{no:"Needs you",title:"Reply to Marlene",body:"Hi Marlene, Tuesday works. Quote's $1,800, two weeks out. Want me to hold the slot?",
+        buttons:[["ok","Approve",1],["change","Change"],["drop","Drop"]],
+        result:{ok:["Sent","run"],change:["Sent back","off"],drop:["Dropped","off"]},
+        then:{ok:[{d:"Sent."}],change:[{d:"What should I change?"}],drop:[{d:"Dropped. Nothing was sent."}]}}}
+    ]},
+    remember:{cap:"Tell him once. He keeps it, shows you what he kept, and you can undo any of it.",steps:[
+      {u:"My sister's birthday is March 14. She's turning 40."},
+      {d:"Got it."},
+      {card:{no:"Noticed",title:"Sister",body:"Birthday March 14. Turning 40.",buttons:[["undo","Undo"]],result:{undo:["Forgotten","off"]},free:1,tag:["Saved","run"]}},
+      {sep:"Three weeks later"},
+      {u:"Anything coming up this month?"},
+      {d:"Your sister's 40th is March 14. That's in 9 days. Want gift ideas?",skip:"undo"},
+      {chips:[{t:"Yes",then:[{d:"On it. I'll keep it under what you usually spend."}]},{t:"I've got it",then:[{d:"Good. I'll drop it."}]}],skip:"undo"},
+      {d:"Nothing I know of. You had me forget the one note, so I'm not tracking a birthday.",only:"undo"}
+    ]},
+    watch:{cap:"Tell him what you're hunting for. He checks, and only speaks up when something new shows.",steps:[
+      {u:"I'm looking for a used Tacoma. Under $30k, under 100k miles."},
+      {d:"Saved as a goal. I'll check every day and only message you when something new shows up."},
+      {sep:"Two days later"},
+      {d:"New one."},
+      {card:{no:"New listing",title:"2019 Tacoma SR5",rows:[["Price","$28,400"],["Miles","78,000"],["Posted","Today"]],tag:["New","run"],buttons:[["draft","Draft a message",1],["skip","Keep watching"]],result:{draft:["Drafting","run"],skip:["Watching","off"]},then:{draft:[{d:"Draft's ready. It'll wait for your tap before it goes out."}],skip:[{d:"Okay. I'll keep checking."}]}}}
+    ]}
+  };
+  function sleep(ms){return new Promise(function(r){setTimeout(r,reduce?0:ms)})}
+  function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+  function add(n){feed.appendChild(n);feed.scrollTop=feed.scrollHeight;return n}
+  async function say(who,text,my){
+    if(who==="d"){var t=el("div","msg d typing");for(var i=0;i<3;i++)t.appendChild(el("i"));add(t);await sleep(850);t.remove()}
+    if(my!==token)return;add(el("div","msg "+who,text));await sleep(450)
+  }
+  function wait(box){return new Promise(function(res){box.addEventListener("click",function h(e){var k=e.target.getAttribute&&e.target.getAttribute("data-k");if(!k)return;box.removeEventListener("click",h);res(k)})})}
+  function card(c){
+    var n=el("div","dm-card"),h=el("div","h"),tag=el("span","tag "+(c.tag?c.tag[1]:"need"),c.tag?c.tag[0]:"Needs you");
+    h.appendChild(el("span","mono",c.no||"Today"));if(c.tag||c.buttons)h.appendChild(tag);n.appendChild(h);
+    var b=el("div","b");b.appendChild(el("p","t",c.title));if(c.body)b.appendChild(el("blockquote",null,c.body));
+    (c.rows||[]).forEach(function(r){var w=el("div","row");w.appendChild(el("b",null,r[0]));w.appendChild(el("span",null,r[1]));b.appendChild(w)});
+    n.appendChild(b);
+    if(c.buttons){var a=el("div","act");c.buttons.forEach(function(x){var bt=el("button","btn"+(x[2]?" primary":""),x[1]);bt.setAttribute("data-k",x[0]);a.appendChild(bt)});n.appendChild(a)}
+    n._tag=tag;return n
+  }
+  async function run(steps,my){
+    for(var i=0;i<steps.length;i++){
+      if(my!==token)return;var s=steps[i];
+      if((s.skip&&st[s.skip])||(s.only&&!st[s.only]))continue;
+      if(s.u)await say("u",s.u,my);
+      else if(s.d)await say("d",s.d,my);
+      else if(s.sep){add(el("div","sep mono",s.sep));await sleep(600)}
+      else if(s.card){
+        var c=s.card,n=add(card(c));await sleep(700);
+        if(c.free){
+          n.addEventListener("click",function(e){var k=e.target.getAttribute&&e.target.getAttribute("data-k");if(!k||st[k])return;st[k]=true;n.classList.add("done");n._tag.textContent=c.result[k][0];n._tag.className="tag "+c.result[k][1]});
+        }else if(c.buttons){
+          var k=await wait(n);if(my!==token)return;
+          n.classList.add("done");n._tag.textContent=c.result[k][0];n._tag.className="tag "+c.result[k][1];
+          await sleep(500);await run(c.then[k],my);return
+        }
+      }
+      else if(s.chips){
+        var box=add(el("div","chips"));s.chips.forEach(function(c,j){var b=el("button","chip",c.t);b.setAttribute("data-k",j);box.appendChild(b)});
+        var j=await wait(box);if(my!==token)return;box.remove();
+        await say("u",s.chips[j].t,my);await run(s.chips[j].then,my);return
+      }
+    }
+  }
+  function play(key){
+    token++;st={};feed.textContent="";capEl.textContent=SC[key].cap;
+    tabs.querySelectorAll("button").forEach(function(b){b.setAttribute("aria-selected",b.getAttribute("data-s")===key)});
+    run(SC[key].steps,token)
+  }
+  tabs.addEventListener("click",function(e){var k=e.target.getAttribute&&e.target.getAttribute("data-s");if(k)play(k)});
+  function first(){if(!started){started=true;play("morning")}}
+  capEl.textContent=SC.morning.cap;tabs.firstElementChild.setAttribute("aria-selected","true");
+  if("IntersectionObserver" in window){new IntersectionObserver(function(es,o){if(es[0].isIntersecting){o.disconnect();first()}},{threshold:.35}).observe(feed)}else first();
   var es=$("estop");es.addEventListener("click",function(){var s=document.body.classList.toggle("stopped");es.setAttribute("aria-pressed",s);es.textContent=s?"Start":"Stop";$("st-w").textContent=s?"Stopped":"Running"});
 })();
 </script>
