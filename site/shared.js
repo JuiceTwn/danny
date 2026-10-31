@@ -11,12 +11,17 @@
     b.hidden=true;
     b.addEventListener("click",function(){if(deferred){deferred.prompt();deferred=null;b.hidden=true}});
   });
-  // Invite form. Set window.DANNY_INVITE_URL when the VPS endpoint exists; until then say so plainly.
+  // The app lives on app.<this domain>. Set window.DANNY_APP_ORIGIN to override (local previews have no app).
+  var host=location.hostname.replace(/^www\./,"");
+  var local=/^(localhost|127\.|\[|\d+\.\d+\.\d+\.\d+$)/.test(host)||host.indexOf(".")<0;
+  var appOrigin=window.DANNY_APP_ORIGIN||(local?"":location.protocol+"//app."+host);
+  document.querySelectorAll("[data-app-link]").forEach(function(a){if(appOrigin)a.href=appOrigin+(a.getAttribute("data-app-link")||"/");else a.hidden=true});
+  // Invite form. Posts to the app's API; on a local preview there is none, so say so plainly.
   document.querySelectorAll("form.invite").forEach(function(f){
     var msg=f.parentNode.querySelector(".invite-msg");
     f.addEventListener("submit",function(e){
       e.preventDefault();
-      var url=window.DANNY_INVITE_URL;
+      var url=window.DANNY_INVITE_URL||(appOrigin&&appOrigin+"/v1/invite-requests");
       if(!url){msg.textContent="Preview build: invite requests aren't connected yet. Nothing was saved.";return}
       fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:f.email.value})})
         .then(function(r){msg.textContent=r.ok?"Got it. You'll hear from us if you're in.":"That didn't go through. Try again."})

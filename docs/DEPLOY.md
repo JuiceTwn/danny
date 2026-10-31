@@ -5,6 +5,7 @@ Danny runs on one small server (a VPS) with Docker. This is the whole path from 
 ## What you need
 - A VPS running **Ubuntu 22.04/24.04 or Debian 12**, with root access. About 1 vCPU and 2 GB RAM is enough. (Use the host's VPS product, not shared or "web" hosting.)
 - A domain, with an **A record** for `app.yourdomain.com` pointing at the server's IP. Wait for it to resolve.
+- Optional but recommended: **A records** for `yourdomain.com` (and `www`) pointing at the same IP. `yourdomain.com` then serves the homepage from `site/`, and `app.yourdomain.com` serves the app. Setup derives this from the `app.` name; no extra step.
 - The repo on the server. It is private, so use a read-only deploy key or a fine-grained token with read access to this repo only.
 
 ## Install (one command)
@@ -78,3 +79,17 @@ How it stays safe: the app never gets Docker or a shell. It only creates an empt
 - `bash deploy/test/integration.sh` uses real containers: first-run setup, readiness, login, backup, restore (and that login still works afterwards), and the watchdog bringing back a stopped API and a stopped database. It needs a Docker daemon.
 - `shellcheck` is clean on every script.
 - **Not tested on a real server:** `bootstrap.sh`'s own system steps (apt, installing Docker, ufw, swap, systemd timers) can only be run for real on a fresh Ubuntu/Debian machine. Treat the first run as the test, on a server you can afford to wipe.
+
+
+## Moving an existing server from `yourdomain.com` to `app.yourdomain.com`
+
+If Danny was first set up on the bare domain, so it serves the app where the homepage should be:
+
+1. In DNS, add an **A record** for `app` pointing at the server. Keep the existing record for the bare domain, and add `www` if you want it. Wait until `app.yourdomain.com` resolves.
+2. On the server, in the Danny folder, edit `.env`: set `APP_URL` and `APP_ORIGINS` to `https://app.yourdomain.com`, `VAPID_SUBJECT` to the same, and `MARKETING_ORIGINS` to `https://yourdomain.com`.
+3. Run `danny update` (to get the homepage files), then `./setup.sh app.yourdomain.com`. It rewrites the Caddyfile and restarts Caddy, which fetches a certificate for the new name.
+4. Google sign-in: in the Google Cloud console, change the **authorized redirect URI** to the new address (the Connections screen shows it), or Connect Google will fail.
+
+What people will notice: they sign in again at the new address, and re-enable notifications and re-add the app to the Home Screen from there (cookies, push subscriptions and installed apps belong to the address they were created on). The old address stops serving the app. A small file, `site/sw.js`, removes the old app's cached copy from browsers that visited before, so they see the homepage and not a stale app.
+
+`site/concepts.html` and the `a-workorder`, `b-shiftlog` and `c-console` folders are design alternatives, not part of the homepage. They are served too, at their own paths, until you delete them.

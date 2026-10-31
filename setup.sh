@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # One-command setup on a fresh VPS with Docker installed.
 #   ./setup.sh                 plain HTTP on 127.0.0.1:8787, for trying it out (not reachable from outside the machine)
-#   ./setup.sh app.example.com automatic HTTPS with Caddy (point the domain's DNS at this server first)
+#   ./setup.sh app.example.com automatic HTTPS with Caddy (point the domain's DNS at this server first).
+#                              The app is served there; example.com serves the homepage in site/.
+#   ./setup.sh danny.example.com example.com   the same, when the app's name does not start with "app."
 set -euo pipefail
 cd "$(dirname "$0")"
 DOMAIN="${1:-}"
+# The homepage's domain: the second argument, else the app's domain without its leading "app.". Empty means no homepage.
+SITE="${2:-}"
+[ -n "$SITE" ] || case "$DOMAIN" in app.*.*) SITE="${DOMAIN#app.}" ;; esac
 rand() { head -c 24 /dev/urandom | base64 | tr -d '=+/' | head -c 32; }
 
 if [ ! -f .env ]; then
@@ -33,16 +38,31 @@ if [ ! -f .env ]; then
       echo "COOKIE_SECURE=false"
     fi
     echo "# Origins of your marketing site, so its invite form can post here"
-    echo "MARKETING_ORIGINS="
+    echo "MARKETING_ORIGINS=${SITE:+https://$SITE}"
   } > .env
   chmod 600 .env
   echo "Wrote .env. Back up DATA_KEYS somewhere safe and separate: if it is lost, encrypted data cannot be recovered."
   echo "Add ANTHROPIC_API_KEY to it when you have one (without it, Danny runs in demo mode)."
 fi
 
+# The invite form on the homepage posts to the app from another origin, which the API only allows if it is listed here.
+if [ -n "$SITE" ] && grep -q '^MARKETING_ORIGINS=$' .env; then
+  sed -i "s#^MARKETING_ORIGINS=\$#MARKETING_ORIGINS=https://$SITE#" .env
+fi
+
 if [ -n "$DOMAIN" ]; then
-  # /readyz is for the watchdog and Docker on this machine only, so it is not served to the internet.
-  printf '%s {\n\t@internal path /readyz\n\thandle @internal {\n\t\trespond 404\n\t}\n\thandle {\n\t\treverse_proxy api:8787\n\t}\n}\n' "$DOMAIN" > deploy/Caddyfile
+  {
+    if [ -n "$SITE" ]; then
+      # The homepage: plain files from site/, so `danny update` publishes a change with no rebuild.
+      printf '%s {\n\troot * /srv/site\n\tencode zstd gzip\n\theader {\n\t\tX-Content-Type-Options nosniff\n\t\tReferrer-Policy strict-origin-when-cross-origin\n\t\tX-Frame-Options DENY\n\t}\n\tfile_server\n}\n\n' "$SITE"
+      # www only if its DNS record exists: asking for a certificate for a name that doesn't resolve fails and retries.
+      if getent hosts "www.$SITE" > /dev/null 2>&1; then
+        printf 'www.%s {\n\tredir https://%s{uri} permanent\n}\n\n' "$SITE" "$SITE"
+      fi
+    fi
+    # /readyz is for the watchdog and Docker on this machine only, so it is not served to the internet.
+    printf '%s {\n\t@internal path /readyz\n\thandle @internal {\n\t\trespond 404\n\t}\n\thandle {\n\t\treverse_proxy api:8787\n\t}\n}\n' "$DOMAIN"
+  } > deploy/Caddyfile
   PROFILE=(--profile https)
 else
   PROFILE=()

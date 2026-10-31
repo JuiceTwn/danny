@@ -53,6 +53,7 @@ services:
     ports: ["80:80", "443:443"]
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv/site:ro
       - caddydata:/data
 
 volumes:
