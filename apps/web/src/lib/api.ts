@@ -22,6 +22,22 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
+/** Send a recording and get the words back. The server never keeps the audio. */
+export async function transcribe(blob: Blob, seconds: number): Promise<string> {
+  const res = await fetch("/v1/transcribe", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": blob.type || "audio/webm", "x-audio-seconds": seconds.toFixed(1) },
+    body: blob,
+  });
+  const data = res.headers.get("content-type")?.includes("json") ? await res.json() : null;
+  if (!res.ok) {
+    if (res.status === 401) onUnauthorized();
+    throw new ApiError(res.status, data?.error ?? "error", data?.message);
+  }
+  return String(data?.text ?? "");
+}
+
 /** The cards Danny can show under a message. The app draws exactly these (see components/Cards.svelte); the server only sends these. */
 export type Card =
   | { kind: "task"; id: string; title: string; remindAt: string | null; dueAt: string | null }
@@ -79,6 +95,7 @@ export type Settings = {
   killSwitch: boolean;
   model: string;
   demo: boolean;
+  voiceTyping: boolean;
   canSetCap: boolean;
   dailyCapUsd?: number;
   spentTodayUsd?: number;

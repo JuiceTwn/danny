@@ -30,6 +30,11 @@ const schema = z.object({
   // Placeholders. Check against Anthropic's current pricing before real traffic.
   PRICE_INPUT_PER_MTOK_USD: z.coerce.number().default(1),
   PRICE_OUTPUT_PER_MTOK_USD: z.coerce.number().default(5),
+  // Voice typing (speech to text). Without a key the mic button stays hidden. Get one at elevenlabs.io and put it in .env, never in chat.
+  ELEVENLABS_API_KEY: z.string().optional(),
+  STT_MODEL: z.string().default("scribe_v2"),
+  // Placeholder: check ElevenLabs' current price for speech to text before real traffic.
+  PRICE_STT_PER_HOUR_USD: z.coerce.number().default(0.22),
   // Anthropic bills each web search separately, on top of tokens.
   PRICE_SEARCH_USD: z.coerce.number().default(0.01),
   // Where the Owner tab drops update and backup requests, and reads the results. A root-owned script on the server does the work (deploy/ops.sh).
@@ -72,6 +77,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     webDir: c.WEB_DIR,
     anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
     model: c.MODEL,
+    voice: c.ELEVENLABS_API_KEY ? { apiKey: c.ELEVENLABS_API_KEY, model: c.STT_MODEL, pricePerHourUsd: c.PRICE_STT_PER_HOUR_USD } : null,
     opsDir: c.OPS_DIR,
     vapid: c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY ? { publicKey: c.VAPID_PUBLIC_KEY, privateKey: c.VAPID_PRIVATE_KEY, subject: c.VAPID_SUBJECT } : null,
     google: c.GOOGLE_CLIENT_ID && c.GOOGLE_CLIENT_SECRET ? { clientId: c.GOOGLE_CLIENT_ID, clientSecret: c.GOOGLE_CLIENT_SECRET, redirectUri: `${c.APP_URL.replace(/\/$/, "")}/v1/connections/google/callback` } : null,

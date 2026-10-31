@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Voice typing.** A mic button next to Send: tap, speak, tap again, and your words appear in the box to read and fix. It never sends by itself. Recordings go to ElevenLabs' speech to text through the server (`POST /v1/transcribe`) and are not kept. Up to about two minutes each. It goes through the stop switch, the daily allowance and the spend ledger like everything else, billed by the second (`PRICE_STT_PER_HOUR_USD`, default 0.22: check ElevenLabs' current price). Needs `ELEVENLABS_API_KEY` in `.env`; without it the button stays hidden. No migration. Needs a real iPhone check from the Home Screen app, which the tests can't cover. Say in the privacy policy that voice goes to a third party.
+
 Danny works for you without being asked.
 
 - **Better recall.** Which notes Danny sees, and what `recall` returns, no longer needs the exact same word: *texts* finds *texting*, *moved* finds *Lives in Toronto*, *my brother* finds the note about a sister, *my instrument* finds the guitar. It also reads the last three things you said, so "what about her?" still finds the person you were just discussing, and a name in your message now beats a loose match. Among notes that match, newer, recently used and soon-due plans come first. Still plain code on the server: no model call, no cost, nothing sent out. No migration.

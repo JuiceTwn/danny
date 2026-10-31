@@ -1,7 +1,8 @@
 <script lang="ts">
   import Rich from "./Rich.svelte";
-  import { onMount, tick } from "svelte";
-  import { api, chatStream, type Card, type HistoryMsg, type Task } from "../lib/api";
+  import { onDestroy, onMount, tick } from "svelte";
+  import { api, chatStream, transcribe, type Card, type HistoryMsg, type Task } from "../lib/api";
+  import { canRecord, DictateError, startRecording, type Recording } from "../lib/dictate";
   import Cards from "./Cards.svelte";
   import Preview from "./Preview.svelte";
   import { app, refresh } from "../lib/store.svelte";
@@ -59,6 +60,65 @@
     boxEl.style.height = "auto";
     boxEl.style.height = Math.min(boxEl.scrollHeight, 168) + "px";
   }
+
+
+  // Voice typing: tap the mic, speak, tap again. The words land in the box to read and fix. Nothing is sent until you press Send.
+  let mic = $state<"idle" | "recording" | "working">("idle");
+  let micNote = $state("");
+  let secs = $state(0);
+  let recording: Recording | null = null;
+  let tick1: ReturnType<typeof setInterval> | undefined;
+  const micOn = $derived(Boolean(app.settings?.voiceTyping) && canRecord());
+  const clock = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, "0")}`;
+
+  async function toggleMic() {
+    if (mic === "working") return;
+    if (mic === "recording") return finishMic();
+    micNote = "";
+    try {
+      recording = await startRecording(() => void finishMic());
+    } catch (err) {
+      micNote = err instanceof DictateError ? err.message : "Couldn't start the microphone.";
+      return;
+    }
+    secs = 0;
+    mic = "recording";
+    tick1 = setInterval(() => secs++, 1000);
+  }
+  async function finishMic() {
+    if (!recording) return;
+    const r = recording;
+    recording = null;
+    clearInterval(tick1);
+    mic = "working";
+    try {
+      const { blob, seconds } = await r.stop();
+      if (seconds < 0.5 || blob.size < 500) {
+        micNote = "That was too short. Tap the mic and speak.";
+        return;
+      }
+      const words = (await transcribe(blob, seconds)).trim();
+      if (!words) {
+        micNote = "Didn't catch that. Try again a bit closer.";
+        return;
+      }
+      input = input.trim() ? `${input.trimEnd()} ${words}` : words;
+      await tick();
+      grow();
+      boxEl?.focus();
+    } catch (err) {
+      micNote = (err as { message?: string }).message || "Couldn't hear that. Try again.";
+    } finally {
+      mic = "idle";
+    }
+  }
+  function cancelMic() {
+    recording?.cancel();
+    recording = null;
+    clearInterval(tick1);
+    mic = "idle";
+  }
+  onDestroy(cancelMic);
 
   async function send(text: string) {
     text = text.trim();
@@ -212,12 +272,28 @@
         id="msg" bind:this={boxEl} bind:value={input} rows="1" placeholder={app.settings?.killSwitch ? "Danny is stopped" : "Tell Danny what's up"}
         oninput={grow} onkeydown={onKey} enterkeyhint="send"
       ></textarea>
+      {#if micOn}
+        {#if mic === "recording"}
+          <button type="button" class="btn small" onclick={cancelMic} aria-label="Cancel recording">Cancel</button>
+        {/if}
+        <button
+          type="button" class="btn mic" class:rec={mic === "recording"} onclick={toggleMic} disabled={mic === "working"}
+          aria-label={mic === "recording" ? "Stop and write it down" : mic === "working" ? "Writing it down" : "Speak instead of typing"}
+        >
+          {#if mic === "recording"}<span class="mono">{clock(secs)}</span>
+          {:else if mic === "working"}<span class="mono">...</span>
+          {:else}
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          {/if}
+        </button>
+      {/if}
       {#if busy}
         <button type="button" class="btn warn" onclick={() => controller?.abort()}>Stop</button>
-      {:else}
+      {:else if mic !== "recording"}
         <button class="btn primary" disabled={!input.trim()}>Send</button>
       {/if}
     </div>
+    {#if micNote}<p class="col micnote mono" role="status">{micNote}</p>{/if}
   </form>
 </div>
 
@@ -249,6 +325,13 @@
   textarea { flex: 1; min-width: 0; resize: none; min-height: 48px; max-height: 168px; padding: 11px 14px; background: var(--panel); border: 2px solid var(--line); color: var(--paper); line-height: 1.4; }
   textarea:focus { border-color: var(--run); outline: none; }
   .bar .btn { min-width: 96px; }
+  .bar .mic { min-width: 52px; padding: 0 12px; }
+  .bar .mic.rec { background: var(--need); border-color: var(--need); color: var(--graphite); animation: pulse 1.4s ease-in-out infinite; }
+  .bar .mic.rec .mono { color: var(--graphite); }
+  .micnote { margin-top: 8px; color: var(--need); }
+  @keyframes pulse { 50% { opacity: .65; } }
+  @media (prefers-reduced-motion: reduce) { .bar .mic.rec { animation: none; } }
+
 
   @media (max-width: 859px) {
     .log { padding: 4px 16px 12px; padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
@@ -257,6 +340,7 @@
     .who { flex-direction: row; gap: 10px; align-items: baseline; padding-top: 0; }
     .thinking { padding-left: 0; }
     .bar .btn { min-width: 78px; padding: 0 16px; }
+    .bar .mic { min-width: 52px; padding: 0 10px; }
   }
   .noticed { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: .9375rem; color: var(--muted); }
   .noticed li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

@@ -13,6 +13,7 @@ import type { Db } from "./db/client.js";
 import { Health } from "./lib/health.js";
 import { GoogleService } from "./lib/google.js";
 import type { PushSender } from "./lib/push.js";
+import type { Transcriber } from "./lib/transcribe.js";
 import type { Vault } from "./lib/vault.js";
 import type { ToolRegistry } from "./tools/registry.js";
 import { connectionRoutes } from "./routes/connections.js";
@@ -30,8 +31,9 @@ import { connectorRoutes } from "./routes/connectors.js";
 import { interestRoutes } from "./routes/interests.js";
 import { styleRoutes } from "./routes/style.js";
 import { previewRoutes } from "./routes/preview.js";
+import { transcribeRoutes } from "./routes/transcribe.js";
 
-export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch; previewFetch?: import("./lib/preview.js").FetchPage };
+export type Deps = { config: Config; db: Db; model: ModelClient; tools: ToolRegistry; vault: Vault; push: PushSender; google: GoogleService | null; health?: Health; fetchFn?: typeof fetch; previewFetch?: import("./lib/preview.js").FetchPage; transcriber?: Transcriber | null };
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -123,6 +125,7 @@ export async function buildApp(deps: Deps) {
     await r.register(interestRoutes, deps);
     await r.register(styleRoutes, deps);
     await r.register(previewRoutes, deps);
+    await r.register(transcribeRoutes, deps);
     await r.register(adminRoutes, deps);
   });
 
