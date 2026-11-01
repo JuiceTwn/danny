@@ -4,6 +4,8 @@ import { addMemory, forgetMemory, KINDS, lineOf, MAX_MEMORIES, recall } from "..
 import { defineTool, ToolRegistry } from "./registry.js";
 import { gmailTools } from "./gmail.js";
 import { calendarTools } from "./calendar.js";
+import { inboxTools } from "./inbox.js";
+import { waitingTools } from "./waiting.js";
 import { cardTools } from "./cards.js";
 import { githubTools } from "./github.js";
 import { weatherTools } from "./weather.js";
@@ -87,6 +89,6 @@ export const requestApproval = defineTool({
 
 export function createRegistry() {
   const r = new ToolRegistry().register(remember).register(requestApproval).register(recallTool).register(forgetMemoryTool);
-  for (const t of [...taskTools, ...goalTools, ...interestTools, ...styleTools, ...weatherTools, ...githubTools, ...cardTools, ...gmailTools, ...calendarTools]) r.register(t);
+  for (const t of [...taskTools, ...goalTools, ...interestTools, ...styleTools, ...weatherTools, ...githubTools, ...cardTools, ...gmailTools, ...calendarTools, ...inboxTools, ...waitingTools]) r.register(t);
   return r;
 }

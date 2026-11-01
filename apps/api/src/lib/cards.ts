@@ -27,6 +27,12 @@ export const CardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("table"), title: text(80).optional(), columns: z.array(text(30)).min(1).max(5), rows: z.array(z.array(text(80)).max(5)).min(1).max(10) }),
   // A place, with buttons that open a map app.
   z.object({ kind: z.literal("place"), name: text(100), address: text(200).optional(), note: text(140).optional() }),
+  // Emails that need the person to do something. The buttons send a fixed sentence that carries only the message id, never the subject.
+  z.object({
+    kind: z.literal("inbox"),
+    title: text(80).optional(),
+    items: z.array(z.object({ id: z.string().regex(/^[0-9a-f]{6,32}$/i), from: text(80), subject: text(120), why: text(140) })).min(1).max(6),
+  }),
   // A few quick answers, shown as buttons under the last message. Tapping one sends it.
   z.object({ kind: z.literal("replies"), options: z.array(text(40).min(1)).min(1).max(4) }),
 ]);

@@ -233,6 +233,11 @@ describe("chat", () => {
       ["send_email", "external_write"],
       ["list_calendar", "read"],
       ["create_event", "external_write"],
+      ["scan_inbox", "read"],
+      ["show_inbox", "read"],
+      ["watch_reply", "internal"],
+      ["list_waiting", "read"],
+      ["stop_waiting", "internal"],
       ["send_test_email", "external_write"],
     ]);
   });

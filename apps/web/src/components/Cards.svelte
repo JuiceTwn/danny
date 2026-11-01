@@ -12,6 +12,7 @@
 
   let done = $state<Record<string, string>>({}); // task id -> what just happened, until the list catches up
   let failed = $state("");
+  let asked = $state<Record<string, boolean>>({}); // inbox items already dealt with here
 
   let choosing = $state(""); // the task whose snooze choices are open
   const SNOOZES = [
@@ -118,6 +119,28 @@
         <a class="btn small" href="https://www.google.com/maps/search/?api=1&query={maps(c)}" target="_blank" rel="noopener noreferrer">Google Maps</a>
       </div>
     </div>
+  {:else if c.kind === "inbox"}
+    <div class="card">
+      <h3 class="mono">{c.title ?? "Needs you"}</h3>
+      <ul class="rows inbox">
+        {#each c.items.filter((i) => !asked[i.id]) as i (i.id)}
+          <li>
+            <div class="main">
+              <p class="t">{i.subject}</p>
+              <span class="sub">{i.from}{i.why ? ` · ${i.why}` : ""}</span>
+            </div>
+            {#if canReply}
+              <div class="acts">
+                <!-- The sentence carries only the message id: a subject line written by a stranger is never put in front of Danny as if you had typed it. -->
+                <button class="btn small primary" onclick={() => { asked[i.id] = true; onreply(`Draft a reply to email ${i.id}`); }} aria-label="Reply: {i.subject}">Reply</button>
+                <button class="btn small" onclick={() => { asked[i.id] = true; onreply(`Add a task for email ${i.id}`); }} aria-label="Add a task: {i.subject}">Task</button>
+                <button class="btn small" onclick={() => (asked[i.id] = true)} aria-label="Not needed: {i.subject}">Skip</button>
+              </div>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </div>
   {:else if c.kind === "replies" && canReply}
     <div class="replies" role="group" aria-label="Quick replies">
       {#each c.options as o}<button class="chip" onclick={() => onreply(o)}>{o}</button>{/each}
@@ -138,6 +161,7 @@
   .bad { color: var(--need); }
   .rows { display: flex; flex-direction: column; gap: 10px; }
   .rows li { display: flex; gap: 12px; align-items: baseline; }
+  .rows.inbox li { align-items: center; flex-wrap: wrap; justify-content: space-between; }
   .when { flex: 0 0 10.5em; color: var(--muted); font-size: .8125rem; text-transform: none; letter-spacing: 0; }
   .what { min-width: 0; overflow-wrap: anywhere; }
   .sub { color: var(--muted); font-size: .9rem; }

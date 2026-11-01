@@ -1,6 +1,6 @@
 import { pkceChallenge } from "../src/lib/google.js";
 
-type Msg = { id: string; threadId: string; from: string; to?: string; subject: string; date?: string; messageId?: string; references?: string; plain?: string; html?: string; files?: string[] };
+type Msg = { id: string; threadId: string; from: string; to?: string; subject: string; date?: string; messageId?: string; references?: string; plain?: string; html?: string; files?: string[]; labels?: string[]; at?: number };
 const b64 = (s: string) => Buffer.from(s).toString("base64url");
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -97,6 +97,20 @@ export class FakeGoogle {
         const sent = JSON.parse(body) as { raw: string; threadId?: string };
         this.sent.push({ mime: Buffer.from(sent.raw, "base64url").toString("utf8"), threadId: sent.threadId });
         return json(200, { id: `sent-${this.sent.length}` });
+      }
+      const thread = path.match(/^\/threads\/([0-9a-f]+)$/);
+      if (thread && method === "GET") {
+        const inThread = [...this.messages.values()].filter((m) => m.threadId === thread[1]).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+        if (!inThread.length) return json(404, { error: { status: "NOT_FOUND" } });
+        return json(200, {
+          id: thread[1],
+          messages: inThread.map((m) => ({
+            id: m.id,
+            threadId: m.threadId,
+            labelIds: m.labels ?? ["INBOX"],
+            payload: { headers: [{ name: "From", value: m.from }, { name: "To", value: m.to ?? this.email }, { name: "Subject", value: m.subject }] },
+          })),
+        });
       }
       const one = path.match(/^\/messages\/([0-9a-f]+)$/);
       if (one && method === "GET") {

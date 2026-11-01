@@ -41,6 +41,7 @@
   let learnOn = $state(true);
   let autoMemOn = $state(true);
   let adhdOn = $state(false);
+  let prepOn = $state(false);
   $effect(() => {
     if (app.me) {
       quietStart = app.me.user.quietStart;
@@ -49,6 +50,7 @@
       learnOn = app.me.user.learnEnabled;
       autoMemOn = app.me.user.autoMemory;
       adhdOn = app.me.user.adhdMode;
+      prepOn = app.me.user.eventPrep;
     }
   });
   const HOURS = Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, "0")}:00`] as const);
@@ -90,7 +92,7 @@
       error = "Couldn't forget those. Try again.";
     }
   }
-  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean; adhdMode?: boolean };
+  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean; adhdMode?: boolean; eventPrep?: boolean };
   const VOICES = [
     ["foreman", "Foreman: short and dry"],
     ["warm", "Warm: friendly and encouraging"],
@@ -130,7 +132,7 @@
     briefBusy = true;
     error = "";
     try {
-      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean }>("PATCH", "/v1/profile", patch);
+      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean }>("PATCH", "/v1/profile", patch);
       if (app.me) {
         app.me.user.briefingEnabled = r.briefingEnabled;
         app.me.user.briefingTime = r.briefingTime;
@@ -143,6 +145,7 @@
         app.me.user.learnEnabled = r.learnEnabled;
         app.me.user.autoMemory = r.autoMemory;
         app.me.user.adhdMode = r.adhdMode;
+        app.me.user.eventPrep = r.eventPrep;
       }
     } catch {
       error = "Couldn't save that. Try again.";
@@ -359,6 +362,12 @@
       <h2 class="display">Remembering</h2>
       <p>{autoMemOn ? "After you tell him something about your life or work, Danny quietly keeps what's worth keeping, without being asked. You see it in the chat with an Undo, and in the Memory tab." : "Danny only remembers what you ask him to. Nothing is saved on his own."}</p>
       <button class="btn {autoMemOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ autoMemory: !autoMemOn })}>{autoMemOn ? "Only remember what I ask" : "Let him remember on his own"}</button>
+    </section>
+
+    <section>
+      <h2 class="display">Before your events</h2>
+      <p>{prepOn ? "On. About an hour before an event with a place or people (10 minutes before a video call), Danny sends where it is, who's going, the join link and your last email with them. Needs Google Calendar connected. Quiet hours: it goes in the chat without a buzz." : "Off. Turn it on and Danny will send a short heads-up before each event: where, who, the join link, and your last email with them. Needs Google Calendar connected."}</p>
+      <button class="btn {prepOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ eventPrep: !prepOn })}>{prepOn ? "Turn off event heads-ups" : "Turn on event heads-ups"}</button>
     </section>
 
     <section>

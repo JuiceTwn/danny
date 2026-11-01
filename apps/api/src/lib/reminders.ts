@@ -5,7 +5,7 @@ import { auditLog, conversations, messages, pushSubscriptions, tasks, users } fr
 import { inQuietHours, nextQuietEnd } from "./time.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import type { Health } from "./health.js";
-import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueMemoryTidy, runDueWrapups, runStalledGoalCheckins, runTaskCheckins, type BackgroundDeps } from "./background.js";
+import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueMemoryTidy, runDueWrapups, runStalledGoalCheckins, runTaskCheckins, runWaitingChecks, runEventPreps, type BackgroundDeps } from "./background.js";
 import type { Vault } from "./vault.js";
 
 /**
@@ -111,6 +111,8 @@ export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
         await runDueGoalChecks(bg);
         await runStalledGoalCheckins(bg);
         await runTaskCheckins(bg);
+        await runWaitingChecks(bg);
+        await runEventPreps(bg);
         await runDueLearning(bg);
         await runDueMemoryTidy(bg);
       }

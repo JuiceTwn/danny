@@ -9,13 +9,21 @@ type ApiEvent = {
   location?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
-  attendees?: { email?: string; self?: boolean; responseStatus?: string }[];
+  attendees?: { email?: string; displayName?: string; self?: boolean; responseStatus?: string }[];
+  hangoutLink?: string;
+  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   organizer?: { email?: string; self?: boolean };
 };
 
-export type CalEvent = { id: string; title: string; start: string; end: string; allDay: boolean; location: string; others: number; declined: boolean };
+/** `people` are the other guests (a name when the invite has one, else the address); `emails` are their addresses; `link` is a video-call link, https only. */
+export type CalEvent = { id: string; title: string; start: string; end: string; allDay: boolean; location: string; others: number; declined: boolean; people: string[]; emails: string[]; link: string };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+
+const videoLink = (e: ApiEvent) => {
+  const u = e.hangoutLink ?? e.conferenceData?.entryPoints?.find((p) => p.entryPointType === "video")?.uri ?? "";
+  return /^https:\/\/[^\s]{1,300}$/.test(u) ? u : "";
+};
 
 /** Events between two instants, soonest first. Recurring events come back as single occurrences. */
 export async function listEvents(ctx: ToolCtx, from: Date, to: Date, max = 25): Promise<CalEvent[]> {
@@ -33,6 +41,9 @@ export async function listEvents(ctx: ToolCtx, from: Date, to: Date, max = 25): 
       location: clip((e.location ?? "").replace(/\s+/g, " "), 80),
       others: (e.attendees ?? []).filter((a) => !a.self).length,
       declined: (e.attendees ?? []).some((a) => a.self && a.responseStatus === "declined"),
+      people: (e.attendees ?? []).filter((a) => !a.self && (a.displayName || a.email)).map((a) => clip((a.displayName || a.email || "").replace(/\s+/g, " "), 60)),
+      emails: (e.attendees ?? []).filter((a) => !a.self && a.email).map((a) => a.email!),
+      link: videoLink(e),
     }));
 }
 

@@ -44,6 +44,8 @@ export const users = pgTable(
     quietEnd: integer("quiet_end").notNull().default(7),
     units: text("units").notNull().default("metric"), // metric | imperial, for weather
     learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
+    eventPrep: boolean("event_prep").notNull().default(false), // opt-in: a heads-up before calendar events (where, who, join link, last email)
+    prepCheckedAt: timestamp("prep_checked_at", { withTimezone: true }), // last time the calendar was looked at for this, so it is not asked every half minute
     adhdMode: boolean("adhd_mode").notNull().default(false), // opt-in: Danny breaks things down, offers one thing at a time and plans snoozes with you
     autoMemory: boolean("auto_memory").notNull().default(true), // let Danny save what you mention in passing, without being asked
     lastLearnedAt: timestamp("last_learned_at", { withTimezone: true }),
@@ -273,6 +275,38 @@ export const goals = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("goals_ws_idx").on(t.workspaceId, t.userId, t.status)],
+);
+
+// "Tell me if Sam hasn't replied by Friday." Danny looks at the Gmail thread on the day and speaks up only if nobody has answered.
+export const waitingOn = pgTable(
+  "waiting_on",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    threadId: text("thread_id").notNull(), // the Gmail thread
+    subjectEnc: bytea("subject_enc").notNull(),
+    whoEnc: bytea("who_enc").notNull(), // who the reply is expected from
+    baselineCount: integer("baseline_count").notNull(), // messages in the thread when the watch began; a reply is a newer message that is not the user's own
+    checkAt: timestamp("check_at", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    status: text("status").notNull().default("open"), // open | replied | nudged | cancelled | gave_up
+    createdAt: createdAt(),
+  },
+  (t) => [index("waiting_ws_idx").on(t.workspaceId, t.userId, t.status, t.checkAt)],
+);
+
+// Which calendar events Danny has already given a heads-up about, so one event never gets two.
+export const prepSent = pgTable(
+  "prep_sent",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    eventKey: text("event_key").notNull(), // the event id plus its start time, so a moved event is prepped again
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("prep_sent_uq").on(t.userId, t.eventKey)],
 );
 
 // Settings for the whole server that the owner enters in the app instead of editing .env. Encrypted like everything else.

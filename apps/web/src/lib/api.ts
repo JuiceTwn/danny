@@ -46,6 +46,7 @@ export type Card =
   | { kind: "list"; title?: string; style: "bullets" | "check" | "steps"; items: { text: string; sub?: string; href?: string }[] }
   | { kind: "table"; title?: string; columns: string[]; rows: string[][] }
   | { kind: "place"; name: string; address?: string; note?: string }
+  | { kind: "inbox"; title?: string; items: { id: string; from: string; subject: string; why: string }[] }
   | { kind: "replies"; options: string[] };
 
 export type ChatEvent =
@@ -87,7 +88,7 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
   }
 }
 
-export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean }; workspaceId: string; role: string; isOwner: boolean };
+export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean }; workspaceId: string; role: string; isOwner: boolean };
 // Everyone gets the usage percentage. The dollar fields, and the right to change the cap, belong to the server owner only.
 export type Settings = {
   usedPercent: number;
