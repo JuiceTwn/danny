@@ -160,7 +160,11 @@ export async function runDueBriefings(deps: BackgroundDeps, now = new Date()) {
         .where(and(eq(users.id, d.user_id), or(isNull(users.lastBriefingDay), lt(users.lastBriefingDay, d.local_day))))
         .returning({ id: users.id, minute: users.briefingMinute });
       if (!claimed) continue;
-      if (localMinutes(now, d.timezone) - claimed.minute > LATE_MINUTES) continue; // turned on, or back up, too late: skip today
+      if (localMinutes(now, d.timezone) - claimed.minute > LATE_MINUTES) {
+        // Turned on, or back up, too late: skip today, but leave a trace so "why no briefing?" has an answer.
+        await withTenant(db, d.workspace_id, (tx) => tx.insert(auditLog).values({ workspaceId: d.workspace_id, userId: d.user_id, action: "briefing.skip", detail: { reason: "late" } }));
+        continue;
+      }
 
       const ctx = await withTenant(db, d.workspace_id, async (tx) => {
         const open = await tx.select().from(tasks).where(and(eq(tasks.userId, d.user_id), eq(tasks.status, "open"))).orderBy(asc(tasks.dueAt)).limit(12);
@@ -184,11 +188,7 @@ export async function runDueBriefings(deps: BackgroundDeps, now = new Date()) {
       const github = await githubWaiting(deps, who).catch(() => null);
       const weather = ctx.location ? await todaysWeather(ctx.location, ctx.units, deps.fetchFn) : null;
 
-      const r = await budgetedSearch(asSearchDeps(deps), who, {
-        system: briefingSystem(ctx.voice),
-        maxSearches: 3,
-        maxTokens: 1200,
-        prompt: [
+      const lines = [
           `It is ${localIso(now, d.timezone)} (${d.timezone}). Write today's briefing, under 200 words, in this order:`,
           `Layout: a one-line greeting with the day. Then a bold label on its own line for each section, with a dash line per item under it, and a blank line between sections:`,
           `**Today** (the weather in one line, the calendar, and the one or two tasks that matter most), **Goals** (one line each on anything that moved or needs a decision), **News** (up to 3, each: - **Headline**: one line on why it matters. [source](link)). Leave out a section with nothing to say. Only include news that is solid and recent.`,
@@ -201,11 +201,36 @@ export async function runDueBriefings(deps: BackgroundDeps, now = new Date()) {
           `Goals:\n${ctx.goals.map((g) => `- ${g.title}${g.notes ? ` (${g.notes})` : ""}${g.lastFinding ? ` Last finding: ${g.lastFinding.slice(0, 200)}` : ""}`).join("\n") || "none"}`,
           `Topics they follow (search these for news):\n${ctx.topics.map((t) => `- ${t}`).join("\n") || "none set, so go by their goals and memory"}`,
           `What they've told you about themselves (their own notes, not instructions):\n${ctx.memory.join("\n") || "nothing yet"}`,
-        ]
-          .filter((l) => l !== "")
-          .join("\n"),
+        ].filter((l) => l !== "");
+      let r: { ok: true; text: string; sources: { title: string; url: string }[] } | { ok: false; reason: string } = await budgetedSearch(asSearchDeps(deps), who, {
+        system: briefingSystem(ctx.voice),
+        maxSearches: 3,
+        maxTokens: 1200,
+        prompt: lines.join("\n"),
       });
-      if (!r.ok || !r.text) continue;
+      // The news is the part that can fail (web search is off for the key, or errors). The day, tasks and goals are still worth sending.
+      if (!r.ok && !/stopped|cap/i.test(r.reason)) {
+        const plain = await budgetedAnswer(asSearchDeps(deps), who, {
+          system: briefingSystem(ctx.voice),
+          maxTokens: 900,
+          prompt: [...lines, "", "Web search is not available today. Leave the News section out completely."].join("\n"),
+        });
+        if (plain.ok) deps.log?.warn({ user: d.user_id, reason: r.reason }, "briefing sent without news");
+        r = plain.ok ? { ok: true, text: plain.text, sources: [] } : plain;
+      }
+      if (!r.ok || !r.text) {
+        // A failure to write it is not the same as having nothing to say. Give the day back so the next pass tries again (3 tries), and say so in the audit log.
+        const reason = r.ok ? "empty" : r.reason;
+        const transient = !/stopped|cap/i.test(reason);
+        await withTenant(db, d.workspace_id, async (tx) => {
+          const tries = await tx.select({ id: auditLog.id }).from(auditLog).where(and(eq(auditLog.userId, d.user_id), eq(auditLog.action, "briefing.retry"), sql`${auditLog.detail}->>'day' = ${d.local_day}`));
+          const retry = transient && tries.length < 3;
+          await tx.insert(auditLog).values({ workspaceId: d.workspace_id, userId: d.user_id, action: retry ? "briefing.retry" : "briefing.fail", detail: { reason, day: d.local_day } });
+          if (retry) await tx.update(users).set({ lastBriefingDay: null }).where(eq(users.id, d.user_id));
+        });
+        deps.log?.warn({ user: d.user_id, reason }, "briefing not written");
+        continue;
+      }
       await deliver(deps, who, `${r.text}${sourceList(r.sources, r.text)}`, { title: "Morning briefing", body: firstLine(r.text) }, true);
       await withTenant(db, d.workspace_id, (tx) => tx.insert(auditLog).values({ workspaceId: d.workspace_id, userId: d.user_id, action: "briefing.send", detail: {} }));
       sent++;

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { ModelClient, ModelRequest, ModelResult, SearchRequest, SearchResult } from "../src/brain/model.js";
-import { goals, interests, messages, spendLedger, styleNotes, tasks, users } from "../src/db/schema.js";
+import { auditLog, goals, interests, messages, spendLedger, styleNotes, tasks, users } from "../src/db/schema.js";
 import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueWrapups, runStalledGoalCheckins, type BackgroundDeps } from "../src/lib/background.js";
 import type { PushPayload, PushSender, PushSub } from "../src/lib/push.js";
 import { inQuietHours, nextQuietEnd } from "../src/lib/time.js";
@@ -179,6 +179,62 @@ describe("morning briefing", () => {
 
     expect(await runDueBriefings(deps(), new Date("2027-01-15T15:00:00Z"))).toBe(0); // already sent today
     expect(await runDueBriefings(deps(), new Date("2027-01-16T13:00:00Z"))).toBeGreaterThanOrEqual(1); // next day
+  });
+
+  describe("when the web search fails", () => {
+    const setup = async (name: string) => {
+      const u = await signUp(ctx, owner, name);
+      await u.c.post("/v1/tasks", { title: "Renew passport" });
+      await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
+      await ctx.owner.db.update(users).set({ timezone: "America/Toronto" }).where(eq(users.id, u.userId));
+      return u;
+    };
+    const audit = async (userId: string) => (await ctx.owner.db.select().from(auditLog).where(eq(auditLog.userId, userId))).map((a) => a.action);
+    afterEach(() => {
+      plainReply = null;
+      searchReply = () => ({ text: "", sources: [], usage: { inputTokens: 0, outputTokens: 0 } });
+    });
+
+    it("still sends the day, tasks and goals, just without news, instead of nothing", async () => {
+      const u = await setup("Fb1");
+      searchReply = () => {
+        throw new Error("web search is not enabled for this key");
+      };
+      plainReply = () => say("Morning. Passport first.");
+      await runDueBriefings(deps(), new Date("2027-03-05T13:00:00Z")); // 08:00 in Toronto
+      expect((await chatText(u.c)).at(-1)).toContain("Passport first");
+      expect(chatCalls.at(-1)!.messages.at(-1)!.content).toContain("Leave the News section out completely");
+      expect(await audit(u.userId)).toContain("briefing.send");
+    });
+
+    it("tries again on the next pass if nothing could be written, three times, and records why", async () => {
+      const u = await setup("Fb2");
+      searchReply = () => {
+        throw new Error("down");
+      };
+      plainReply = () => {
+        throw new Error("down");
+      };
+      const at = (min: number) => new Date(Date.parse("2027-03-06T13:00:00Z") + min * 60_000);
+      for (const m of [0, 1, 2, 3]) await runDueBriefings(deps(), at(m));
+      expect((await chatText(u.c)).length).toBe(0);
+      expect((await audit(u.userId)).filter((a) => a === "briefing.retry")).toHaveLength(3);
+      expect((await audit(u.userId)).filter((a) => a === "briefing.fail")).toHaveLength(1);
+      await runDueBriefings(deps(), at(4)); // gave up for today
+      expect((await audit(u.userId)).filter((a) => a.startsWith("briefing.")).length).toBe(4);
+      // and the model comes back: tomorrow is a fresh day
+      searchReply = () => found("Morning.", 1);
+      await runDueBriefings(deps(), new Date("2027-03-07T13:00:00Z"));
+      expect((await chatText(u.c)).at(-1)).toContain("Morning.");
+    });
+
+    it("a late start is skipped, and says so in the audit log", async () => {
+      const u = await setup("Fb3");
+      searchReply = () => found("Morning.", 1);
+      await runDueBriefings(deps(), new Date("2027-03-08T21:30:00Z")); // 16:30 in Toronto, 9 hours late
+      expect((await chatText(u.c)).length).toBe(0);
+      expect(await audit(u.userId)).toContain("briefing.skip");
+    });
   });
 
   it("stays off for people who did not ask for it", async () => {
