@@ -66,7 +66,7 @@ async function build(deps: BackgroundDeps, who: Who, row: Claimed): Promise<{ ht
   const current = row.htmlEnc ? vault.open(ws, row.htmlEnc) : undefined;
 
   if (!current && !brief) {
-    const r = await budgetedSearch(sdeps(deps), who, { system: RESEARCH_SYSTEM, prompt: `Skill: ${title}\n${request}`, maxSearches: 4, maxTokens: 2200, bill });
+    const r = await budgetedSearch(sdeps(deps), who, { kind: "app", system: RESEARCH_SYSTEM, prompt: `Skill: ${title}\n${request}`, maxSearches: 4, maxTokens: 2200, bill });
     if (!r.ok) throw new Failure(r.reason);
     if (!r.text) throw new Failure("The research came back empty.");
     brief = `${r.text}\n\nPages found while researching (the only links the app may use):\n${r.sources.map((s) => `- ${s.title.slice(0, 100)} ${s.url}`).join("\n") || "(none)"}`;
@@ -75,6 +75,7 @@ async function build(deps: BackgroundDeps, who: Who, row: Claimed): Promise<{ ht
   }
 
   const r = await budgetedAnswer(sdeps(deps), who, {
+    kind: "app",
     model: deps.config.smartModel,
     price: deps.config.smartPrice,
     system: BUILD_SYSTEM,

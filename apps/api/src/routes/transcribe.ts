@@ -53,7 +53,7 @@ export const transcribeRoutes: FastifyPluginAsync<Deps> = async (app, { db, conf
       }
       const costMicros = Math.ceil((seconds / 3600) * config.voice.pricePerHourUsd * 1_000_000);
       await withTenant(db, workspaceId, (tx) =>
-        recordSpend(tx, { workspaceId, userId, model: `stt:${config.voice.model}`, inputTokens: 0, outputTokens: 0, costMicros }),
+        recordSpend(tx, { workspaceId, userId, model: `stt:${config.voice.model}`, kind: "voice", inputTokens: 0, outputTokens: 0, costMicros }),
       );
       return { text };
     } finally {

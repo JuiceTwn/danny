@@ -1,11 +1,21 @@
 import { and, asc, eq, ne } from "drizzle-orm";
-import { auditLog, goals } from "../db/schema.js";
+import type { Tx } from "../db/client.js";
+import { auditLog, goals, users } from "../db/schema.js";
 import type { Actor } from "./tasks.js";
 
 export const MAX_OPEN_GOALS = 10;
 export const MAX_MONITORED = 5;
 export const MIN_CHECK_HOURS = 6;
 export const MAX_CHECK_HOURS = 168;
+/** Everyone but the server owner checks a watched goal at most once a day: every check is a paid web search. */
+export const FREE_MIN_CHECK_HOURS = 24;
+
+/** What the person asked for, raised to the daily minimum unless they are the server owner. */
+async function allowedHours(tx: Tx, userId: string, asked: number | null | undefined) {
+  if (!asked || asked >= FREE_MIN_CHECK_HOURS) return asked ?? null;
+  const [u] = await tx.select({ owner: users.isOwner }).from(users).where(eq(users.id, userId));
+  return u?.owner ? asked : FREE_MIN_CHECK_HOURS;
+}
 
 export type GoalView = {
   id: string;
@@ -47,7 +57,7 @@ export async function createGoal(a: Actor, i: GoalInput) {
         titleEnc: a.vault.seal(a.workspaceId, i.title),
         notesEnc: i.notes ? a.vault.seal(a.workspaceId, i.notes) : null,
         watchQueryEnc: i.watchQuery ? a.vault.seal(a.workspaceId, i.watchQuery) : null,
-        checkEveryHours: i.checkEveryHours ?? null,
+        checkEveryHours: await allowedHours(tx, a.userId, i.checkEveryHours),
       })
       .returning();
     await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "goal.add", detail: { id: row!.id } });
@@ -84,7 +94,7 @@ export async function updateGoal(a: Actor, id: string, p: GoalPatch) {
         const monitored = await tx.select({ id: goals.id, hours: goals.checkEveryHours }).from(goals).where(and(eq(goals.userId, a.userId), eq(goals.status, "open")));
         if (!cur.checkEveryHours && monitored.filter((g) => g.hours && g.id !== id).length >= MAX_MONITORED) throw new GoalError(`Only ${MAX_MONITORED} goals can be watched at once. Stop watching one first.`);
       }
-      set.checkEveryHours = p.checkEveryHours;
+      set.checkEveryHours = await allowedHours(tx, a.userId, p.checkEveryHours);
     }
     const [row] = await tx.update(goals).set(set).where(eq(goals.id, id)).returning();
     await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "goal.update", detail: { id, fields: Object.keys(p) } });

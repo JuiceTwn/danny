@@ -92,7 +92,7 @@ describe("what the ledger records", () => {
 
   it("recordSpend on its own rounds up and keeps the real cost", async () => {
     const u = await signUp(ctx, owner, "Direct");
-    await withTenant(ctx.runtime.db, u.workspaceId, (tx) => recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1, outputTokens: 1, costMicros: 37 }));
+    await withTenant(ctx.runtime.db, u.workspaceId, (tx) => recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", kind: "chat", inputTokens: 1, outputTokens: 1, costMicros: 37 }));
     const [row] = await rows(u.workspaceId);
     expect(row).toMatchObject({ costMicros: 10_000, exactMicros: 37 });
   });

@@ -203,6 +203,7 @@ export const spendLedger = pgTable(
     userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
     day: date("day").notNull().defaultNow(),
     model: text("model").notNull(),
+    kind: text("kind").notNull().default("other"), // what it was for (lib/spend.ts SPEND_KINDS); "other" on rows from before this was recorded
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
     // What counts against the allowance and what the user is charged: every request rounded UP to the next whole cent.

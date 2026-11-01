@@ -6,10 +6,13 @@
 
   type Req = { id: string; email: string; status: string; createdAt: string };
   type Use = { userId: string; email: string; todayCostUsd: number; last30DaysCostUsd: number };
+  type Kind = { kind: string; todayCostUsd: number; last30DaysCostUsd: number; todayBilledUsd: number; last30DaysBilledUsd: number };
+  const KIND_NAMES: Record<string, string> = { chat: "Chat", remember: "Remembering", briefing: "Morning briefing", wrapup: "Evening wrap-up", goal_watch: "Goal watching", learning: "Learning your style", tidy: "Memory tidy", inbox: "Inbox sorting", app: "Mini apps", call: "Calls", voice: "Voice typing", other: "Before costs were tagged" };
 
   let requests = $state<Req[]>([]);
   let total = $state(0);
   let usage = $state<Use[]>([]);
+  let kinds = $state<Kind[]>([]);
   let email = $state("");
   let link = $state<{ email: string; url: string } | null>(null);
   let copied = $state(false);
@@ -121,6 +124,7 @@
       requests = q.items;
       total = q.total;
       usage = (await api<{ users: Use[] }>("GET", "/v1/admin/usage")).users;
+      kinds = (await api<{ kinds: Kind[] }>("GET", "/v1/admin/usage/by-kind")).kinds;
     } catch {
       error = "Couldn't load owner data.";
     }
@@ -280,6 +284,20 @@
           <ul class="changes">{#each ops.backups as b}<li><span class="mono">{b.name}</span> <span class="muted">{kb(b.bytes)}, {ago(b.at)}</span></li>{/each}</ul>
         {/if}
       {/if}
+    </section>
+
+    <section>
+      <h2 class="display">Cost by feature</h2>
+      <p class="muted">Where the money goes. Real cost first, then what was billed against allowances (rounded up to the cent). Briefings, goal watching, memory tidying and inbox sorting are background work: together they can use at most 60% of anyone's day.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Feature</th><th>Today</th><th>30 days</th><th>Billed 30 days</th></tr></thead>
+          <tbody>
+            {#each kinds as k (k.kind)}<tr><td>{KIND_NAMES[k.kind] ?? k.kind}</td><td>${k.todayCostUsd.toFixed(4)}</td><td>${k.last30DaysCostUsd.toFixed(3)}</td><td>${k.last30DaysBilledUsd.toFixed(2)}</td></tr>{/each}
+            {#if kinds.length === 0}<tr><td colspan="4" class="muted">Nothing yet.</td></tr>{/if}
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section>

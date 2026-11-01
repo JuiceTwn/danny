@@ -132,7 +132,7 @@ export async function runTurn(
     google,
     fetchFn: deps.fetchFn,
     tenant,
-    search: model.search ? (question) => budgetedSearch({ db, config, model }, { workspaceId, userId }, { prompt: question, bill }) : undefined,
+    search: model.search ? (question) => budgetedSearch({ db, config, model }, { workspaceId, userId }, { kind: "chat", prompt: question, bill }) : undefined,
   };
 
   const setup = await tenant(async (tx) => {
@@ -224,6 +224,7 @@ export async function runTurn(
         workspaceId,
         userId,
         model: config.model,
+        kind: "chat",
         inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
         outputTokens: res.usage.outputTokens,
         costMicros: costMicros(res.usage, config.price),

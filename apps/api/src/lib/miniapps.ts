@@ -14,7 +14,7 @@ export const MAX_HTML = 150_000;
 export const MAX_STATE = 100_000;
 export const MAX_APPS_PER_PERSON = 5;
 export const MAX_CHANGES_PER_DAY = 4;
-export const MAX_TRIES = 3;
+export const MAX_TRIES = 2;
 
 /** Sent with every page. `sandbox` without allow-same-origin gives the page an empty identity: no cookies, no storage, no Danny. */
 export const APP_CSP = [

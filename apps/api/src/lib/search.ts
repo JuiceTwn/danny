@@ -2,7 +2,10 @@ import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
 import type { ModelClient } from "../brain/model.js";
 import { cutToComplete, FORMAT, sourceLinks, tidy } from "./format.js";
-import { checkBudget, costMicros, recordSpend, type Bill } from "./spend.js";
+import { BACKGROUND_KINDS, checkBackgroundBudget, checkBudget, costMicros, recordSpend, type Bill, type SpendKind } from "./spend.js";
+
+const budgetFor = (tx: Parameters<typeof checkBudget>[0], workspaceId: string, kind: SpendKind) => (BACKGROUND_KINDS.includes(kind) ? checkBackgroundBudget(tx, workspaceId) : checkBudget(tx, workspaceId));
+const whyBlocked = (reason: string) => (reason === "kill_switch" ? "Danny is stopped." : reason === "background_cap" ? "Background spend cap reached for today." : "Daily spend cap reached.");
 
 export type SearchDeps = { db: Db; config: Config; model: ModelClient };
 
@@ -21,12 +24,12 @@ export type Searched = { ok: true; text: string; sources: { title: string; url: 
 export async function budgetedSearch(
   { db, config, model }: SearchDeps,
   who: { workspaceId: string; userId: string },
-  req: { prompt: string; system?: string; maxSearches?: number; maxTokens?: number; bill?: Bill; model?: string; price?: Config["price"] },
+  req: { kind: SpendKind; prompt: string; system?: string; maxSearches?: number; maxTokens?: number; bill?: Bill; model?: string; price?: Config["price"] },
 ): Promise<Searched> {
   if (!model.search) return { ok: false, reason: "Web search isn't available on this server." };
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn);
-  const b = await tenant((tx) => checkBudget(tx, who.workspaceId));
-  if (!b.ok) return { ok: false, reason: b.reason === "kill_switch" ? "Danny is stopped." : "Daily spend cap reached." };
+  const b = await tenant((tx) => budgetFor(tx, who.workspaceId, req.kind));
+  if (!b.ok) return { ok: false, reason: whyBlocked(b.reason) };
   let res;
   try {
     res = await model.search({ model: req.model ?? config.model, system: req.system ?? SEARCH_SYSTEM, prompt: req.prompt, maxSearches: req.maxSearches ?? 2, maxTokens: req.maxTokens ?? 1500 });
@@ -38,6 +41,7 @@ export async function budgetedSearch(
       workspaceId: who.workspaceId,
       userId: who.userId,
       model: req.model ?? config.model,
+      kind: req.kind,
       inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
       outputTokens: res.usage.outputTokens,
       costMicros: costMicros(res.usage, req.price ?? config.price),
@@ -54,11 +58,11 @@ export const sourceList = (sources: { title: string; url: string }[], text = "")
 export async function budgetedAnswer(
   { db, config, model }: SearchDeps,
   who: { workspaceId: string; userId: string },
-  req: { system: string; prompt: string; maxTokens?: number; bill?: Bill; model?: string; price?: Config["price"] },
+  req: { kind: SpendKind; system: string; prompt: string; maxTokens?: number; bill?: Bill; model?: string; price?: Config["price"] },
 ): Promise<{ ok: true; text: string; truncated: boolean } | { ok: false; reason: string }> {
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn);
-  const b = await tenant((tx) => checkBudget(tx, who.workspaceId));
-  if (!b.ok) return { ok: false, reason: b.reason === "kill_switch" ? "Danny is stopped." : "Daily spend cap reached." };
+  const b = await tenant((tx) => budgetFor(tx, who.workspaceId, req.kind));
+  if (!b.ok) return { ok: false, reason: whyBlocked(b.reason) };
   let res;
   try {
     res = await model.complete({ model: req.model ?? config.model, system: req.system, messages: [{ role: "user", content: req.prompt }], tools: [], maxTokens: req.maxTokens ?? 700 }, () => {});
@@ -70,6 +74,7 @@ export async function budgetedAnswer(
       workspaceId: who.workspaceId,
       userId: who.userId,
       model: req.model ?? config.model,
+      kind: req.kind,
       inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
       outputTokens: res.usage.outputTokens,
       costMicros: costMicros(res.usage, req.price ?? config.price),

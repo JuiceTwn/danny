@@ -186,6 +186,14 @@ export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, v
     return reply.code(202).send({ ok: true });
   });
 
+  // Where the money goes, by kind of work (chat, briefing, goal watching, mini apps, calls...). Real cost and what was billed, today and over 30 days.
+  app.get("/v1/admin/usage/by-kind", async () => {
+    const rows = await db.execute<{ kind: string; today_cost_micros: string; month_cost_micros: string; today_billed_micros: string; month_billed_micros: string }>(sql`select * from admin_usage_by_kind()`);
+    return {
+      kinds: rows.map((r) => ({ kind: r.kind, todayCostUsd: usd(Number(r.today_cost_micros)), last30DaysCostUsd: usd(Number(r.month_cost_micros)), todayBilledUsd: usd(Number(r.today_billed_micros)), last30DaysBilledUsd: usd(Number(r.month_billed_micros)) })),
+    };
+  });
+
   // Spend per user across all workspaces, via a read-only database function (see migration 0002).
   app.get("/v1/admin/usage", async () => {
     const rows = await db.execute<{ user_id: string; email: string; today_cost_micros: string; month_cost_micros: string }>(sql`select * from admin_usage()`);

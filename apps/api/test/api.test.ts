@@ -241,11 +241,11 @@ describe("spend cap and kill switch", () => {
     const budget = () => withTenant(ctx.runtime.db, u.workspaceId, (tx) => checkBudget(tx, u.workspaceId));
     expect((await budget()).ok).toBe(true);
     await withTenant(ctx.runtime.db, u.workspaceId, (tx) =>
-      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1000, outputTokens: 1000, costMicros: 250_000 }),
+      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", kind: "chat", inputTokens: 1000, outputTokens: 1000, costMicros: 250_000 }),
     );
     expect((await u.c.get("/v1/settings")).body.usedPercent).toBe(25);
     await withTenant(ctx.runtime.db, u.workspaceId, (tx) =>
-      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1000, outputTokens: 1000, costMicros: 800_000 }),
+      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", kind: "chat", inputTokens: 1000, outputTokens: 1000, costMicros: 800_000 }),
     );
     expect(await budget()).toMatchObject({ ok: false, reason: "cap_reached" });
     expect((await u.c.get("/v1/settings")).body.usedPercent).toBe(100);
@@ -271,7 +271,7 @@ describe("spend cap and kill switch", () => {
     const a = await signUp(ctx, owner, "SpendA");
     const b = await signUp(ctx, owner, "SpendB");
     await withTenant(ctx.runtime.db, a.workspaceId, (tx) =>
-      recordSpend(tx, { workspaceId: a.workspaceId, userId: a.userId, model: "m", inputTokens: 1, outputTokens: 1, costMicros: 5_000_000 }),
+      recordSpend(tx, { workspaceId: a.workspaceId, userId: a.userId, model: "m", kind: "chat", inputTokens: 1, outputTokens: 1, costMicros: 5_000_000 }),
     );
     expect((await withTenant(ctx.runtime.db, b.workspaceId, (tx) => checkBudget(tx, b.workspaceId))).ok).toBe(true);
   });
@@ -279,7 +279,7 @@ describe("spend cap and kill switch", () => {
   it("the owner sees spend per user", async () => {
     const u = await signUp(ctx, owner, "Billed");
     await withTenant(ctx.runtime.db, u.workspaceId, (tx) =>
-      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", inputTokens: 1, outputTokens: 1, costMicros: 123_000 }),
+      recordSpend(tx, { workspaceId: u.workspaceId, userId: u.userId, model: "m", kind: "chat", inputTokens: 1, outputTokens: 1, costMicros: 123_000 }),
     );
     const usage = (await owner.get("/v1/admin/usage")).body.users;
     expect(usage.find((x: any) => x.email === u.email)).toMatchObject({ todayCostUsd: 0.123, last30DaysCostUsd: 0.123 }); // real cost, not the 13 cents billed

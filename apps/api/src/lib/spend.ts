@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
 import { spendLedger, workspaces } from "../db/schema.js";
 
@@ -30,6 +30,13 @@ export async function costToday(tx: Tx, workspaceId: string) {
   return Number(row?.total ?? 0);
 }
 
+/** What a cost was for, so the owner can see where money goes. Written on every ledger row. */
+export const SPEND_KINDS = ["chat", "remember", "briefing", "wrapup", "goal_watch", "learning", "tidy", "inbox", "app", "call", "voice"] as const;
+export type SpendKind = (typeof SPEND_KINDS)[number];
+/** Work Danny does on his own, with nobody waiting on it. It may use only part of the day's allowance, so chat is never starved by it. */
+export const BACKGROUND_KINDS: readonly SpendKind[] = ["briefing", "wrapup", "goal_watch", "learning", "tidy", "inbox"];
+export const BACKGROUND_SHARE = 0.6;
+
 export type Budget =
   | { ok: true; spentMicros: number; capMicros: number }
   | { ok: false; reason: "kill_switch" | "cap_reached"; spentMicros: number; capMicros: number };
@@ -43,6 +50,18 @@ export async function checkBudget(tx: Tx, workspaceId: string): Promise<Budget> 
   if (ws.killSwitch) return { ok: false, reason: "kill_switch", spentMicros, capMicros };
   if (spentMicros >= capMicros) return { ok: false, reason: "cap_reached", spentMicros, capMicros };
   return { ok: true, spentMicros, capMicros };
+}
+
+/** For work nobody is waiting on: everything checkBudget checks, and also that background work has not used up its share of today's allowance. */
+export async function checkBackgroundBudget(tx: Tx, workspaceId: string): Promise<Budget | { ok: false; reason: "background_cap"; spentMicros: number; capMicros: number }> {
+  const b = await checkBudget(tx, workspaceId);
+  if (!b.ok) return b;
+  const [row] = await tx
+    .select({ total: sql<string>`coalesce(sum(${spendLedger.costMicros}), 0)` })
+    .from(spendLedger)
+    .where(and(eq(spendLedger.workspaceId, workspaceId), eq(spendLedger.day, todayUtc()), inArray(spendLedger.kind, [...BACKGROUND_KINDS])));
+  if (Number(row?.total ?? 0) >= b.capMicros * BACKGROUND_SHARE) return { ok: false, reason: "background_cap", spentMicros: b.spentMicros, capMicros: b.capMicros };
+  return b;
 }
 
 /** One cent, in the micro-dollars the ledger counts in. */
@@ -74,7 +93,7 @@ export class Bill {
  */
 export async function recordSpend(
   tx: Tx,
-  e: { workspaceId: string; userId: string; model: string; inputTokens: number; outputTokens: number; costMicros: number },
+  e: { workspaceId: string; userId: string; model: string; kind: SpendKind; inputTokens: number; outputTokens: number; costMicros: number },
   bill?: Bill,
 ) {
   const billed = bill ? bill.add(e.costMicros) : ceilToCent(e.costMicros);

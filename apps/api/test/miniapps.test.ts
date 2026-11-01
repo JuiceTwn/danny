@@ -5,7 +5,7 @@ import { withTenant } from "../src/db/client.js";
 import { auditLog, miniApps, spendLedger } from "../src/db/schema.js";
 import type { BackgroundDeps } from "../src/lib/background.js";
 import type { Card } from "../src/lib/cards.js";
-import { APP_CSP, MAX_APPS_PER_PERSON, MAX_CHANGES_PER_DAY, MAX_HTML, validateAppHtml, withBootstrap } from "../src/lib/miniapps.js";
+import { APP_CSP, MAX_APPS_PER_PERSON, MAX_CHANGES_PER_DAY, MAX_HTML, MAX_TRIES, validateAppHtml, withBootstrap } from "../src/lib/miniapps.js";
 import { runMiniAppJobs } from "../src/lib/miniapp-worker.js";
 import { createRegistry } from "../src/tools/builtin.js";
 import type { ToolCtx } from "../src/tools/registry.js";
@@ -142,7 +142,7 @@ describe("building an app in the background", () => {
     expect((await all.owner.db.select().from(auditLog).where(eq(auditLog.userId, u.userId))).map((a) => a.action)).toContain("app.built");
   });
 
-  it("retries a bad page, then gives up kindly after three tries, and a retry starts it again", async () => {
+  it("retries a bad page, then gives up kindly after two tries, and a retry starts it again", async () => {
     resetReply();
     reply.build = () => "I cannot do that.";
     const u = await person("Ap2");
@@ -150,12 +150,12 @@ describe("building an app in the background", () => {
     await drain(id);
     const r = await row(id);
     expect(r.status).toBe("failed");
-    expect(r.attempts).toBe(3);
+    expect(r.attempts).toBe(MAX_TRIES);
     expect(r.error).toContain("didn't pass checks");
     const msgs = (await history(u.c)).filter((m) => m.text.includes("couldn't build"));
     expect(msgs).toHaveLength(1);
     await runMiniAppJobs(deps(all), new Date(Date.now() + 99 * 60_000));
-    expect((await row(id)).attempts).toBe(3); // no fourth try
+    expect((await row(id)).attempts).toBe(MAX_TRIES); // no extra try
 
     expect((await u.c.post(`/v1/apps/${id}/retry`, {})).status).toBe(200);
     resetReply();

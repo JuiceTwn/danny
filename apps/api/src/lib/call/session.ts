@@ -306,7 +306,7 @@ export class CallSession {
   private async record(model: string, costMicros: number) {
     const { workspaceId, userId } = this.who;
     try {
-      await withTenant(this.deps.db, workspaceId, (tx) => recordSpend(tx, { workspaceId, userId, model, inputTokens: 0, outputTokens: 0, costMicros }, this.callBill));
+      await withTenant(this.deps.db, workspaceId, (tx) => recordSpend(tx, { workspaceId, userId, model, kind: "call", inputTokens: 0, outputTokens: 0, costMicros }, this.callBill));
     } catch {
       /* a ledger hiccup must not drop the call; the next tick bills again */
     }

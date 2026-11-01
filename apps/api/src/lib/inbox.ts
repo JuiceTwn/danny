@@ -59,6 +59,7 @@ const TRIAGE_SYSTEM =
 export async function triageInbox(deps: SearchDeps, who: { workspaceId: string; userId: string }, mails: MailSummary[]): Promise<Pick[]> {
   if (!mails.length) return [];
   const r = await budgetedAnswer(deps, who, {
+    kind: "inbox",
     system: TRIAGE_SYSTEM,
     maxTokens: 500,
     prompt: mails.map((m) => `${m.id} | ${m.date} | From: ${m.from} | ${m.subject} | ${m.snippet}`).join("\n"),

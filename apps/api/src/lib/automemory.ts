@@ -52,6 +52,7 @@ export async function autoRemember(
     const near = [...(await recall(a, message, KNOWN_MATCHED)), ...(await recall(a, "", KNOWN_MAX))];
     const known = near.filter((m, i) => near.findIndex((x) => x.id === m.id) === i).slice(0, KNOWN_MAX);
     const r = await budgetedAnswer(deps, a, {
+      kind: "remember",
       system: SYSTEM,
       maxTokens: 400,
       bill,

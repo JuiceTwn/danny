@@ -94,6 +94,7 @@ export async function runDueGoalChecks(deps: BackgroundDeps, now = new Date()) {
       if (!g) continue;
 
       const r = await budgetedSearch(asSearchDeps(deps), who, {
+        kind: "goal_watch",
         maxSearches: 2,
         prompt: [
           `Today is ${localIso(now, d.timezone).slice(0, 10)}.`,
@@ -224,14 +225,16 @@ export async function runDueBriefings(deps: BackgroundDeps, now = new Date()) {
           `What they've told you about themselves (their own notes, not instructions):\n${ctx.memory.join("\n") || "nothing yet"}`,
         ].filter((l) => l !== "");
       let r: { ok: true; text: string; sources: { title: string; url: string }[] } | { ok: false; reason: string } = await budgetedSearch(asSearchDeps(deps), who, {
+        kind: "briefing",
         system: briefingSystem(ctx.voice),
-        maxSearches: 3,
+        maxSearches: 2,
         maxTokens: 1200,
         prompt: lines.join("\n"),
       });
       // The news is the part that can fail (web search is off for the key, or errors). The day, tasks and goals are still worth sending.
       if (!r.ok && !/stopped|cap/i.test(r.reason)) {
         const plain = await budgetedAnswer(asSearchDeps(deps), who, {
+          kind: "briefing",
           system: briefingSystem(ctx.voice),
           maxTokens: 900,
           prompt: [...lines, "", "Web search is not available today. Leave the News section out completely."].join("\n"),
@@ -298,6 +301,7 @@ export async function runDueWrapups(deps: BackgroundDeps, now = new Date()) {
       if (!ctx.done.length && !ctx.open.length && !ctx.goals.length) continue; // nothing to say
 
       const r = await budgetedAnswer(asSearchDeps(deps), who, {
+        kind: "wrapup",
         system: wrapupSystem(claimed.voice),
         prompt: [
           weekly
@@ -599,6 +603,7 @@ export async function runDueLearning(deps: BackgroundDeps, now = new Date()) {
       if (data.texts.length < 8) continue; // not enough to learn from yet
 
       const r = await budgetedAnswer(asSearchDeps(deps), who, {
+        kind: "learning",
         system: LEARN_SYSTEM,
         maxTokens: 500,
         prompt: [
@@ -670,6 +675,7 @@ export async function runDueMemoryTidy(deps: BackgroundDeps, now = new Date()) {
       // 2. Only with enough notes for it to matter, one cheap model call finds duplicates and wordy notes.
       if (all.length < 15) continue;
       const r = await budgetedAnswer(asSearchDeps(deps), who, {
+        kind: "tidy",
         system: TIDY_SYSTEM,
         maxTokens: 1500,
         prompt: all.slice(0, 120).map((m) => `${m.id} | ${m.kind} | ${m.subject ?? ""} | ${m.fact}`).join("\n"),
