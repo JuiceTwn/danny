@@ -31,6 +31,10 @@ const schema = z.object({
   WEB_DIR: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   MODEL: z.string().default("claude-haiku-5-5"),
+  // The bigger model, used only for work worth paying for: writing a learning mini app. Priced at its own list price (lib/pricing.ts).
+  SMART_MODEL: z.string().default("claude-sonnet-5-5"),
+  // Mini apps (Danny builds you a small app to learn a skill). owner = only the server owner for now, all = everyone, off = nobody.
+  MINI_APPS: z.enum(["off", "owner", "all"]).default("owner"),
   // Leave these OUT of .env: with nothing set, the price is Anthropic's list price for MODEL (lib/pricing.ts), so changing MODEL
   // changes the price with it. Set them only for a negotiated price. The owner's Settings screen says when they are set by hand.
   // What a request REALLY costs; what the user is charged is that rounded up to the next cent (lib/spend.ts).
@@ -74,6 +78,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     throw new Error("COOKIE_SECURE must be true in production");
   }
   const price = resolvePrice(c.MODEL, { input: c.PRICE_INPUT_PER_MTOK_USD, output: c.PRICE_OUTPUT_PER_MTOK_USD });
+  // The hand-set prices in .env are for MODEL only. The bigger model always uses its own list price.
+  const smart = resolvePrice(c.SMART_MODEL, {});
   return {
     env: c.NODE_ENV,
     port: c.PORT,
@@ -93,6 +99,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     webDir: c.WEB_DIR,
     anthropicApiKey: c.ANTHROPIC_API_KEY || undefined,
     model: c.MODEL,
+    smartModel: c.SMART_MODEL,
+    smartPrice: { inputPerMtokUsd: smart.input, outputPerMtokUsd: smart.output, searchUsd: c.PRICE_SEARCH_USD },
+    miniApps: c.MINI_APPS,
     elevenlabsApiKey: c.ELEVENLABS_API_KEY || undefined,
     voice: { model: c.STT_MODEL, pricePerHourUsd: c.PRICE_STT_PER_HOUR_USD },
     call: { voiceId: c.ELEVENLABS_VOICE_ID, ttsModel: c.TTS_MODEL, ttsPer1kCharsUsd: c.PRICE_TTS_PER_1K_CHARS_USD, sttLivePerHourUsd: c.PRICE_STT_LIVE_PER_HOUR_USD, maxMinutes: c.CALL_MAX_MINUTES },

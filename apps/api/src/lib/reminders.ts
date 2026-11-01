@@ -6,6 +6,7 @@ import { inQuietHours, nextQuietEnd } from "./time.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import type { Health } from "./health.js";
 import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueMemoryTidy, runDueWrapups, runStalledGoalCheckins, runTaskCheckins, runWaitingChecks, runEventPreps, type BackgroundDeps } from "./background.js";
+import { runMiniAppJobs } from "./miniapp-worker.js";
 import type { Vault } from "./vault.js";
 
 /**
@@ -99,6 +100,8 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
 /** Check for due reminders on a timer. Returns a function that stops it. */
 export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
   let running = false;
+  // Building a mini app takes a minute or two. It runs on its own so that reminders and briefings never wait for it.
+  let building = false;
   const timer = setInterval(async () => {
     if (running) return;
     running = true;
@@ -115,6 +118,12 @@ export function startScheduler(deps: SchedulerDeps, everyMs = 30_000) {
         await runEventPreps(bg);
         await runDueLearning(bg);
         await runDueMemoryTidy(bg);
+        if (!building) {
+          building = true;
+          void runMiniAppJobs(bg)
+            .catch((err) => deps.log?.error({ err }, "mini app jobs failed"))
+            .finally(() => (building = false));
+        }
       }
       deps.health?.tick();
     } catch (err) {

@@ -21,7 +21,7 @@ export type Searched = { ok: true; text: string; sources: { title: string; url: 
 export async function budgetedSearch(
   { db, config, model }: SearchDeps,
   who: { workspaceId: string; userId: string },
-  req: { prompt: string; system?: string; maxSearches?: number; maxTokens?: number; bill?: Bill },
+  req: { prompt: string; system?: string; maxSearches?: number; maxTokens?: number; bill?: Bill; model?: string; price?: Config["price"] },
 ): Promise<Searched> {
   if (!model.search) return { ok: false, reason: "Web search isn't available on this server." };
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn);
@@ -29,7 +29,7 @@ export async function budgetedSearch(
   if (!b.ok) return { ok: false, reason: b.reason === "kill_switch" ? "Danny is stopped." : "Daily spend cap reached." };
   let res;
   try {
-    res = await model.search({ model: config.model, system: req.system ?? SEARCH_SYSTEM, prompt: req.prompt, maxSearches: req.maxSearches ?? 2, maxTokens: req.maxTokens ?? 1500 });
+    res = await model.search({ model: req.model ?? config.model, system: req.system ?? SEARCH_SYSTEM, prompt: req.prompt, maxSearches: req.maxSearches ?? 2, maxTokens: req.maxTokens ?? 1500 });
   } catch {
     return { ok: false, reason: "The search failed. Nothing was charged." };
   }
@@ -37,10 +37,10 @@ export async function budgetedSearch(
     recordSpend(tx, {
       workspaceId: who.workspaceId,
       userId: who.userId,
-      model: config.model,
+      model: req.model ?? config.model,
       inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
       outputTokens: res.usage.outputTokens,
-      costMicros: costMicros(res.usage, config.price),
+      costMicros: costMicros(res.usage, req.price ?? config.price),
     }, req.bill),
   );
   const text = tidy(res.truncated ? cutToComplete(res.text) : res.text);
@@ -54,14 +54,14 @@ export const sourceList = (sources: { title: string; url: string }[], text = "")
 export async function budgetedAnswer(
   { db, config, model }: SearchDeps,
   who: { workspaceId: string; userId: string },
-  req: { system: string; prompt: string; maxTokens?: number; bill?: Bill },
-): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  req: { system: string; prompt: string; maxTokens?: number; bill?: Bill; model?: string; price?: Config["price"] },
+): Promise<{ ok: true; text: string; truncated: boolean } | { ok: false; reason: string }> {
   const tenant = <T>(fn: Parameters<typeof withTenant<T>>[2]) => withTenant(db, who.workspaceId, fn);
   const b = await tenant((tx) => checkBudget(tx, who.workspaceId));
   if (!b.ok) return { ok: false, reason: b.reason === "kill_switch" ? "Danny is stopped." : "Daily spend cap reached." };
   let res;
   try {
-    res = await model.complete({ model: config.model, system: req.system, messages: [{ role: "user", content: req.prompt }], tools: [], maxTokens: req.maxTokens ?? 700 }, () => {});
+    res = await model.complete({ model: req.model ?? config.model, system: req.system, messages: [{ role: "user", content: req.prompt }], tools: [], maxTokens: req.maxTokens ?? 700 }, () => {});
   } catch {
     return { ok: false, reason: "The model call failed. Nothing was charged." };
   }
@@ -69,12 +69,12 @@ export async function budgetedAnswer(
     recordSpend(tx, {
       workspaceId: who.workspaceId,
       userId: who.userId,
-      model: config.model,
+      model: req.model ?? config.model,
       inputTokens: res.usage.inputTokens + (res.usage.cacheReadTokens ?? 0) + (res.usage.cacheWriteTokens ?? 0),
       outputTokens: res.usage.outputTokens,
-      costMicros: costMicros(res.usage, config.price),
+      costMicros: costMicros(res.usage, req.price ?? config.price),
     }, req.bill),
   );
   const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("").trim();
-  return { ok: true, text };
+  return { ok: true, text, truncated: res.stopReason === "max_tokens" };
 }

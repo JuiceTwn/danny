@@ -27,6 +27,8 @@ export type ToolCtx = {
   search?: (question: string) => Promise<Searched>;
   /** For tools that call a public web service directly. Tests replace it. */
   fetchFn?: typeof fetch;
+  /** Whether this person may have Danny build mini apps for them (server setting, and owner-only while it is being tried out). */
+  canBuildApps?: boolean;
   /** Show a card under Danny's reply (a task with buttons, a day of calendar, quick replies). Does nothing outside a chat turn. */
   card?: (card: Card) => void;
 };

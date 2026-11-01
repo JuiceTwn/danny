@@ -1,17 +1,27 @@
-export type Route = "chat" | "tasks" | "waiting" | "memory" | "settings" | "owner";
-const ROUTES: Route[] = ["chat", "tasks", "waiting", "memory", "settings", "owner"];
+export type Route = "chat" | "tasks" | "waiting" | "apps" | "memory" | "settings" | "owner";
+const ROUTES: Route[] = ["chat", "tasks", "waiting", "apps", "memory", "settings", "owner"];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const parse = (): Route => {
-  const r = location.hash.replace(/^#\//, "") as Route;
-  return ROUTES.includes(r) ? r : "chat";
+// #/apps opens the list; #/apps/<id> opens one app.
+const parse = (): { route: Route; id: string } => {
+  const [name = "", id = ""] = location.hash.replace(/^#\//, "").split("/");
+  const route = ROUTES.includes(name as Route) ? (name as Route) : "chat";
+  return { route, id: route === "apps" && UUID.test(id) ? id : "" };
 };
 
 class Router {
-  current = $state<Route>(parse());
+  current = $state<Route>(parse().route);
+  /** The id after #/apps/, or "" */
+  appId = $state(parse().id);
 }
 export const router = new Router();
-addEventListener("hashchange", () => (router.current = parse()));
+addEventListener("hashchange", () => {
+  const p = parse();
+  router.current = p.route;
+  router.appId = p.id;
+});
 export const go = (r: Route) => (location.hash = `#/${r}`);
+export const openApp = (id: string) => (location.hash = `#/apps/${id}`);
 
 export const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 export const fmtDay = (iso: string) => {

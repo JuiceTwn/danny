@@ -28,6 +28,7 @@ import { googleRoutes } from "./routes/google.js";
 import { inviteRequestRoutes } from "./routes/invite-requests.js";
 import { memoryRoutes } from "./routes/memory.js";
 import { settingsRoutes } from "./routes/settings.js";
+import { appRoutes } from "./routes/apps.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { goalRoutes } from "./routes/goals.js";
 import { connectorRoutes } from "./routes/connectors.js";
@@ -130,6 +131,7 @@ export async function buildApp(deps: Deps) {
     await r.register(settingsRoutes, deps);
     await r.register(taskRoutes, deps);
     await r.register(goalRoutes, deps);
+    await r.register(appRoutes, deps);
     await r.register(connectorRoutes, deps);
     await r.register(interestRoutes, deps);
     await r.register(styleRoutes, deps);

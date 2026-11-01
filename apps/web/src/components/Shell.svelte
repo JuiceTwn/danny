@@ -6,6 +6,7 @@
   import Chat from "./Chat.svelte";
   import Tasks from "./Tasks.svelte";
   import Waiting from "./Waiting.svelte";
+  import Apps from "./Apps.svelte";
   import Memory from "./Memory.svelte";
   import Settings from "./Settings.svelte";
   import Owner from "./Owner.svelte";
@@ -14,11 +15,12 @@
     { id: "chat", label: "Chat" },
     { id: "tasks", label: "Tasks" },
     { id: "waiting", label: "Waiting" },
+    ...(app.me?.features?.miniApps ? [{ id: "apps" as Route, label: "Apps" }] : []),
     { id: "memory", label: "Memory" },
     { id: "settings", label: "Settings" },
     ...(app.me?.isOwner ? [{ id: "owner" as Route, label: "Owner" }] : []),
   ]);
-  const titles: Record<Route, string> = { chat: "Chat", tasks: "Tasks", waiting: "Waiting on you", memory: "Memory", settings: "Settings", owner: "Owner" };
+  const titles: Record<Route, string> = { chat: "Chat", tasks: "Tasks", waiting: "Waiting on you", apps: "Apps", memory: "Memory", settings: "Settings", owner: "Owner" };
 </script>
 
 <div class="app">
@@ -52,6 +54,7 @@
       {#if router.current === "chat"}<Chat />
       {:else if router.current === "tasks"}<Tasks />
       {:else if router.current === "waiting"}<Waiting />
+      {:else if router.current === "apps" && app.me?.features?.miniApps}<Apps />
       {:else if router.current === "memory"}<Memory />
       {:else if router.current === "settings"}<Settings />
       {:else if router.current === "owner" && app.me?.isOwner}<Owner />

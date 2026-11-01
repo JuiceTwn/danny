@@ -40,7 +40,7 @@ const firstLine = (s: string, n = 140) => {
 };
 
 /** Put a message in the user's chat, so it is there even when push is off, and buzz their devices. */
-async function deliver(
+export async function deliver(
   { db, vault, push }: BackgroundDeps,
   { workspaceId, userId }: Who,
   text: string,

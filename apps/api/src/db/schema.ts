@@ -309,6 +309,32 @@ export const prepSent = pgTable(
   (t) => [uniqueIndex("prep_sent_uq").on(t.userId, t.eventKey)],
 );
 
+// A small app Danny built for one person to learn or track something ("learn electric guitar"). The page is written by a model and runs in a
+// locked sandbox with no access to anything else; its progress is one small JSON blob saved here. Everything about it is encrypted.
+export const miniApps = pgTable(
+  "mini_apps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    titleEnc: bytea("title_enc").notNull(),
+    requestEnc: bytea("request_enc").notNull(), // what they asked for (first the skill and their level and goal, later the change they want)
+    briefEnc: bytea("brief_enc"), // the research the app was built from, kept so changes don't start from scratch
+    htmlEnc: bytea("html_enc"), // the app itself; null until the first build finishes
+    stateEnc: bytea("state_enc"), // their progress, as the app saves it
+    // queued: needs research and a first build | editing: has a page, needs a change | working: a worker has it | ready | failed
+    status: text("status").notNull().default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    leaseUntil: timestamp("lease_until", { withTimezone: true }), // a worker that dies leaves this behind; after it passes, the job is picked up again
+    runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+    version: integer("version").notNull().default(0),
+    error: text("error"), // a short reason shown to the person, never model or page text
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("mini_apps_ws_idx").on(t.workspaceId, t.userId, t.status)],
+);
+
 // Settings for the whole server that the owner enters in the app instead of editing .env. Encrypted like everything else.
 // Not tenant data, so no row-level security: only owner-only routes ever touch it.
 export const serverSecrets = pgTable("server_secrets", {

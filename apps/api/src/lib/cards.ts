@@ -33,6 +33,8 @@ export const CardSchema = z.discriminatedUnion("kind", [
     title: text(80).optional(),
     items: z.array(z.object({ id: z.string().regex(/^[0-9a-f]{6,32}$/i), from: text(80), subject: text(120), why: text(140) })).min(1).max(6),
   }),
+  // A mini app Danny built for them. Opens in the app.
+  z.object({ kind: z.literal("app"), id: z.uuid(), title: text(80), note: text(100).optional() }),
   // A few quick answers, shown as buttons under the last message. Tapping one sends it.
   z.object({ kind: z.literal("replies"), options: z.array(text(40).min(1)).min(1).max(4) }),
 ]);

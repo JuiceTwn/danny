@@ -113,6 +113,6 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
     if (!auth) return reply.code(401).send({ error: "unauthorized" });
     const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, ...prefColumns }).from(users).where(eq(users.id, auth.userId));
     const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, ...rest } = u!;
-    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner };
+    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner, features: { miniApps: deps.config.miniApps === "all" || (deps.config.miniApps === "owner" && auth.isOwner) } };
   });
 };

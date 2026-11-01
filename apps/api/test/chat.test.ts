@@ -238,6 +238,9 @@ describe("chat", () => {
       ["watch_reply", "internal"],
       ["list_waiting", "read"],
       ["stop_waiting", "internal"],
+      ["start_learning", "internal"],
+      ["change_app", "internal"],
+      ["list_apps", "read"],
       ["send_test_email", "external_write"],
     ]);
   });

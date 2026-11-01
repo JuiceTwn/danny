@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, type Card } from "../lib/api";
-  import { fmtWhen } from "../lib/router.svelte";
+  import { fmtWhen, openApp } from "../lib/router.svelte";
 
   let { cards, openTasks, canReply, onreply, onchange }: {
     cards: Card[];
@@ -118,6 +118,14 @@
         <a class="btn small" href="https://maps.apple.com/?q={maps(c)}" target="_blank" rel="noopener noreferrer">Apple Maps</a>
         <a class="btn small" href="https://www.google.com/maps/search/?api=1&query={maps(c)}" target="_blank" rel="noopener noreferrer">Google Maps</a>
       </div>
+    </div>
+  {:else if c.kind === "app"}
+    <div class="card task">
+      <div class="main">
+        <p class="t">{c.title}</p>
+        <span class="mono">Your app</span>
+      </div>
+      <div class="acts"><button class="btn small primary" onclick={() => openApp(c.id)} aria-label="Open {c.title}">Open</button></div>
     </div>
   {:else if c.kind === "inbox"}
     <div class="card">
