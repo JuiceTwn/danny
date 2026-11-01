@@ -1,5 +1,5 @@
 // App shell cache only. API calls (/v1/*) are never cached: they carry private data.
-const CACHE = "danny-shell-v1";
+const CACHE = "danny-shell-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
@@ -24,19 +24,19 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  e.respondWith(
-    caches.match(e.request).then(
-      (hit) =>
-        hit ||
-        fetch(e.request).then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(e.request, copy));
-          }
-          return res;
-        }),
-    ),
-  );
+  // Built files under /assets/ have a hash in their name and never change, so the cache can answer first. Anything else (the call audio
+  // worklet, icons, the manifest) keeps its name when it changes, so ask the network first and use the cache only when offline.
+  // (A cache-first copy of an old worklet would break calls after an update.)
+  const hashed = url.pathname.startsWith("/assets/");
+  const fromNetwork = () =>
+    fetch(e.request).then((res) => {
+      if (res.ok) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy));
+      }
+      return res;
+    });
+  e.respondWith(hashed ? caches.match(e.request).then((hit) => hit || fromNetwork()) : fromNetwork().catch(() => caches.match(e.request).then((r) => r || new Response("Offline", { status: 503 }))));
 });
 
 // Reminders. The server sends { title, body, taskId }. Done and Snooze work from the notification itself.

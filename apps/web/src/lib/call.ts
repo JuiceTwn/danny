@@ -32,8 +32,8 @@ export class CallClient {
   private ready = false;
   private over = false;
   private rate = 24000;
-  private nextAt = 0;
-  private playing = new Set<AudioBufferSourceNode>();
+  /** Danny's voice: one continuous stream, so the joins between network pieces can't click (see call-worklet.js). */
+  private player: AudioWorkletNode | null = null;
 
   constructor(private readonly ev: CallEvents) {}
 
@@ -51,7 +51,7 @@ export class CallClient {
       throw new CallError("Couldn't start the microphone.");
     }
     try {
-      await this.ctx.audioWorklet.addModule("/call-worklet.js");
+      await this.ctx.audioWorklet.addModule("/call-worklet.js?v=2");
     } catch {
       this.cleanup();
       throw new CallError("This browser can't take part in a call.");
@@ -87,6 +87,14 @@ export class CallClient {
     switch (m.type) {
       case "ready":
         this.rate = m.sampleRate ?? 24000;
+        if (this.ctx && !this.player) {
+          try {
+            this.player = new AudioWorkletNode(this.ctx, "pcm-player", { numberOfInputs: 0, outputChannelCount: [1], processorOptions: { rate: this.rate } });
+            this.player.connect(this.ctx.destination);
+          } catch {
+            this.ev.onNotice("Danny's voice couldn't start on this device. Close and reopen the app, then try again.");
+          }
+        }
         this.ready = true;
         break;
       case "state":
@@ -113,35 +121,14 @@ export class CallClient {
     }
   }
 
-  /** Queue a piece of Danny's voice right after the one before it. */
+  /** Hand a piece of Danny's voice to the player, which joins it to the one before it. */
   private play(buf: ArrayBuffer) {
-    const ctx = this.ctx;
-    if (!ctx || this.over || buf.byteLength < 2) return;
-    const i16 = new Int16Array(buf, 0, Math.floor(buf.byteLength / 2));
-    const f32 = new Float32Array(i16.length);
-    for (let i = 0; i < i16.length; i++) f32[i] = i16[i]! / 32768;
-    const audio = ctx.createBuffer(1, f32.length, this.rate);
-    audio.copyToChannel(f32, 0);
-    const src = ctx.createBufferSource();
-    src.buffer = audio;
-    src.connect(ctx.destination);
-    const at = Math.max(ctx.currentTime + 0.03, this.nextAt);
-    src.start(at);
-    this.nextAt = at + audio.duration;
-    this.playing.add(src);
-    src.onended = () => this.playing.delete(src);
+    if (!this.player || this.over || buf.byteLength < 2) return;
+    this.player.port.postMessage({ pcm: buf }, [buf]);
   }
 
   private stopPlayback() {
-    for (const s of this.playing) {
-      try {
-        s.stop();
-      } catch {
-        /* already finished */
-      }
-    }
-    this.playing.clear();
-    this.nextAt = 0;
+    this.player?.port.postMessage({ clear: true });
   }
 
   setMuted(m: boolean) {
@@ -172,6 +159,8 @@ export class CallClient {
     this.stream?.getTracks().forEach((t) => t.stop());
     void this.lock?.release().catch(() => {});
     void this.ctx?.close().catch(() => {});
+    this.player?.disconnect();
+    this.player = null;
     this.ws = null;
     this.stream = null;
     this.ctx = null;
