@@ -33,6 +33,7 @@ import { taskRoutes } from "./routes/tasks.js";
 import { goalRoutes } from "./routes/goals.js";
 import { connectorRoutes } from "./routes/connectors.js";
 import { interestRoutes } from "./routes/interests.js";
+import { teamRoutes } from "./routes/teams.js";
 import { styleRoutes } from "./routes/style.js";
 import { previewRoutes } from "./routes/preview.js";
 import { transcribeRoutes } from "./routes/transcribe.js";
@@ -134,6 +135,7 @@ export async function buildApp(deps: Deps) {
     await r.register(appRoutes, deps);
     await r.register(connectorRoutes, deps);
     await r.register(interestRoutes, deps);
+    await r.register(teamRoutes, deps);
     await r.register(styleRoutes, deps);
     await r.register(previewRoutes, deps);
     await r.register(transcribeRoutes, deps);

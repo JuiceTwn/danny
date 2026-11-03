@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type Interest, type Style } from "../lib/api";
+  import { api, type CatalogTeam, type FollowedTeam, type Interest, type Style } from "../lib/api";
   import Connections from "./Connections.svelte";
   import { disablePush, enablePush, pushState, type PushState } from "../lib/push";
   import { app, installApp, refresh, signOut } from "../lib/store.svelte";
@@ -42,6 +42,8 @@
   let autoMemOn = $state(true);
   let adhdOn = $state(false);
   let prepOn = $state(false);
+  let goodNewsOn = $state(false);
+  let newsItems = $state(3);
   $effect(() => {
     if (app.me) {
       quietStart = app.me.user.quietStart;
@@ -51,6 +53,8 @@
       autoMemOn = app.me.user.autoMemory;
       adhdOn = app.me.user.adhdMode;
       prepOn = app.me.user.eventPrep;
+      goodNewsOn = app.me.user.goodNews;
+      newsItems = app.me.user.newsItems;
     }
   });
   const HOURS = Array.from({ length: 24 }, (_, h) => [h, `${String(h).padStart(2, "0")}:00`] as const);
@@ -92,7 +96,7 @@
       error = "Couldn't forget those. Try again.";
     }
   }
-  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean; adhdMode?: boolean; eventPrep?: boolean };
+  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean; adhdMode?: boolean; eventPrep?: boolean; goodNews?: boolean; newsItems?: number };
   const VOICES = [
     ["foreman", "Foreman: short and dry"],
     ["warm", "Warm: friendly and encouraging"],
@@ -128,11 +132,52 @@
       error = "Couldn't remove that. Try again.";
     }
   }
+  let teams = $state<FollowedTeam[]>([]);
+  let catalog = $state<CatalogTeam[]>([]);
+  let pick = $state("");
+  async function loadTeams() {
+    try {
+      teams = (await api<{ items: FollowedTeam[] }>("GET", "/v1/teams")).items;
+      if (!catalog.length) catalog = (await api<{ items: CatalogTeam[] }>("GET", "/v1/teams/catalog")).items;
+    } catch {
+      /* the list just stays empty */
+    }
+  }
+  async function addTeam(e: SubmitEvent) {
+    e.preventDefault();
+    const [league, code] = pick.split(":");
+    if (!league || !code) return;
+    error = "";
+    try {
+      await api("POST", "/v1/teams", { league, code });
+      pick = "";
+      await loadTeams();
+    } catch {
+      error = "Couldn't add that team. You can follow up to 8.";
+    }
+  }
+  async function teamAlerts(t: FollowedTeam) {
+    try {
+      await api("PATCH", `/v1/teams/${t.id}`, { notify: !t.notify });
+      await loadTeams();
+    } catch {
+      error = "Couldn't change that. Try again.";
+    }
+  }
+  async function dropTeam(id: string) {
+    try {
+      await api("DELETE", `/v1/teams/${id}`);
+      await loadTeams();
+    } catch {
+      error = "Couldn't remove that. Try again.";
+    }
+  }
+  const followedKeys = $derived(new Set(teams.map((t) => `${t.league}:${t.code}`)));
   async function saveBrief(patch: Prefs) {
     briefBusy = true;
     error = "";
     try {
-      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean }>("PATCH", "/v1/profile", patch);
+      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean; goodNews: boolean; newsItems: number }>("PATCH", "/v1/profile", patch);
       if (app.me) {
         app.me.user.briefingEnabled = r.briefingEnabled;
         app.me.user.briefingTime = r.briefingTime;
@@ -146,6 +191,8 @@
         app.me.user.autoMemory = r.autoMemory;
         app.me.user.adhdMode = r.adhdMode;
         app.me.user.eventPrep = r.eventPrep;
+        app.me.user.goodNews = r.goodNews;
+        app.me.user.newsItems = r.newsItems;
       }
     } catch {
       error = "Couldn't save that. Try again.";
@@ -156,6 +203,7 @@
 
   onMount(() => {
     loadInterests();
+    loadTeams();
     loadStyle();
   });
 
@@ -307,6 +355,53 @@
           <input id="topic" class="input" maxlength="80" placeholder="Premier League" bind:value={topic} />
         </div>
         <button class="btn" disabled={!topic.trim()}>Add</button>
+      </form>
+      <p>Try "tech news" or "AI". Danny spreads the news across your topics.</p>
+      <div class="field">
+        <label for="news-items">News in your briefing</label>
+        <select id="news-items" class="input" bind:value={newsItems} onchange={() => saveBrief({ newsItems: Number(newsItems) })}>
+          <option value={0}>None</option>
+          <option value={1}>Just one story</option>
+          <option value={2}>Up to 2 stories</option>
+          <option value={3}>Up to 3 stories</option>
+          <option value={5}>Up to 5 stories</option>
+        </select>
+      </div>
+      <p>{goodNewsOn ? "On. Each morning ends with one real, uplifting story." : "Off. Turn it on for one real, uplifting story each morning, whatever else is going on."}</p>
+      <button class="btn {goodNewsOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ goodNews: !goodNewsOn })}>{goodNewsOn ? "Turn off good news" : "Add a good news story"}</button>
+    </section>
+
+    <section>
+      <h2 class="display">Your teams</h2>
+      <p>NHL and MLB. Your briefing gets last night's score and today's game. With alerts on, Danny also tells you about an hour before a game and the final score when it ends (quiet hours: in the chat, no buzz).</p>
+      {#if teams.length}
+        <ul class="topics">
+          {#each teams as t (t.id)}
+            <li>
+              <span>{t.fullName} <small class="mono">{t.leagueName}</small></span>
+              <span class="row">
+                <button class="btn small" onclick={() => teamAlerts(t)} aria-pressed={t.notify}>{t.notify ? "Alerts on" : "Alerts off"}</button>
+                <button class="btn small" onclick={() => dropTeam(t.id)} aria-label="Stop following {t.fullName}">Remove</button>
+              </span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      <form class="capform" onsubmit={addTeam}>
+        <div class="field">
+          <label for="team">Add a team</label>
+          <select id="team" class="input" bind:value={pick}>
+            <option value="">Choose a team</option>
+            {#each ["nhl", "mlb"] as lg}
+              <optgroup label={lg.toUpperCase()}>
+                {#each catalog.filter((c) => c.league === lg && !followedKeys.has(`${c.league}:${c.code}`)) as c (c.code)}
+                  <option value="{c.league}:{c.code}">{c.fullName}</option>
+                {/each}
+              </optgroup>
+            {/each}
+          </select>
+        </div>
+        <button class="btn" disabled={!pick}>Add</button>
       </form>
     </section>
 
@@ -460,5 +555,6 @@
     .page { padding: 14px 16px 28px; padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
   }
   .topics { display: flex; flex-direction: column; }
+  .row { display: flex; gap: 8px; align-items: center; }
   .topics li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 </style>
