@@ -3,6 +3,7 @@
   import { api, ApiError } from "../lib/api";
   import { refresh, startPreview } from "../lib/store.svelte";
   import { fmtDay, usd } from "../lib/router.svelte";
+  import Section from "./Section.svelte";
 
   type Req = { id: string; email: string; status: string; createdAt: string };
   type Use = { userId: string; email: string; todayCostUsd: number; last30DaysCostUsd: number };
@@ -173,14 +174,12 @@
   <div class="col">
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-    <section>
-      <h2 class="display">See Danny as a new person</h2>
+    <Section title="See Danny as a new person">
       <p class="muted">Signs you in to a brand-new account made exactly the way a real signup is: same defaults, same welcome, nothing in it. Poke around, try the setup, then tap "Back to my account" in the bar at the top. The test account and everything in it is deleted when you go back, and your own account is never touched.</p>
       <button class="btn primary wide" disabled={previewBusy} onclick={start}>{previewBusy ? "Setting it up" : "Start from scratch"}</button>
-    </section>
+    </Section>
 
-    <section class="keys">
-      <h2 class="display">API keys</h2>
+    <Section title="API keys" summary={sortedKeys.length ? `${sortedKeys.filter((k) => k.source !== "none").length} of ${sortedKeys.length} set` : ""}>
       <p class="muted">Paste a key and tap Save. Danny checks it first, then uses it right away. No computer needed.</p>
       {#each sortedKeys as k (k.id)}
         <div class="keybox">
@@ -213,27 +212,25 @@
           {#if keyMsg[k.id]?.text}<p class:bad={!keyMsg[k.id]!.ok} class="mono" role="status">{keyMsg[k.id]!.text}</p>{/if}
         </div>
       {/each}
-    </section>
+    </Section>
 
     {#if link}
-      <section class="linkbox" aria-live="polite">
+      <div class="linkbox" aria-live="polite">
         <p class="mono">Invite link for {link.email}. Send it yourself. Good for 7 days, works once.</p>
         <code>{link.url}</code>
         <button class="btn small primary" onclick={copy}>{copied ? "Copied" : "Copy link"}</button>
-      </section>
+      </div>
     {/if}
 
-    <section>
-      <h2 class="display">Invite someone</h2>
+    <Section title="Invite someone">
       <form class="row" onsubmit={invite}>
         <label class="sr" for="inv">Their email</label>
         <input id="inv" class="input" type="email" placeholder="name@example.com" bind:value={email} />
         <button class="btn" disabled={!email.trim()}>Make link</button>
       </form>
-    </section>
+    </Section>
 
-    <section>
-      <h2 class="display">Asked for an invite</h2>
+    <Section title="Asked for an invite" summary={total ? `${total} on the list` : "Nobody yet"}>
       {#if total > 0}
         <p class="mono">{total} on the list{total > requests.length ? `, newest ${requests.length} shown` : ""}. <a href="/v1/admin/invite-requests.csv" download>Download all (CSV)</a></p>
       {/if}
@@ -247,10 +244,9 @@
           </li>
         {/each}
       </ul>
-    </section>
+    </Section>
 
-    <section>
-      <h2 class="display">Server</h2>
+    <Section title="Server" summary={ops?.version ? `v${ops.version}` : ""}>
       {#if !ops}
         <p class="muted">Checking…</p>
       {:else if !ops.available}
@@ -298,10 +294,9 @@
           <ul class="changes">{#each ops.backups as b}<li><span class="mono">{b.name}</span> <span class="muted">{kb(b.bytes)}, {ago(b.at)}</span></li>{/each}</ul>
         {/if}
       {/if}
-    </section>
+    </Section>
 
-    <section>
-      <h2 class="display">Cost by person</h2>
+    <Section title="Cost by person">
       <p class="muted">What each person's requests really cost, in tokens, searches and speech. Not what they were billed (usage is rounded up to the cent).</p>
       <div class="scroll">
         <table>
@@ -311,16 +306,13 @@
           </tbody>
         </table>
       </div>
-    </section>
+    </Section>
   </div>
 </div>
 
 <style>
   .page { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px 40px; }
   .col { width: min(760px, 100%); margin: 0 auto; display: flex; flex-direction: column; }
-  section { display: flex; flex-direction: column; gap: 12px; padding: 24px 0; border-top: 1px solid var(--line); align-items: flex-start; }
-  section:first-child { border-top: 0; padding-top: 8px; }
-  section h2 { font-size: 2rem; }
   .muted { color: var(--muted); }
   .row { display: flex; gap: 10px; width: 100%; }
   .linkbox { background: var(--panel); border: 2px solid var(--run); padding: 16px; margin-bottom: 12px; }

@@ -365,8 +365,8 @@
   .row.approval .text, .row.problem .text { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
   .day { padding: 18px 0 6px; }
   .thinking { padding: 10px 0 0 104px; }
-  .empty { padding: 8vh 0 0; display: flex; flex-direction: column; gap: 16px; }
-  .empty h2 { font-size: clamp(2.8rem, 8vw, 4.5rem); }
+  .empty { padding: 6vh 0 0; display: flex; flex-direction: column; gap: 16px; }
+  .empty h2 { font-size: clamp(2rem, 6vw, 3rem); }
   .empty p { color: #c9d0c8; max-width: 34ch; }
   .starters { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; align-items: flex-start; }
   .chip { min-height: 44px; padding: 8px 14px; text-align: left; background: var(--panel); border: 1px solid var(--line); color: var(--paper); }
