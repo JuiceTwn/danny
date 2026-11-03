@@ -1,4 +1,9 @@
+import { eq } from "drizzle-orm";
+import { users } from "../db/schema.js";
+import { deliver, type BackgroundDeps } from "../lib/background.js";
 import { reportFailure } from "../lib/model-error.js";
+import { Ops } from "../lib/ops.js";
+import { awaitOps, looksLikeCommand, runOwnerCommand, saveExchange } from "../lib/owner-commands.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { history, runTurn, type BrainDeps, type ChatEvent } from "../brain/run.js";

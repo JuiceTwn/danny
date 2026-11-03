@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Does what the Owner tab asks for, so nobody has to SSH in: check for updates, back up, update.
-# The app only drops an empty file named "check", "backup" or "update" in the requests folder. This script, which runs as
-# root on the server, looks at those three names and nothing else: it never reads what is inside a request, and it
+# Does what the Owner tab (and the owner's slash commands in the chat) ask for, so nobody has to SSH in: check for updates, back up, update, run the
+# doctor, read the recent log, repair, restart.
+# The app only drops an empty file named for one of the actions below in the requests folder. This script, which runs as
+# root on the server, looks at those exact names and nothing else: it never reads what is inside a request, and it
 # ignores any other name, any link, any folder. The app never gets Docker, a shell or the repo.
 # Triggered by the systemd path unit that `danny ops-install` sets up. Safe to run by hand: danny ops
 set -uo pipefail
@@ -72,6 +73,18 @@ run_action() { # run_action <name>
       [ "$rc" -ne 0 ] || say "Checked for updates." >"$log" ;;
     backup) "$DIR/backup.sh" >"$log" 2>&1 || rc=$? ;;
     update) DANNY_FROM_OPS=1 "$DIR/update.sh" >"$log" 2>&1 || rc=$? ;;
+    doctor|fix)
+      # The doctor exits non-zero when it finds a problem. That is its report, not a failure to run it, so the findings go to a file the app can read.
+      local flag=""; [ "$action" = fix ] && flag="--fix"
+      # shellcheck disable=SC2086  # flag is empty or one fixed word
+      "$DIR/doctor.sh" $flag >"$log" 2>&1 || true
+      sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -n 120 | write_atomic "$OUT/doctor.txt"
+      say "Ran the doctor." >"$log" ;;
+    logs)
+      # The last lines of the app's log without the health-check noise (every 10 seconds) and without routine 2xx request lines.
+      compose logs --no-color --tail 800 api 2>&1 | grep -v -e '/readyz' -e '"msg":"incoming request"' -e '"statusCode":2' | tail -n 120 | write_atomic "$OUT/logs.txt"
+      say "Read the log." >"$log" ;;
+    restart) compose restart api >"$log" 2>&1 || rc=$? ;;
   esac
   write_backups; write_repo
   write_last "$action" "$([ "$rc" -eq 0 ] && echo ok || echo failed)" "$started" "$(now)" "$log"
@@ -79,8 +92,8 @@ run_action() { # run_action <name>
   rm -f "$log"
 }
 
-# Order matters: look first, then back up, then update.
-for action in check backup update; do
+# Order matters: look first, then back up, then update, then the read-only reports, then the repairs.
+for action in check backup update doctor logs fix restart; do
   f="$REQ/$action"
   if [ -L "$f" ] || [ ! -f "$f" ]; then continue; fi
   rm -f -- "$f"

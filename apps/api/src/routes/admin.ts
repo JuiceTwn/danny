@@ -10,6 +10,7 @@ import { SCOPES } from "../lib/google.js";
 import { clearApiKey, clearGoogleCredentials, googleRedirectUri, saveApiKey, saveGoogleCredentials } from "../lib/server-secrets.js";
 import { KEY_DEFS } from "../lib/api-keys.js";
 import { ACTIONS, Ops } from "../lib/ops.js";
+import { commandList } from "../lib/owner-commands.js";
 import { createInvite as makeInvite } from "../lib/invites.js";
 
 const usd = (micros: number) => micros / 1_000_000;
@@ -138,6 +139,9 @@ export const adminRoutes: FastifyPluginAsync<Deps> = async (app, { db, config, v
     await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: `ops.${action}`, detail: {} }));
     return reply.code(202).send({ ok: true });
   });
+
+  // The owner's slash commands, for the chat's autocomplete menu.
+  app.get("/v1/admin/commands", async () => ({ items: commandList() }));
 
   // Spend per user across all workspaces, via a read-only database function (see migration 0002).
   app.get("/v1/admin/usage", async () => {

@@ -69,7 +69,17 @@ danny logs [service]    follow the logs
 ## Update and backup from the Owner tab
 Run `danny ops-install` once. After that the Owner tab has Check for updates, Back up now and Update Danny, so you do not need SSH for routine work. They run exactly the same `backup.sh` and `update.sh`, with the same verified backup and automatic rollback.
 
-How it stays safe: the app never gets Docker or a shell. It only creates an empty file named `check`, `backup` or `update` in `/var/lib/danny/ops/requests`. A systemd path unit then starts `deploy/ops.sh` as root, which looks at those three exact names and nothing else (other names, folders, links and file contents are ignored and deleted). Results go to `/var/lib/danny/ops/status`, which the app can only read. While one is running, the watchdog stands back so it does not restart things underneath it. Restoring a backup is deliberately not a button: do that by SSH with `danny restore`.
+### Slash commands in the chat (owner only)
+The same requests can be made by typing into the chat as the owner. Type `/` and a menu appears. They run on the server before anything reaches the model, cost nothing, and anyone who isn't the owner just sends a normal message.
+
+- `/status` is everything at a glance: database, reminder scheduler, version and updates waiting, spend today, people, errors in the last hour.
+- `/errors [n]` lists recent failures (model, search, tools, 500s) since the server started. `/logs` reads the latest lines of the server log (health checks and routine 2xx requests left out). `/doctor` is the full health check. `/last` shows what the last server action did.
+- `/check`, `/backup` run straight away. `/update confirm`, `/restart confirm` and `/fix confirm` need the word `confirm`, because they restart things. Results are posted back into the chat when the server finishes.
+- `/usage`, `/users` show spend and accounts. `/invite name@example.com` makes a one-week invite link.
+
+They use exactly the same safe mechanism as the buttons (below), with a longer allowlist: `check`, `backup`, `update`, `doctor`, `logs`, `fix` and `restart`. After pulling this change, run `danny update` once so the root script knows the new names.
+
+How it stays safe: the app never gets Docker or a shell. It only creates an empty file named for one of those actions in `/var/lib/danny/ops/requests`. A systemd path unit then starts `deploy/ops.sh` as root, which looks at those exact names and nothing else (other names, folders, links and file contents are ignored and deleted). Results go to `/var/lib/danny/ops/status`, which the app can only read. While one is running, the watchdog stands back so it does not restart things underneath it. Restoring a backup is deliberately not a button: do that by SSH with `danny restore`.
 
 ## Restoring
 `danny restore /var/backups/danny/danny-<date>.sql.gz` stops Danny, replaces the database, starts him, and waits for him to be healthy. You need the same `DATA_KEYS` that were in use when the backup was taken.

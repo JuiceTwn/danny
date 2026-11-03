@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Owner slash commands in the chat, so there is much less need to SSH in.** Type `/` as the owner and a menu appears. They run on the server before anything reaches the model, cost nothing, are recorded in the audit log, and for anyone who isn't the owner "/status" is just a message.
+  - **Looking:** `/status` (database, scheduler, version and updates waiting, spend today, people, errors in the last hour), `/errors [n]` (recent failures since start-up, newest first), `/logs` (the latest server log lines, health checks left out), `/doctor` (the full health check, only the things to look at), `/last` (what the last server action did), `/usage`, `/users`.
+  - **Doing:** `/check`, `/backup`, `/invite name@example.com` run straight away; `/update confirm`, `/restart confirm` and `/fix confirm` need the word `confirm`. When the server finishes, the result is posted back into the chat.
+  - **Same safe mechanism as the Owner tab buttons:** the app still never gets Docker or a shell. It drops an empty, exactly-named request file; the root script `deploy/ops.sh` does the work and writes results the app can only read. The allowlist grew from `check`, `backup`, `update` to also `doctor`, `logs`, `fix` and `restart`; anything else is ignored and deleted as before. **After pulling this, run `danny update` once** so the root script knows the new names.
+  - A bounded list of recent errors is kept in memory (place, short message, time; nothing a user wrote), including 500s from any route.
+  - 448 API tests, the deploy script tests (58) and `shellcheck` all pass. Not tested on a real server: the new actions against real Docker; first use is the test (try `/doctor` and `/logs`). Includes the earlier model-error logging change, which these commands build on.
+
 - **When a model call fails, Danny now says why, and the server log has the cause.** Before, every model, web-search and tool failure was caught and thrown away: the app said "The model call failed" and `danny logs` showed nothing but health checks, so there was nothing to go on.
   - **In the chat and briefing:** a short hint by kind, such as "The model rejected the server's API key. The owner can check it in Owner, API keys.", "The model name isn't available to this key. Check MODEL in .env.", "rate limiting", "overloaded", "couldn't reach the model service", or "took too long". Only the kind and hint are shown, never the raw error.
   - **In `danny logs`:** one error line per failure, like `chat model call failed: auth (401): invalid x-api-key sk-…`, with the place (chat, search, a named tool, a call), the status and the model. Anything that looks like an API key is removed first. Failing tools are logged too, which is where a missing database column would show up.

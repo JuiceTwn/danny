@@ -270,7 +270,7 @@ export async function awaitOps(ops: Ops, action: OpsAction, since: number, tz: s
     const v = await ops.view();
     const done = v.last && v.last.action === action && v.last.state !== "running" && v.last.finishedAt && Date.parse(v.last.finishedAt) >= since - 5000;
     if (done) return opsResultText(action, v, { doctor: await ops.text("doctor.txt"), logs: await ops.text("logs.txt") }, tz);
-    await new Promise((r) => setTimeout(r, everyMs));
+    await new Promise<void>((r) => setTimeout(r, everyMs).unref?.());
   }
   return `Still waiting on **${action}**. Try /last in a minute.`;
 }
