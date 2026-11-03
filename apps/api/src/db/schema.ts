@@ -44,6 +44,7 @@ export const users = pgTable(
     quietEnd: integer("quiet_end").notNull().default(7),
     units: text("units").notNull().default("metric"), // metric | imperial, for weather
     learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
+    tips: boolean("tips").notNull().default(true), // Danny now and then mentions something he can do that they have not tried ("btw I can also...")
     goodNews: boolean("good_news").notNull().default(false), // opt-in: one uplifting story in the briefing
     newsItems: integer("news_items").notNull().default(3), // how many news items the briefing carries; 0 means none
     eventPrep: boolean("event_prep").notNull().default(false), // opt-in: a heads-up before calendar events (where, who, join link, last email)
@@ -389,6 +390,19 @@ export const followedTeams = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("followed_teams_user_idx").on(t.workspaceId, t.userId)],
+);
+
+// Which "btw, I can also do this" suggestions a person has already been shown, so each is said once.
+export const tipsSent = pgTable(
+  "tips_sent",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("tips_sent_uq").on(t.userId, t.key)],
 );
 
 // Which game alerts have gone out, so a game gets one heads-up and one final score however often the scheduler looks.

@@ -43,6 +43,7 @@
   let adhdOn = $state(false);
   let prepOn = $state(false);
   let goodNewsOn = $state(false);
+  let tipsOn = $state(true);
   let newsItems = $state(3);
   $effect(() => {
     if (app.me) {
@@ -54,6 +55,7 @@
       adhdOn = app.me.user.adhdMode;
       prepOn = app.me.user.eventPrep;
       goodNewsOn = app.me.user.goodNews;
+      tipsOn = app.me.user.tips;
       newsItems = app.me.user.newsItems;
     }
   });
@@ -96,7 +98,7 @@
       error = "Couldn't forget those. Try again.";
     }
   }
-  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean; adhdMode?: boolean; eventPrep?: boolean; goodNews?: boolean; newsItems?: number };
+  type Prefs = { briefingEnabled?: boolean; briefingTime?: string; wrapupEnabled?: boolean; wrapupTime?: string; voice?: string; quietStart?: number; quietEnd?: number; units?: string; learnEnabled?: boolean; autoMemory?: boolean; adhdMode?: boolean; eventPrep?: boolean; goodNews?: boolean; newsItems?: number; tips?: boolean };
   const VOICES = [
     ["foreman", "Foreman: short and dry"],
     ["warm", "Warm: friendly and encouraging"],
@@ -177,7 +179,7 @@
     briefBusy = true;
     error = "";
     try {
-      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean; goodNews: boolean; newsItems: number }>("PATCH", "/v1/profile", patch);
+      const r = await api<Prefs & { briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean; goodNews: boolean; newsItems: number; tips: boolean }>("PATCH", "/v1/profile", patch);
       if (app.me) {
         app.me.user.briefingEnabled = r.briefingEnabled;
         app.me.user.briefingTime = r.briefingTime;
@@ -193,6 +195,7 @@
         app.me.user.eventPrep = r.eventPrep;
         app.me.user.goodNews = r.goodNews;
         app.me.user.newsItems = r.newsItems;
+        app.me.user.tips = r.tips;
       }
     } catch {
       error = "Couldn't save that. Try again.";
@@ -463,6 +466,12 @@
       <h2 class="display">Before your events</h2>
       <p>{prepOn ? "On. About an hour before an event with a place or people (10 minutes before a video call), Danny sends where it is, who's going, the join link and your last email with them. Needs Google Calendar connected. Quiet hours: it goes in the chat without a buzz." : "Off. Turn it on and Danny will send a short heads-up before each event: where, who, the join link, and your last email with them. Needs Google Calendar connected."}</p>
       <button class="btn {prepOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ eventPrep: !prepOn })}>{prepOn ? "Turn off event heads-ups" : "Turn on event heads-ups"}</button>
+    </section>
+
+    <section>
+      <h2 class="display">Suggestions</h2>
+      <p>{tipsOn ? "On. Now and then, at most once every few days, Danny mentions something he can do that you haven't tried, like an evening wrap-up or news in your brief. He never buzzes your phone for it." : "Off. Danny won't mention things he can do unless you ask."}</p>
+      <button class="btn {tipsOn ? '' : 'primary'} wide" disabled={briefBusy} onclick={() => saveBrief({ tips: !tipsOn })}>{tipsOn ? "Stop the suggestions" : "Allow suggestions"}</button>
     </section>
 
     <section>

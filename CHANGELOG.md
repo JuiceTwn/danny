@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Simpler start: things are already on, setup happens by chatting, and Danny mentions what else he can do.**
+  - **New accounts start with the morning brief (07:30) and event heads-ups already on.** Existing accounts are untouched. The brief stays quiet until there is something to say (a task, goal, topic, team, city, calendar, email or note), so nobody gets an empty "good morning" and nothing is spent on one; the skip is recorded as `briefing.skip` (reason `empty`). The wrap-up, push notifications and Google stay opt-in because they need a choice or a permission.
+  - **A welcome in the chat** with two buttons ("Set up my morning brief", "What can you do?"). Setup is one message: Danny asks for a city and what they want in the brief, then does it with tools. No Settings tour.
+  - **`change_setting`: change anything about the brief by asking.** Brief and wrap-up on or off and their times, event heads-ups, the good-news story, how many news stories, your city, and the suggestions below.
+  - **"btw, I can also do this" suggestions.** At most one every 3 days, mid-day, from the second day, each said once and only while it still applies: your city, news and scores, the evening wrap-up, phone notifications, Gmail and Calendar, goals. They arrive in the chat without a buzz, some with tap-to-answer buttons, cost nothing (fixed wording), and stop with "stop the tips" or a Settings switch.
+  - Migration 0027: `tips` on `users`, `tips_sent`, and the scheduler function `due_tips()`. The test helper now makes a bare account by default (pass `{ fresh: true }` for exactly what a new person gets) so older tests keep testing one feature at a time. 386 tests pass against a real Postgres. Not tested: how well the model follows the setup conversation, which needs a live key.
+
 - **A morning briefing that fits you: sports from real scores, one good story, and how much news you want.**
   - **Your teams (NHL and MLB; Settings, or "I follow the Leafs" in chat).** The briefing gets last night's score and today's game (or the next one) straight from the leagues' own public feeds, so the numbers are exact and it costs no web search. Up to 8 teams. A name that could be two teams ("Toronto", "Rangers") makes Danny ask which. Tools: `follow_team`, `list_teams`, `set_team_alerts`, `unfollow_team`.
   - **Game alerts (on by default per team, off with one tap).** About an hour before a game, and the final score when it ends (with "in overtime" or "in a shootout"). Fixed wording and no model call, so it is free however many games there are. Each goes out once, lands in the chat even when push is off, and in quiet hours it arrives without a buzz. Following a team never replays old results.

@@ -225,6 +225,7 @@ describe("chat", () => {
       ["list_teams", "read"],
       ["set_team_alerts", "internal"],
       ["unfollow_team", "internal"],
+      ["change_setting", "internal"],
       ["learn_preference", "internal"],
       ["list_preferences", "read"],
       ["forget_preference", "internal"],

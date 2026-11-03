@@ -226,6 +226,13 @@ export async function runDueBriefings(deps: BackgroundDeps, now = new Date()) {
         }
       }
 
+      // Briefings are on from the start, so a brand-new account has nothing to say yet. Stay quiet rather than send an empty "good morning".
+      const hasCalendar = Boolean(calendar && calendar !== "nothing scheduled");
+      if (!ctx.tasks.length && !ctx.goals.length && !ctx.topics.length && !ctx.teams.length && !ctx.location && !ctx.memory.length && !ctx.goodNews && !hasCalendar && !github && !emailCard) {
+        await withTenant(db, d.workspace_id, (tx) => tx.insert(auditLog).values({ workspaceId: d.workspace_id, userId: d.user_id, action: "briefing.skip", detail: { reason: "empty" } }));
+        continue;
+      }
+
       const lines = [
           `It is ${localIso(now, d.timezone)} (${d.timezone}). Write today's briefing, under ${sports.length || ctx.goodNews ? 240 : 200} words, in this order:`,
           `Layout: a one-line greeting with the day. Then a bold label on its own line for each section, with a dash line per item under it, and a blank line between sections:`,

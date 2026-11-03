@@ -227,12 +227,14 @@ describe("the morning briefing", () => {
 
   it("limits the news to what they asked for, and does no web search at all when it is off", async () => {
     const light = await setup("Lt", { newsItems: 1 });
+    await light.c.post("/v1/tasks", { title: "Water the plants" }); // a brief with nothing to say is not sent
     expect((await light.c.get("/v1/me")).body.user).toMatchObject({ newsItems: 1, goodNews: false });
     searches.length = 0;
     await runDueBriefings(deps(), new Date("2027-01-18T13:00:00Z"));
     expect(searches.some((s) => s.prompt.includes("up to 1 in all"))).toBe(true);
 
     const off = await setup("Off", { newsItems: 0 });
+    await off.c.post("/v1/tasks", { title: "Water the plants" }); // a brief with nothing to say is not sent
     searches.length = 0;
     plain.length = 0;
     await runDueBriefings(deps(), new Date("2027-01-19T13:00:00Z"));

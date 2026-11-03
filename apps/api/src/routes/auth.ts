@@ -1,4 +1,5 @@
 import { prefColumns, prefsView } from "./tasks.js";
+import { NEW_ACCOUNT_DEFAULTS, welcome } from "../lib/onboarding.js";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -75,7 +76,7 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
         .where(and(eq(invites.id, invite.id), isNull(invites.acceptedAt)))
         .returning({ id: invites.id });
       if (claimed.length === 0) throw Object.assign(new Error("invite_invalid_or_expired"), { statusCode: 400 });
-      const [u] = await tx.insert(users).values({ email: invite.email, name: body.name, passwordHash }).returning({ id: users.id });
+      const [u] = await tx.insert(users).values({ email: invite.email, name: body.name, passwordHash, ...NEW_ACCOUNT_DEFAULTS }).returning({ id: users.id });
       const [w] = await tx
         .insert(workspaces)
         .values({ name: body.name ? `${body.name}'s Danny` : "My Danny", dailyCapMicros: deps.config.defaultDailyCapMicros })
@@ -85,6 +86,7 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
       return { userId: u!.id, workspaceId: w!.id };
     });
     await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "account.created" }));
+    await welcome(db, deps.vault, workspaceId, userId, body.name.split(" ")[0] ?? "");
     await startSession(deps, reply, userId, workspaceId);
     return reply.code(201).send({ ok: true });
   });
@@ -112,7 +114,7 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
     const auth = await loadSession(deps, req);
     if (!auth) return reply.code(401).send({ error: "unauthorized" });
     const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, ...prefColumns }).from(users).where(eq(users.id, auth.userId));
-    const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, ...rest } = u!;
-    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner, features: { miniApps: deps.config.miniApps === "all" || (deps.config.miniApps === "owner" && auth.isOwner) } };
+    const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips, ...rest } = u!;
+    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner, features: { miniApps: deps.config.miniApps === "all" || (deps.config.miniApps === "owner" && auth.isOwner) } };
   });
 };

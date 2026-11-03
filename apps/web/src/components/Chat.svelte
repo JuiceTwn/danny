@@ -32,7 +32,7 @@
     }
   }
 
-  const starters = ["Remember that Marlene prefers texts, not calls", "Draft a reply to a customer asking for a quote", "What do you remember about me?"];
+  const starters = ["Set up my morning brief", "Remember that Marlene prefers texts, not calls", "What can you do?"];
 
   const push = (kind: Row["kind"], text: string, extra: Partial<Row> = {}) => {
     const row: Row = { id: nextId++, kind, text, at: new Date().toISOString(), ...extra };

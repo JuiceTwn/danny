@@ -13,6 +13,7 @@ import { weatherTools } from "./weather.js";
 import { styleTools } from "./style.js";
 import { interestTools } from "./interests.js";
 import { teamTools } from "./teams.js";
+import { settingsTools } from "./settings.js";
 import { goalTools } from "./goals.js";
 import { taskTools } from "./tasks.js";
 
@@ -91,6 +92,6 @@ export const requestApproval = defineTool({
 
 export function createRegistry() {
   const r = new ToolRegistry().register(remember).register(requestApproval).register(recallTool).register(forgetMemoryTool);
-  for (const t of [...taskTools, ...goalTools, ...interestTools, ...teamTools, ...styleTools, ...weatherTools, ...githubTools, ...cardTools, ...gmailTools, ...calendarTools, ...inboxTools, ...waitingTools, ...appTools]) r.register(t);
+  for (const t of [...taskTools, ...goalTools, ...interestTools, ...teamTools, ...settingsTools, ...styleTools, ...weatherTools, ...githubTools, ...cardTools, ...gmailTools, ...calendarTools, ...inboxTools, ...waitingTools, ...appTools]) r.register(t);
   return r;
 }
