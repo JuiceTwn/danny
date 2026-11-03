@@ -3,6 +3,8 @@ import type { FastifyBaseLogger } from "fastify";
 import { withTenant, type Db } from "../db/client.js";
 import { auditLog, conversations, messages, pushSubscriptions, tasks, users } from "../db/schema.js";
 import { inQuietHours, nextQuietEnd } from "./time.js";
+import { nextRepeat } from "./recur.js";
+import { taskRepeat } from "./tasks.js";
 import { isAllowedPushEndpoint, type PushSender, type PushSub } from "./push.js";
 import type { Health } from "./health.js";
 import { runDueBriefings, runDueGoalChecks, runDueLearning, runDueMemoryTidy, runDueWrapups, runStalledGoalCheckins, runTaskCheckins, runWaitingChecks, runEventPreps, runGameAlerts, type BackgroundDeps } from "./background.js";
@@ -69,7 +71,17 @@ export async function runDueReminders({ db, vault, push, log }: ReminderDeps, no
 
         const title = vault.open(d.workspace_id, t.titleEnc);
         const text = nudgeText(title, t.nudgeCount);
-        await tx.update(tasks).set({ nudgeCount: t.nudgeCount + 1, remindAt: nextNudgeAt(t.nudgeCount + 1, now), lastNudgeAt: now }).where(eq(tasks.id, t.id));
+        // A task that repeats several times a day moves on by itself: if the next time arrives, or the nudges run out, the next one is lined up whether or
+        // not this one was finished, so an ignored 8am reminder never costs the 2pm one.
+        const rep = taskRepeat(t);
+        const again = nextNudgeAt(t.nudgeCount + 1, now);
+        const slot = rep?.times?.length ? nextRepeat(t.dueAt ?? t.remindAt ?? now, rep, d.timezone, now) : undefined;
+        if (rep?.times?.length && (!again || (slot && slot <= again))) {
+          if (slot) await tx.update(tasks).set({ dueAt: slot, remindAt: slot, nudgeCount: 0, snoozeCount: 0, lastNudgeAt: now }).where(eq(tasks.id, t.id));
+          else await tx.update(tasks).set({ status: "done", remindAt: null, completedAt: now, nudgeCount: t.nudgeCount + 1, lastNudgeAt: now }).where(eq(tasks.id, t.id));
+        } else {
+          await tx.update(tasks).set({ nudgeCount: t.nudgeCount + 1, remindAt: again, lastNudgeAt: now }).where(eq(tasks.id, t.id));
+        }
 
         // It also lands in the chat, so it is there even if push is off or the phone was asleep.
         let [conv] = await tx.select().from(conversations).where(eq(conversations.userId, d.user_id)).limit(1);

@@ -251,6 +251,9 @@ export const tasks = pgTable(
     // Repeats every N days, weeks, months or years. Both null = a one-off. Finishing one occurrence moves the task to the next.
     repeatEvery: integer("repeat_every"),
     repeatUnit: text("repeat_unit"), // day | week | month | year
+    repeatTimes: text("repeat_times"), // "08:00,14:00,20:00": several times on each repeat day. Null = once, at the time of the first one
+    repeatDays: text("repeat_days"), // "1,3,5": the weekdays of a weekly repeat, Monday = 1. Null = the weekday of the first one
+    repeatUntil: date("repeat_until", { mode: "string" }), // the last local date it happens on; null = no end
     repeatLeadMin: integer("repeat_lead_min"), // remind this many minutes before each due date ("a week before the birthday")
     firstStepEnc: bytea("first_step_enc"), // the smallest first move ("find last year's return"), shown with the task
     lastNudgeAt: timestamp("last_nudge_at", { withTimezone: true }), // when a reminder last buzzed, so a check-in waits a day after the nudges give up
