@@ -1,6 +1,6 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
-import { auditLog, tasks, users } from "../db/schema.js";
+import { auditLog, goalMilestones, goals, tasks, users } from "../db/schema.js";
 import { nextOccurrence, REPEAT_UNITS, type Repeat, type RepeatUnit } from "./recur.js";
 import { snoozeTarget, type SnoozePreset } from "./time.js";
 import type { Vault } from "./vault.js";
@@ -8,7 +8,7 @@ import type { Vault } from "./vault.js";
 /** What task code needs to know about who is acting. A tool context fits this shape. */
 export type Actor = { workspaceId: string; userId: string; vault: Vault; tenant: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T> };
 
-export type TaskView = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: Repeat | null; firstStep: string | null; snoozeCount: number; createdAt: string };
+export type TaskView = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: Repeat | null; firstStep: string | null; snoozeCount: number; createdAt: string; goalId: string | null; goalTitle: string | null; milestoneId: string | null };
 
 /** A message the user can fix and retry, as opposed to a bug. */
 export class TaskError extends Error {}
@@ -24,9 +24,38 @@ const view = (vault: Vault, workspaceId: string, r: typeof tasks.$inferSelect): 
   firstStep: r.firstStepEnc ? vault.open(workspaceId, r.firstStepEnc) : null,
   snoozeCount: r.snoozeCount,
   createdAt: r.createdAt.toISOString(),
+  goalId: r.goalId ?? null,
+  goalTitle: null, // filled in by the callers that read the goal
+  milestoneId: r.milestoneId ?? null,
 });
 
-export async function createTask(a: Actor, input: { title: string; dueAt?: Date | null; remindAt?: Date | null; repeat?: Repeat | null; firstStep?: string | null }, now = new Date()) {
+type TenantTx = Parameters<Parameters<Actor["tenant"]>[0]>[0];
+
+/** Check that a goal (and a milestone of it) belong to this person and are still being worked on, before a task is tied to them. */
+export async function checkLink(tx: TenantTx, a: Pick<Actor, "userId">, goalId: string | null | undefined, milestoneId: string | null | undefined) {
+  if (!goalId) {
+    if (milestoneId) throw new TaskError("A milestone belongs to a goal: give the goal as well.");
+    return;
+  }
+  const [g] = await tx.select({ id: goals.id, status: goals.status }).from(goals).where(and(eq(goals.id, goalId), eq(goals.userId, a.userId)));
+  if (!g) throw new TaskError("No goal with that id.");
+  if (g.status === "done") throw new TaskError("That goal is already done.");
+  if (milestoneId) {
+    const [m] = await tx.select({ id: goalMilestones.id }).from(goalMilestones).where(and(eq(goalMilestones.id, milestoneId), eq(goalMilestones.goalId, goalId), eq(goalMilestones.userId, a.userId)));
+    if (!m) throw new TaskError("That milestone isn't part of that goal.");
+  }
+}
+
+/** Fill in the goal title on tasks that serve a goal. */
+async function withGoalTitles(a: Actor, tx: TenantTx, views: TaskView[]) {
+  const ids = [...new Set(views.map((v) => v.goalId).filter((x): x is string => Boolean(x)))];
+  if (!ids.length) return views;
+  const rows = await tx.select({ id: goals.id, t: goals.titleEnc }).from(goals).where(inArray(goals.id, ids));
+  const titles = new Map(rows.map((r) => [r.id, a.vault.open(a.workspaceId, r.t)]));
+  return views.map((v) => (v.goalId ? { ...v, goalTitle: titles.get(v.goalId) ?? null } : v));
+}
+
+export async function createTask(a: Actor, input: { title: string; dueAt?: Date | null; remindAt?: Date | null; repeat?: Repeat | null; firstStep?: string | null; goalId?: string | null; milestoneId?: string | null }, now = new Date()) {
   const due = input.dueAt ?? null;
   let remind = input.remindAt ?? null;
   // A deadline with no explicit reminder reminds at the deadline.
@@ -38,9 +67,12 @@ export async function createTask(a: Actor, input: { title: string; dueAt?: Date 
   const anchor = repeat ? (due ?? remind) : due;
   const leadMin = repeat && anchor && remind && remind < anchor ? Math.round((anchor.getTime() - remind.getTime()) / 60_000) : 0;
   return a.tenant(async (tx) => {
+    await checkLink(tx, a, input.goalId, input.milestoneId);
     const [row] = await tx
       .insert(tasks)
       .values({
+        goalId: input.goalId ?? null,
+        milestoneId: input.goalId ? (input.milestoneId ?? null) : null,
         workspaceId: a.workspaceId,
         userId: a.userId,
         titleEnc: a.vault.seal(a.workspaceId, input.title),
@@ -52,14 +84,16 @@ export async function createTask(a: Actor, input: { title: string; dueAt?: Date 
         repeatLeadMin: repeat ? leadMin : null,
       })
       .returning();
-    await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.add", detail: { id: row!.id } });
-    return view(a.vault, a.workspaceId, row!);
+    await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.add", detail: { id: row!.id, ...(input.goalId ? { goal: input.goalId } : {}) } });
+    return (await withGoalTitles(a, tx, [view(a.vault, a.workspaceId, row!)]))[0]!;
   });
 }
 
 export async function listTasks(a: Actor, status: "open" | "done" = "open") {
-  const rows = await a.tenant((tx) => tx.select().from(tasks).where(and(eq(tasks.userId, a.userId), eq(tasks.status, status))));
-  const out = rows.map((r) => view(a.vault, a.workspaceId, r));
+  const out = await a.tenant(async (tx) => {
+    const rows = await tx.select().from(tasks).where(and(eq(tasks.userId, a.userId), eq(tasks.status, status)));
+    return withGoalTitles(a, tx, rows.map((r) => view(a.vault, a.workspaceId, r)));
+  });
   if (status === "done") return out.sort((x, y) => y.createdAt.localeCompare(x.createdAt)).slice(0, 50);
   // Things with a deadline first, soonest first. Then the rest, oldest first.
   return out.sort((x, y) => {
@@ -79,7 +113,9 @@ export function pickNext(open: TaskView[]) {
  * Mark a task done. A repeating one stays open and moves to its next occurrence, so a chore finished late
  * does not leave a pile of missed days behind it. Returns null when there is no such open task.
  */
-export async function completeTask(a: Actor, id: string, now = new Date()): Promise<{ next: string | null } | null> {
+export type DoneGoal = { id: string; title: string; milestone: { id: string; title: string; status: string; otherOpenTasks: number } | null };
+
+export async function completeTask(a: Actor, id: string, now = new Date()): Promise<{ next: string | null; goal: DoneGoal | null } | null> {
   return a.tenant(async (tx) => {
     const [t] = await tx.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, a.userId), eq(tasks.status, "open"))).for("update");
     if (!t) return null;
@@ -99,7 +135,24 @@ export async function completeTask(a: Actor, id: string, now = new Date()): Prom
       await tx.update(tasks).set({ status: "done", remindAt: null, completedAt: now }).where(eq(tasks.id, id));
     }
     await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.done", detail: { id, ...(next ? { next } : {}) } });
-    return { next };
+
+    // A step toward a goal is progress on the goal, so the goal is not "quiet" and Danny doesn't ask what's in the way.
+    let goal: DoneGoal | null = null;
+    if (t.goalId) {
+      const [g] = await tx.update(goals).set({ touchedAt: now, stallNudgedAt: null }).where(eq(goals.id, t.goalId)).returning({ id: goals.id, t: goals.titleEnc });
+      if (g) {
+        let milestone: DoneGoal["milestone"] = null;
+        if (t.milestoneId) {
+          const [m] = await tx.select({ id: goalMilestones.id, t: goalMilestones.titleEnc, status: goalMilestones.status }).from(goalMilestones).where(eq(goalMilestones.id, t.milestoneId));
+          if (m) {
+            const left = await tx.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.milestoneId, m.id), eq(tasks.status, "open")));
+            milestone = { id: m.id, title: a.vault.open(a.workspaceId, m.t), status: m.status, otherOpenTasks: left.filter((x) => x.id !== id).length };
+          }
+        }
+        goal = { id: g.id, title: a.vault.open(a.workspaceId, g.t), milestone };
+      }
+    }
+    return { next, goal };
   });
 }
 
@@ -143,6 +196,20 @@ export async function deleteTask(a: Actor, id: string) {
   return a.tenant(async (tx) => {
     const rows = await tx.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, a.userId))).returning({ id: tasks.id });
     if (rows.length) await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.delete", detail: { id } });
+    return rows.length > 0;
+  });
+}
+
+/** Tie an open task to a goal (and optionally one of its milestones), or untie it with goalId null. Returns false when there is no such open task. */
+export async function linkTask(a: Actor, id: string, goalId: string | null, milestoneId: string | null = null) {
+  return a.tenant(async (tx) => {
+    await checkLink(tx, a, goalId, milestoneId);
+    const rows = await tx
+      .update(tasks)
+      .set({ goalId, milestoneId: goalId ? milestoneId : null })
+      .where(and(eq(tasks.id, id), eq(tasks.userId, a.userId), eq(tasks.status, "open")))
+      .returning({ id: tasks.id });
+    if (rows.length) await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.link", detail: { id, goal: goalId, milestone: milestoneId } });
     return rows.length > 0;
   });
 }

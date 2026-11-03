@@ -256,9 +256,11 @@ export const tasks = pgTable(
     lastNudgeAt: timestamp("last_nudge_at", { withTimezone: true }), // when a reminder last buzzed, so a check-in waits a day after the nudges give up
     checkinAt: timestamp("checkin_at", { withTimezone: true }), // when Danny last asked about this task unprompted
     snoozeCount: integer("snooze_count").notNull().default(0), // how many times it has been pushed back; reset when a repeat rolls over
+    goalId: uuid("goal_id").references((): AnyPgColumn => goals.id, { onDelete: "set null" }), // the goal this task is a step toward
+    milestoneId: uuid("milestone_id").references((): AnyPgColumn => goalMilestones.id, { onDelete: "set null" }), // and, optionally, which step
     createdAt: createdAt(),
   },
-  (t) => [index("tasks_ws_idx").on(t.workspaceId, t.status, t.remindAt)],
+  (t) => [index("tasks_goal_idx").on(t.goalId), index("tasks_ws_idx").on(t.workspaceId, t.status, t.remindAt)],
 );
 
 // Something the user is working toward. Danny keeps it in mind, and can watch the web for it on a schedule.
@@ -275,12 +277,31 @@ export const goals = pgTable(
     checkEveryHours: integer("check_every_hours"), // null = not monitored
     lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
     status: text("status").notNull().default("open"), // open | paused | done
+    targetDate: date("target_date", { mode: "string" }), // "by when", a local calendar date; null = no deadline
     // Last time the user moved it forward or said something about it. Two quiet weeks and Danny asks what's in the way.
     touchedAt: timestamp("touched_at", { withTimezone: true }).notNull().defaultNow(),
     stallNudgedAt: timestamp("stall_nudged_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("goals_ws_idx").on(t.workspaceId, t.userId, t.status)],
+);
+
+// The steps of a goal, in order ("book the venue", "send invitations"). Ticking one off is the user's call; finishing the tasks linked to it only prompts Danny to ask.
+export const goalMilestones = pgTable(
+  "goal_milestones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    goalId: uuid("goal_id").notNull().references(() => goals.id, { onDelete: "cascade" }),
+    titleEnc: bytea("title_enc").notNull(),
+    position: integer("position").notNull().default(0),
+    dueOn: date("due_on", { mode: "string" }), // a local calendar date; null = no date of its own
+    status: text("status").notNull().default("open"), // open | done
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("goal_milestones_goal_idx").on(t.workspaceId, t.goalId, t.position)],
 );
 
 // "Tell me if Sam hasn't replied by Friday." Danny looks at the Gmail thread on the day and speaks up only if nobody has answered.

@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { describeRepeat, REPEAT_UNITS } from "../lib/recur.js";
-import { completeTask, createTask, listTasks, pickNext, presetTime, setFirstStep, snoozeTask, TaskError } from "../lib/tasks.js";
+import { completeTask, createTask, linkTask, listTasks, pickNext, presetTime, setFirstStep, snoozeTask, TaskError } from "../lib/tasks.js";
 import { SNOOZE_PRESETS } from "../lib/time.js";
 import { defineTool } from "./registry.js";
 
 const when = z.iso.datetime({ offset: true });
 const date = (s?: string) => (s ? new Date(s) : null);
-const line = (t: { id: string; title: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: (typeof REPEAT_UNITS)[number] } | null; firstStep: string | null; snoozeCount: number }) =>
-  `${t.id} | ${t.title}${t.firstStep ? ` | first step: ${t.firstStep}` : ""}${t.dueAt ? ` | due ${t.dueAt}` : ""}${t.remindAt ? ` | reminds ${t.remindAt}` : ""}${t.repeat ? ` | ${describeRepeat(t.repeat)}` : ""}${t.snoozeCount >= 2 ? ` | put off ${t.snoozeCount} times` : ""}`;
+const line = (t: { id: string; title: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: (typeof REPEAT_UNITS)[number] } | null; firstStep: string | null; snoozeCount: number; goalTitle?: string | null }) =>
+  `${t.id} | ${t.title}${t.goalTitle ? ` | for goal: ${t.goalTitle}` : ""}${t.firstStep ? ` | first step: ${t.firstStep}` : ""}${t.dueAt ? ` | due ${t.dueAt}` : ""}${t.remindAt ? ` | reminds ${t.remindAt}` : ""}${t.repeat ? ` | ${describeRepeat(t.repeat)}` : ""}${t.snoozeCount >= 2 ? ` | put off ${t.snoozeCount} times` : ""}`;
 const card = (t: { id: string; title: string; remindAt: string | null; dueAt: string | null; firstStep: string | null }) => ({ kind: "task" as const, id: t.id, title: t.title, remindAt: t.remindAt, dueAt: t.dueAt, firstStep: t.firstStep });
 
 // Tool errors the user can fix come back as plain text so the model can explain them.
@@ -28,7 +28,8 @@ export const addTask = defineTool({
     "Times are ISO 8601 with the user's UTC offset, worked out from the current time given in the system prompt. Keep the title short and concrete. " +
     "For anything that comes round again (bins every Tuesday, rent on the 1st, a birthday, a yearly renewal, a pill every morning) set `repeat_every` and `repeat_unit` ONCE instead of adding it again each time: " +
     "`due_at` is the first occurrence. For \"remind me a week before\" put `remind_at` that far before `due_at`; the gap is kept every cycle. Marking an occurrence done moves it to the next one. " +
-    "`first_step` is the smallest physical first move, under 12 words, starting with a verb (\"Find last year's return\", \"Open the email and type hello\"). Give one whenever the task is vague or big (taxes, a call you dread, sorting something out); skip it for tasks that are already one small action.",
+    "`first_step` is the smallest physical first move, under 12 words, starting with a verb (\"Find last year's return\", \"Open the email and type hello\"). Give one whenever the task is vague or big (taxes, a call you dread, sorting something out); skip it for tasks that are already one small action. " +
+    "When the task is a step toward one of their goals, set `goal_id` (and `milestone_id` for the step it belongs to) from list_goals, so finishing it counts as progress on the goal.",
   kind: "internal",
   input: z.object({
     title: z.string().trim().min(1).max(300),
@@ -37,12 +38,14 @@ export const addTask = defineTool({
     repeat_every: z.number().int().min(1).max(366).optional(),
     repeat_unit: z.enum(REPEAT_UNITS).optional(),
     first_step: z.string().trim().min(1).max(200).optional(),
+    goal_id: z.uuid().optional(),
+    milestone_id: z.uuid().optional(),
   }),
   run: (ctx, i) =>
     guard(async () => {
       if (!i.repeat_unit !== !i.repeat_every) return "A repeat needs both a number and a unit (for example every 2 weeks).";
       const repeat = i.repeat_unit && i.repeat_every ? { every: i.repeat_every, unit: i.repeat_unit } : null;
-      const t = await createTask(ctx, { title: i.title, dueAt: date(i.due_at), remindAt: date(i.remind_at), repeat, firstStep: i.first_step });
+      const t = await createTask(ctx, { title: i.title, dueAt: date(i.due_at), remindAt: date(i.remind_at), repeat, firstStep: i.first_step, goalId: i.goal_id, milestoneId: i.milestone_id });
       ctx.card?.(card(t));
       return `Added (${t.id}).${t.remindAt ? ` Will remind at ${t.remindAt}.` : " No reminder set."}${t.repeat ? ` Repeats ${describeRepeat(t.repeat)}.` : ""} The app shows the task as a card, so confirm in a few words.`;
     }),
@@ -82,8 +85,26 @@ export const doneTask = defineTool({
   input: z.object({ id: z.uuid() }),
   run: async (ctx, { id }) => {
     const r = await completeTask(ctx, id);
-    return !r ? "No open task with that id." : r.next ? `Done. It repeats, so the next one is ${r.next}.` : "Marked done.";
+    if (!r) return "No open task with that id.";
+    const base = r.next ? `Done. It repeats, so the next one is ${r.next}.` : "Marked done.";
+    if (!r.goal) return base;
+    const m = r.goal.milestone;
+    return (
+      `${base} It was a step toward the goal "${r.goal.title}", so that counts as progress on it.` +
+      (m && m.status === "open" && m.otherOpenTasks === 0 && !r.next ? ` That was the last open task for the milestone "${m.title}". Ask them, in one short line, whether that milestone is done (then call update_milestone).` : "")
+    );
   },
+});
+
+export const linkTaskTool = defineTool({
+  name: "link_task",
+  description:
+    "Tie an existing open task to one of the user's goals (and optionally to one of its milestones), or untie it by leaving goal_id out. Take the task id from list_tasks and the goal and milestone ids from list_goals. " +
+    "Do it when they say a task is part of a goal, or when you notice one is.",
+  kind: "internal",
+  input: z.object({ task_id: z.uuid(), goal_id: z.uuid().optional(), milestone_id: z.uuid().optional() }),
+  run: (ctx, i) =>
+    guard(async () => ((await linkTask(ctx, i.task_id, i.goal_id ?? null, i.milestone_id ?? null)) ? (i.goal_id ? "Linked. Finishing it now counts as progress on the goal." : "Unlinked from its goal.") : "No open task with that id.")),
 });
 
 export const snooze = defineTool({
@@ -112,4 +133,4 @@ export const setStep = defineTool({
   run: async (ctx, { id, step }) => ((await setFirstStep(ctx, id, step || null)) ? "Saved." : "No open task with that id."),
 });
 
-export const taskTools = [addTask, listOpenTasks, whatsNext, doneTask, snooze, setStep];
+export const taskTools = [addTask, listOpenTasks, whatsNext, doneTask, snooze, setStep, linkTaskTool];

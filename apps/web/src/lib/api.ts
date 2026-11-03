@@ -116,7 +116,8 @@ export type MemoryKind = "fact" | "preference" | "person" | "plan" | "place";
 export type MemoryItem = { id: string; content: string; kind: MemoryKind; subject: string | null; pinned: boolean; source: "chat" | "auto" | "app"; expiresOn: string | null; expired: boolean; createdAt: string; updatedAt: string };
 export type TidiedItem = MemoryItem & { archived: boolean; reason: string | null; previous: string | null };
 export type HistoryMsg = { role: "user" | "assistant"; text: string; at: string; cards?: Card[] };
-export type Goal = { id: string; title: string; notes: string | null; watchQuery: string | null; checkEveryHours: number | null; status: string; lastCheckedAt: string | null; lastFinding: string | null };
+export type Milestone = { id: string; title: string; position: number; dueOn: string | null; status: "open" | "done" };
+export type Goal = { id: string; title: string; notes: string | null; targetDate: string | null; milestones: Milestone[]; openTasks: number; watchQuery: string | null; checkEveryHours: number | null; status: string; lastCheckedAt: string | null; lastFinding: string | null };
 export type ConnectorField = { key: string; label: string; secret: boolean; placeholder?: string };
 export type Connector = {
   id: string; kind: "oauth" | "token"; name: string; blurb: string;
@@ -131,6 +132,6 @@ export type FollowedTeam = { id: string; league: "nhl" | "mlb"; code: string; na
 export type CatalogTeam = { league: "nhl" | "mlb"; leagueName: string; code: string; name: string; fullName: string };
 export type StyleNote = { id: string; kind: "said" | "observed"; note: string };
 export type Style = { instruction: string | null; location: string | null; notes: StyleNote[] };
-export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: "day" | "week" | "month" | "year" } | null; firstStep?: string | null; snoozeCount?: number; createdAt: string };
+export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: "day" | "week" | "month" | "year" } | null; firstStep?: string | null; snoozeCount?: number; createdAt: string; goalId?: string | null; goalTitle?: string | null };
 
 export type AppItem = { id: string; title: string; status: "queued" | "editing" | "working" | "ready" | "failed"; version: number; error: string | null; createdAt: string; updatedAt: string };
