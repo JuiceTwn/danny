@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Learning from "./Learning.svelte";
   import { onMount } from "svelte";
   import { api, type MemoryItem, type MemoryKind, type TidiedItem } from "../lib/api";
 
@@ -182,6 +183,7 @@
       </section>
     {/each}
     {#if query && shown.length === 0}<p class="mono">Nothing matches "{query}".</p>{/if}
+    <Learning />
   </div>
 </div>
 
@@ -196,7 +198,7 @@
   section { display: flex; flex-direction: column; gap: 6px; }
   section h2 { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   .empty { padding-top: 4vh; display: flex; flex-direction: column; gap: 12px; }
-  .empty h2 { font-size: clamp(2.8rem, 8vw, 4.5rem); color: var(--paper); letter-spacing: 0; text-transform: uppercase; }
+  .empty h2 { font-size: clamp(2rem, 6vw, 3rem); color: var(--paper); letter-spacing: 0; text-transform: uppercase; }
   .empty p { color: #c9d0c8; max-width: 38ch; }
   .list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); }
   .list li.dim p { color: var(--muted); }
@@ -210,5 +212,7 @@
   @media (max-width: 859px) {
     .page { padding: 14px 16px 24px; padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
     .list li { flex-wrap: wrap; }
+    .ask { width: 100%; }
+    .ask :global(.btn) { flex: 1; }
   }
 </style>

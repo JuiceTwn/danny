@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { api, type Connector, type GoogleSetup } from "../lib/api";
   import { app } from "../lib/store.svelte";
+  import Section from "./Section.svelte";
 
   let items = $state<Connector[]>([]);
   let canConnect = $state(false);
@@ -129,8 +130,7 @@
   const STATE: Record<string, string> = { needs_setup: "Needs setup", ready: "Not connected", connected: "Connected", reconnect: "Reconnect" };
 </script>
 
-<section class="conn">
-  <h2 class="display">Connections</h2>
+<Section title="Connections" summary={loaded ? `${items.filter((c) => c.state === "connected").length} of ${items.length} connected` : ""} open={!!notice}>
   <p>Link the things Danny can help with. Each one is yours alone: nobody else on this server can see or use it.</p>
   {#if notice}<p class="mono ok" role="status">{notice}</p>{/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -231,14 +231,13 @@
       {/if}
     </div>
   {/each}
-</section>
+</Section>
 
 <style>
-  .conn { display: flex; flex-direction: column; gap: 12px; }
-  .card { border: 2px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; background: var(--panel); }
+  .card { width: 100%; border: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; background: var(--panel); }
   .card.on { border-color: var(--run); }
   .head { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; }
-  .name { font: 700 1.4rem/1 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+  .name { font: 600 1.125rem/1.2 var(--body); }
   .pill { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); padding: 4px 8px; }
   .pill.good { color: var(--run); border-color: var(--run); }
   .pill.warn { color: var(--need); border-color: var(--need); }

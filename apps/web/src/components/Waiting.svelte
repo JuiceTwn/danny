@@ -113,14 +113,14 @@
   .col { width: min(760px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
   .honest { text-transform: none; letter-spacing: .02em; }
   .empty { padding: 6vh 0 0; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
-  .empty h2 { font-size: clamp(2.8rem, 8vw, 4.5rem); }
+  .empty h2 { font-size: clamp(2rem, 6vw, 3rem); }
   .empty p { color: #c9d0c8; }
   .tickets { display: flex; flex-direction: column; gap: 20px; }
   .ticket { background: var(--paper); color: var(--ink); }
   .th { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 2px dashed var(--ink); }
   .mono.ink { color: var(--ink); }
   .tb { padding: 20px 18px 6px; display: flex; flex-direction: column; gap: 16px; }
-  .tb h2 { font-size: clamp(1.9rem, 5vw, 2.6rem); }
+  .tb h2 { font-size: clamp(1.4rem, 4vw, 1.8rem); }
   blockquote { margin: 0; padding: 14px 16px; border-left: 4px solid var(--ink); background: #dfe4d9; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.0625rem; }
   .tf { display: flex; flex-wrap: wrap; gap: 10px; padding: 18px; }
   .ticket .btn { border-color: var(--ink); color: var(--ink); }

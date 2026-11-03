@@ -211,13 +211,13 @@
   .add .btn { min-width: 88px; }
   section { display: flex; flex-direction: column; gap: 6px; }
   .empty { padding-top: 4vh; display: flex; flex-direction: column; gap: 12px; }
-  .empty h2 { font-size: clamp(2.8rem, 8vw, 4.5rem); }
+  .empty h2 { font-size: clamp(2rem, 6vw, 3rem); }
   .empty p { color: #c9d0c8; max-width: 38ch; }
   .list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
-  .list li.big { padding: 20px 16px; border: 2px solid var(--run); background: var(--panel); }
+  .list li.big { padding: 18px 16px; border: 1px solid var(--run); background: var(--panel); }
   .body { min-width: 0; display: flex; flex-direction: column; gap: 4px; flex: 1 1 200px; }
   .title { overflow-wrap: anywhere; }
-  .big .title { font: 700 1.9rem/1.05 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+  .big .title { font: 600 1.4rem/1.2 var(--body); }
   .ask { display: flex; gap: 8px; flex: none; flex-wrap: wrap; }
   .goaltag { color: var(--run); }
   .plan { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; order: 3; }
