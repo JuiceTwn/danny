@@ -24,6 +24,11 @@ export const chatRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
       if (!closed) raw.write(`data: ${JSON.stringify(e)}\n\n`);
     };
     try {
+      // The owner's own slash commands (/status, /errors, /backup...) run here on the server and never reach the model. Anyone else's "/status" is just a message.
+      if (req.auth!.isOwner && looksLikeCommand(message)) {
+        await ownerCommand(deps, { workspaceId, userId }, message, emit);
+        return;
+      }
       await runTurn(deps, { workspaceId, userId }, message, emit, () => closed, release);
     } catch (err) {
       req.log.error(err);
@@ -44,3 +49,21 @@ export const chatRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
     tools: deps.tools.list().map((t) => ({ name: t.name, description: t.description, kind: t.kind })),
   }));
 };
+
+/** Run an owner command: answer in the chat, save both sides, and for server actions post the result here when the server finishes. */
+async function ownerCommand(deps: Deps, who: { workspaceId: string; userId: string }, message: string, emit: (e: ChatEvent) => void) {
+  const [u] = await deps.db.select({ tz: users.timezone }).from(users).where(eq(users.id, who.userId));
+  const tz = u?.tz ?? "UTC";
+  const ctx = { db: deps.db, config: deps.config, vault: deps.vault, keys: deps.keys, health: deps.health, appUrl: deps.config.appUrl, ...who, timezone: tz };
+  const r = await runOwnerCommand(ctx, message);
+  await saveExchange(deps.db, deps.vault, who.workspaceId, who.userId, message, r.text);
+  emit({ type: "text", text: r.text });
+  emit({ type: "done" });
+  if (r.watch) {
+    const { action, since } = r.watch;
+    // Detached: the reply above is already sent. The result lands in the chat when the server finishes, even if the app was closed meanwhile.
+    void awaitOps(new Ops(deps.config.opsDir), action, since, tz)
+      .then((text) => deliver({ db: deps.db, vault: deps.vault, push: deps.push } as unknown as BackgroundDeps, who, text, { title: `Danny: ${action}`, body: text.split("\n")[0] ?? "" }, false))
+      .catch((err) => reportFailure(`owner command ${action}`, err));
+  }
+}
