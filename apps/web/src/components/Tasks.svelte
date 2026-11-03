@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type Goal, type Task } from "../lib/api";
+  import { api, type Goal, type Milestone, type Task } from "../lib/api";
   import { fmtWhen } from "../lib/router.svelte";
 
   let items = $state<Task[]>([]);
@@ -18,6 +18,23 @@
       /* goals just stay hidden */
     }
   }
+  async function tick(m: Milestone) {
+    error = "";
+    try {
+      await api("PATCH", `/v1/goals/milestones/${m.id}`, { status: m.status === "done" ? "open" : "done" });
+      await loadGoals();
+    } catch {
+      error = "That didn't go through. Try again.";
+    }
+  }
+  const todayStr = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, in this person's own day
+  const dayDiff = (d: string) => Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${todayStr()}T00:00:00Z`)) / 86_400_000);
+  const nice = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  const inDays = (d: string) => {
+    const n = dayDiff(d);
+    return n === 0 ? "today" : n === 1 ? "tomorrow" : n > 0 ? `in ${n} days` : `${-n} day${n === -1 ? "" : "s"} ago`;
+  };
+  const doneCount = (g: Goal) => g.milestones.filter((m) => m.status === "done").length;
   async function setGoal(id: string, body: Record<string, unknown>) {
     error = "";
     try {
@@ -78,6 +95,7 @@
   <li class:big>
     <div class="body">
       <p class="title">{t.title}</p>
+      {#if t.goalTitle}<span class="mono goaltag">For: {t.goalTitle}</span>{/if}
       {#if t.firstStep}<span class="mono">First step: {t.firstStep}</span>{/if}
       {#if t.remindAt || t.dueAt}
         <span class="mono">{t.remindAt ? `Reminds ${fmtWhen(t.remindAt)}` : `Due ${fmtWhen(t.dueAt!)}`}{t.repeat ? ` · Repeats ${t.repeat.every === 1 ? `every ${t.repeat.unit}` : `every ${t.repeat.every} ${t.repeat.unit}s`}` : ""}</span>
@@ -143,6 +161,34 @@
                   {g.status === "paused" ? "Paused" : g.checkEveryHours ? `Watching every ${g.checkEveryHours >= 24 && g.checkEveryHours % 24 === 0 ? `${g.checkEveryHours / 24} day${g.checkEveryHours === 24 ? "" : "s"}` : `${g.checkEveryHours} hours`}${g.lastCheckedAt ? `, last checked ${fmtWhen(g.lastCheckedAt)}` : ""}` : "Not watching. Ask Danny in chat to watch it."}
                 </span>
               </div>
+              {#if g.targetDate || g.milestones.length || g.openTasks}
+                <div class="plan">
+                  {#if g.milestones.length}
+                    <div class="bar">
+                      <progress max={g.milestones.length} value={doneCount(g)} aria-label="Progress on {g.title}"></progress>
+                      <span class="mono">{doneCount(g)} of {g.milestones.length} steps</span>
+                    </div>
+                  {/if}
+                  <span class="mono">
+                    {#if g.targetDate}<span class:late={g.status === "open" && dayDiff(g.targetDate) < 0}>Target {nice(g.targetDate)} ({inDays(g.targetDate)})</span>{/if}
+                    {#if g.targetDate && g.openTasks} · {/if}
+                    {#if g.openTasks}{g.openTasks} open task{g.openTasks === 1 ? "" : "s"} for this{/if}
+                  </span>
+                  {#if g.milestones.length}
+                    <ul class="steps">
+                      {#each g.milestones as m (m.id)}
+                        <li class:done={m.status === "done"}>
+                          <label>
+                            <input type="checkbox" checked={m.status === "done"} onchange={() => tick(m)} />
+                            <span>{m.title}</span>
+                          </label>
+                          {#if m.dueOn}<span class="mono" class:late={m.status === "open" && dayDiff(m.dueOn) < 0}>{nice(m.dueOn)}</span>{/if}
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
+                </div>
+              {/if}
               <div class="ask">
                 {#if g.checkEveryHours}<button class="btn small" onclick={() => setGoal(g.id, { checkEveryHours: null })} aria-label="Stop watching: {g.title}">Stop watching</button>{/if}
                 <button class="btn small" onclick={() => setGoal(g.id, { status: g.status === "paused" ? "open" : "paused" })} aria-label="{g.status === 'paused' ? 'Resume' : 'Pause'}: {g.title}">{g.status === "paused" ? "Resume" : "Pause"}</button>
@@ -173,6 +219,16 @@
   .title { overflow-wrap: anywhere; }
   .big .title { font: 700 1.9rem/1.05 var(--display); text-transform: uppercase; letter-spacing: .01em; }
   .ask { display: flex; gap: 8px; flex: none; flex-wrap: wrap; }
+  .goaltag { color: var(--run); }
+  .plan { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; order: 3; }
+  .bar { display: flex; align-items: center; gap: 12px; }
+  .bar progress { flex: 1; max-width: 320px; height: 10px; accent-color: var(--run); }
+  .steps { display: flex; flex-direction: column; }
+  .steps li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border: 0; }
+  .steps label { display: flex; align-items: center; gap: 10px; min-height: 36px; cursor: pointer; }
+  .steps input { width: 20px; height: 20px; accent-color: var(--run); }
+  .steps li.done span:not(.mono) { color: var(--muted); text-decoration: line-through; }
+  .late { color: var(--need); }
   @media (max-width: 859px) {
     .page { padding: 14px 16px 24px; padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); }
   }

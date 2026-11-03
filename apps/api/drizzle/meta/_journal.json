@@ -204,6 +204,13 @@
       "when": 1793713616335,
       "tag": "0028_owner_preview",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793730228519,
+      "tag": "0029_goal_plans",
+      "breakpoints": true
     }
   ]
 }

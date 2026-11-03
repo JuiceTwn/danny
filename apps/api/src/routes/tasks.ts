@@ -69,7 +69,7 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
 
   app.post("/v1/tasks/:id/done", async (req, reply) => {
     const r = await completeTask(actor(req), id(req));
-    return r ? { ok: true, next: r.next } : reply.code(404).send({ error: "not_found" });
+    return r ? { ok: true, next: r.next, goal: r.goal ? { id: r.goal.id, title: r.goal.title } : null } : reply.code(404).send({ error: "not_found" });
   });
 
   app.post("/v1/tasks/:id/snooze", async (req, reply) => {

@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
-import { GoalError, listGoals, MAX_CHECK_HOURS, MIN_CHECK_HOURS, updateGoal } from "../lib/goals.js";
+import { GoalError, listGoals, MAX_CHECK_HOURS, MIN_CHECK_HOURS, updateGoal, updateMilestone } from "../lib/goals.js";
 import type { Actor } from "../lib/tasks.js";
 
 export const goalRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault }) => {
@@ -12,6 +12,14 @@ export const goalRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault }) =
   };
 
   app.get("/v1/goals", async (req) => ({ items: await listGoals(actor(req)) }));
+
+  // Ticking a milestone off (or back on) from the app. Making the plan happens in chat, like making goals.
+  app.patch("/v1/goals/milestones/:id", async (req, reply) => {
+    const { id } = z.object({ id: z.uuid() }).parse(req.params);
+    const body = z.object({ status: z.enum(["open", "done"]) }).parse(req.body);
+    const r = await updateMilestone(actor(req), id, { status: body.status });
+    return r ? { item: r.goal } : reply.code(404).send({ error: "not_found" });
+  });
 
   // The user can pause, finish or stop watching a goal from the app. Making goals happens in chat.
   app.patch("/v1/goals/:id", async (req, reply) => {

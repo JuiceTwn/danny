@@ -108,11 +108,13 @@ describe("goal checks", () => {
     const noon = new Date(Date.now() + 60_000);
     searchReply = () => found("Two new 1-bed flats under 1200 in Headingley.", 2);
     expect(await runDueGoalChecks(deps(), noon)).toBeGreaterThanOrEqual(1);
-    expect(searches.at(-1)!.prompt).toContain("flats to rent Leeds");
+    // Other people's goals are due in the same pass and the database does not promise an order, so find this goal's own search.
+    const mine = searches.find((x) => x.prompt.includes("flats to rent Leeds"))!;
+    expect(mine).toBeTruthy();
     expect((await chatText(u.c)).at(-1)).toContain("Headingley");
     expect((await chatText(u.c)).at(-1)).toContain("[example.com](https://example.com/a)");
     expect((await chatText(u.c)).at(-1)).toMatch(/^\*\*Find a flat in Leeds\*\*\n/);
-    expect(searches.at(-1)!.prompt).toContain("Skip generic job-board");
+    expect(mine.prompt).toContain("Skip generic job-board");
     expect(await spend(u.userId)).toBeGreaterThan(before + 20_000); // two searches at 1 cent each, plus tokens
     const [row] = await ctx.owner.db.select().from(goals).where(eq(goals.userId, u.userId));
     expect(ctx.vault.open(row!.workspaceId, row!.lastFindingEnc!)).toContain("Headingley");
