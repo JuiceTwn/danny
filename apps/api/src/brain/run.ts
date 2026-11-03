@@ -1,3 +1,4 @@
+import { reportFailure } from "../lib/model-error.js";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
@@ -219,8 +220,9 @@ export async function runTurn(
         { model: config.model, system, messages: convo, tools: tools.definitions(), maxTokens: MAX_TOKENS },
         (t) => emit({ type: "text", text: t }),
       );
-    } catch {
-      return emit({ type: "error", code: "model_failed", message: "The model call failed. Nothing was charged for this step. Try again." });
+    } catch (err) {
+      const f = reportFailure("chat model call", err, { model: config.model, step });
+      return emit({ type: "error", code: "model_failed", message: `The model call failed. ${f.hint} Nothing was charged for this step.` });
     }
     await tenant((tx) =>
       recordSpend(tx, {
@@ -301,7 +303,8 @@ async function runTool(
     }
     emit({ type: "tool", name: tool.name, status: "ran" });
     return { type: "tool_result", tool_use_id: call.id, content: clip(out, NEW_RESULT_CHARS) };
-  } catch {
+  } catch (err) {
+    reportFailure(`tool ${call.name}`, err);
     return fail("That tool failed. Tell the user and carry on without it.");
   }
 }

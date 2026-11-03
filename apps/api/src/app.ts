@@ -1,3 +1,4 @@
+import { setErrorSink } from "./lib/model-error.js";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -59,6 +60,9 @@ export async function buildApp(deps: Deps) {
     trustProxy: config.trustProxy,
     bodyLimit: 256 * 1024,
   });
+  // Failures in model calls, web search and tools are logged with their cause through the app's own logger.
+  setErrorSink((o, m) => app.log.error(o, m));
+  app.addHook("onClose", async () => setErrorSink(null));
 
   await app.register(helmet, {
     // No inline scripts, no outside hosts. The app talks only to its own origin.

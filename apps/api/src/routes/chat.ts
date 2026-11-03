@@ -1,3 +1,4 @@
+import { reportFailure } from "../lib/model-error.js";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { history, runTurn, type BrainDeps, type ChatEvent } from "../brain/run.js";
@@ -31,8 +32,8 @@ export const chatRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
       }
       await runTurn(deps, { workspaceId, userId }, message, emit, () => closed, release);
     } catch (err) {
-      req.log.error(err);
-      emit({ type: "error", code: "model_failed", message: "Something broke on our side. Try again." });
+      const f = reportFailure("chat turn", err);
+      emit({ type: "error", code: "model_failed", message: `Something broke on our side. ${f.hint}` });
     } finally {
       release();
       raw.end();
