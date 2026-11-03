@@ -132,6 +132,6 @@ export type FollowedTeam = { id: string; league: "nhl" | "mlb"; code: string; na
 export type CatalogTeam = { league: "nhl" | "mlb"; leagueName: string; code: string; name: string; fullName: string };
 export type StyleNote = { id: string; kind: "said" | "observed"; note: string };
 export type Style = { instruction: string | null; location: string | null; notes: StyleNote[] };
-export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: "day" | "week" | "month" | "year" } | null; firstStep?: string | null; snoozeCount?: number; createdAt: string; goalId?: string | null; goalTitle?: string | null };
+export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: "day" | "week" | "month" | "year"; times?: string[]; days?: number[]; until?: string } | null; repeatText?: string | null; firstStep?: string | null; snoozeCount?: number; createdAt: string; goalId?: string | null; goalTitle?: string | null };
 
 export type AppItem = { id: string; title: string; status: "queued" | "editing" | "working" | "ready" | "failed"; version: number; error: string | null; createdAt: string; updatedAt: string };

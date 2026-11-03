@@ -98,7 +98,7 @@
       {#if t.goalTitle}<span class="mono goaltag">For: {t.goalTitle}</span>{/if}
       {#if t.firstStep}<span class="mono">First step: {t.firstStep}</span>{/if}
       {#if t.remindAt || t.dueAt}
-        <span class="mono">{t.remindAt ? `Reminds ${fmtWhen(t.remindAt)}` : `Due ${fmtWhen(t.dueAt!)}`}{t.repeat ? ` · Repeats ${t.repeat.every === 1 ? `every ${t.repeat.unit}` : `every ${t.repeat.every} ${t.repeat.unit}s`}` : ""}</span>
+        <span class="mono">{t.remindAt ? `Reminds ${fmtWhen(t.remindAt)}` : `Due ${fmtWhen(t.dueAt!)}`}{t.repeat ? ` · Repeats ${t.repeatText ?? (t.repeat.every === 1 ? `every ${t.repeat.unit}` : `every ${t.repeat.every} ${t.repeat.unit}s`)}` : ""}</span>
       {/if}
     </div>
     {#if snoozing === t.id}

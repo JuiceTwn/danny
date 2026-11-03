@@ -1,14 +1,14 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Tx } from "../db/client.js";
 import { auditLog, goalMilestones, goals, tasks, users } from "../db/schema.js";
-import { nextOccurrence, REPEAT_UNITS, type Repeat, type RepeatUnit } from "./recur.js";
+import { checkRepeat, describeRepeatFull, firstSlot, nextRepeat, REPEAT_UNITS, RepeatError, type Repeat, type RepeatUnit } from "./recur.js";
 import { snoozeTarget, type SnoozePreset } from "./time.js";
 import type { Vault } from "./vault.js";
 
 /** What task code needs to know about who is acting. A tool context fits this shape. */
 export type Actor = { workspaceId: string; userId: string; vault: Vault; tenant: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T> };
 
-export type TaskView = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: Repeat | null; firstStep: string | null; snoozeCount: number; createdAt: string; goalId: string | null; goalTitle: string | null; milestoneId: string | null };
+export type TaskView = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: Repeat | null; repeatText: string | null; firstStep: string | null; snoozeCount: number; createdAt: string; goalId: string | null; goalTitle: string | null; milestoneId: string | null };
 
 /** A message the user can fix and retry, as opposed to a bug. */
 export class TaskError extends Error {}
@@ -20,7 +20,8 @@ const view = (vault: Vault, workspaceId: string, r: typeof tasks.$inferSelect): 
   status: r.status,
   dueAt: iso(r.dueAt),
   remindAt: iso(r.remindAt),
-  repeat: r.repeatEvery && REPEAT_UNITS.includes(r.repeatUnit as RepeatUnit) ? { every: r.repeatEvery, unit: r.repeatUnit as RepeatUnit } : null,
+  repeat: taskRepeat(r),
+  repeatText: describeRepeatFull(taskRepeat(r)),
   firstStep: r.firstStepEnc ? vault.open(workspaceId, r.firstStepEnc) : null,
   snoozeCount: r.snoozeCount,
   createdAt: r.createdAt.toISOString(),
@@ -56,13 +57,28 @@ async function withGoalTitles(a: Actor, tx: TenantTx, views: TaskView[]) {
 }
 
 export async function createTask(a: Actor, input: { title: string; dueAt?: Date | null; remindAt?: Date | null; repeat?: Repeat | null; firstStep?: string | null; goalId?: string | null; milestoneId?: string | null }, now = new Date()) {
-  const due = input.dueAt ?? null;
+  let due = input.dueAt ?? null;
   let remind = input.remindAt ?? null;
   // A deadline with no explicit reminder reminds at the deadline.
   if (!remind && due && due.getTime() > now.getTime()) remind = due;
   if (remind && remind.getTime() < now.getTime() - 60_000) throw new TaskError("That reminder time has already passed. Pick a time in the future.");
-  const repeat = input.repeat ?? null;
+  let repeat = input.repeat ?? null;
+  if (repeat) {
+    try {
+      repeat = checkRepeat(repeat);
+    } catch (e) {
+      if (e instanceof RepeatError) throw new TaskError(e.message);
+      throw e;
+    }
+  }
+  // "Every day at 8, 2 and 8" needs no start: the first one is the next of those times.
+  if (repeat?.times?.length && !due && !remind) {
+    const [u] = await a.tenant((tx) => tx.select({ tz: users.timezone }).from(users).where(eq(users.id, a.userId)));
+    const first = firstSlot(repeat, u?.tz ?? "UTC", now);
+    if (first) due = remind = first;
+  }
   if (repeat && !due && !remind) throw new TaskError("A repeating task needs a date or a reminder time to repeat from.");
+  if (repeat?.until && (due ?? remind) && (due ?? remind)!.toISOString().slice(0, 10) > repeat.until) throw new TaskError("The end date is before the first one.");
   // Repeats step from the due date, because nudges and snoozes keep moving the reminder. With only a reminder time, that is the due date.
   const anchor = repeat ? (due ?? remind) : due;
   const leadMin = repeat && anchor && remind && remind < anchor ? Math.round((anchor.getTime() - remind.getTime()) / 60_000) : 0;
@@ -81,6 +97,9 @@ export async function createTask(a: Actor, input: { title: string; dueAt?: Date 
         remindAt: remind,
         repeatEvery: repeat?.every ?? null,
         repeatUnit: repeat?.unit ?? null,
+        repeatTimes: repeat?.times?.join(",") ?? null,
+        repeatDays: repeat?.days?.join(",") ?? null,
+        repeatUntil: repeat?.until ?? null,
         repeatLeadMin: repeat ? leadMin : null,
       })
       .returning();
@@ -115,26 +134,32 @@ export function pickNext(open: TaskView[]) {
  */
 export type DoneGoal = { id: string; title: string; milestone: { id: string; title: string; status: string; otherOpenTasks: number } | null };
 
-export async function completeTask(a: Actor, id: string, now = new Date()): Promise<{ next: string | null; goal: DoneGoal | null } | null> {
+export async function completeTask(a: Actor, id: string, now = new Date()): Promise<{ next: string | null; ended: boolean; goal: DoneGoal | null } | null> {
   return a.tenant(async (tx) => {
     const [t] = await tx.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.userId, a.userId), eq(tasks.status, "open"))).for("update");
     if (!t) return null;
     const repeat = taskRepeat(t);
     let next: string | null = null;
+    let ended = false;
     if (repeat) {
       const [u] = await tx.select({ tz: users.timezone }).from(users).where(eq(users.id, a.userId));
       const tz = u?.tz ?? "UTC";
       // Step from the due date and keep the same lead ("a week before"). The next reminder must also be in the future.
       const lead = (t.repeatLeadMin ?? 0) * 60_000;
-      let dueAt = nextOccurrence(t.dueAt ?? t.remindAt ?? now, repeat, tz, now);
-      while (dueAt.getTime() - lead <= now.getTime()) dueAt = nextOccurrence(dueAt, repeat, tz, now);
-      const remindAt = new Date(dueAt.getTime() - lead);
-      await tx.update(tasks).set({ dueAt, remindAt, nudgeCount: 0, snoozeCount: 0 }).where(eq(tasks.id, id));
-      next = dueAt.toISOString();
+      let dueAt = nextRepeat(t.dueAt ?? t.remindAt ?? now, repeat, tz, now);
+      while (dueAt && dueAt.getTime() - lead <= now.getTime()) dueAt = nextRepeat(dueAt, repeat, tz, now);
+      if (dueAt) {
+        await tx.update(tasks).set({ dueAt, remindAt: new Date(dueAt.getTime() - lead), nudgeCount: 0, snoozeCount: 0 }).where(eq(tasks.id, id));
+        next = dueAt.toISOString();
+      } else {
+        // It has reached its end date: this was the last one.
+        await tx.update(tasks).set({ status: "done", remindAt: null, completedAt: now }).where(eq(tasks.id, id));
+        ended = true;
+      }
     } else {
       await tx.update(tasks).set({ status: "done", remindAt: null, completedAt: now }).where(eq(tasks.id, id));
     }
-    await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.done", detail: { id, ...(next ? { next } : {}) } });
+    await tx.insert(auditLog).values({ workspaceId: a.workspaceId, userId: a.userId, action: "task.done", detail: { id, ...(next ? { next } : {}), ...(ended ? { ended: true } : {}) } });
 
     // A step toward a goal is progress on the goal, so the goal is not "quiet" and Danny doesn't ask what's in the way.
     let goal: DoneGoal | null = null;
@@ -152,12 +177,20 @@ export async function completeTask(a: Actor, id: string, now = new Date()): Prom
         goal = { id: g.id, title: a.vault.open(a.workspaceId, g.t), milestone };
       }
     }
-    return { next, goal };
+    return { next, ended, goal };
   });
 }
 
-const taskRepeat = (r: typeof tasks.$inferSelect): Repeat | null =>
-  r.repeatEvery && REPEAT_UNITS.includes(r.repeatUnit as RepeatUnit) ? { every: r.repeatEvery, unit: r.repeatUnit as RepeatUnit } : null;
+export const taskRepeat = (r: typeof tasks.$inferSelect): Repeat | null =>
+  r.repeatEvery && REPEAT_UNITS.includes(r.repeatUnit as RepeatUnit)
+    ? {
+        every: r.repeatEvery,
+        unit: r.repeatUnit as RepeatUnit,
+        ...(r.repeatTimes ? { times: r.repeatTimes.split(",") } : {}),
+        ...(r.repeatDays ? { days: r.repeatDays.split(",").map(Number) } : {}),
+        ...(r.repeatUntil ? { until: r.repeatUntil } : {}),
+      }
+    : null;
 
 /** Push the next nudge to `until` and start the escalation over. */
 export async function snoozeTask(a: Actor, id: string, until: Date, now = new Date()) {

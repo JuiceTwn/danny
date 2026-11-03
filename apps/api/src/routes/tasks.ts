@@ -5,7 +5,7 @@ import type { Deps } from "../app.js";
 import { withTenant } from "../db/client.js";
 import { auditLog, pushSubscriptions, users } from "../db/schema.js";
 import { isAllowedPushEndpoint } from "../lib/push.js";
-import { REPEAT_UNITS } from "../lib/recur.js";
+import { MAX_TIMES, REPEAT_UNITS } from "../lib/recur.js";
 import { completeTask, createTask, deleteTask, listTasks, presetTime, setFirstStep, snoozeTask, TaskError, type Actor } from "../lib/tasks.js";
 import { isValidTimezone, SNOOZE_PRESETS } from "../lib/time.js";
 import { VOICES, type Voice } from "../lib/voice.js";
@@ -59,7 +59,15 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
         title: z.string().trim().min(1).max(300),
         dueAt: when.nullish(),
         remindAt: when.nullish(),
-        repeat: z.object({ every: z.number().int().min(1).max(366), unit: z.enum(REPEAT_UNITS) }).nullish(),
+        repeat: z
+          .object({
+            every: z.number().int().min(1).max(366),
+            unit: z.enum(REPEAT_UNITS),
+            times: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)).min(1).max(MAX_TIMES).optional(),
+            days: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional(),
+            until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          })
+          .nullish(),
         firstStep: z.string().trim().min(1).max(200).nullish(),
       })
       .parse(req.body);
