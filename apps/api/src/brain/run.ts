@@ -1,3 +1,4 @@
+import { repairHistory } from "./repair.js";
 import { reportFailure } from "../lib/model-error.js";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import type { Config } from "../config.js";
@@ -147,7 +148,7 @@ export async function runTurn(
     const [{ n: total } = { n: 0 }] = await tx.select({ n: sql<number>`count(*)::int` }).from(messages).where(eq(messages.conversationId, conv.id));
     const past = await tx.select().from(messages).where(eq(messages.conversationId, conv.id)).orderBy(asc(messages.id)).offset(windowStart(total));
     const [u] = await tx.select({ timezone: users.timezone, voice: users.voice, autoMemory: users.autoMemory, adhdMode: users.adhdMode, isOwner: users.isOwner }).from(users).where(eq(users.id, userId));
-    const history = trimHistory(past.map((r) => compactOld({ role: r.role as Msg["role"], content: vault.openJson<Msg["content"]>(workspaceId, r.contentEnc) })));
+    const history = trimHistory(repairHistory(past.map((r) => compactOld({ role: r.role as Msg["role"], content: vault.openJson<Msg["content"]>(workspaceId, r.contentEnc) }))));
     // What they said just before this, so "what about her?" still finds the note about the person they were talking about.
     const said = history.flatMap((m) => (m.role === "user" && typeof m.content === "string" ? [m.content] : [])).slice(-CONTEXT_MESSAGES);
     const mem = await forPrompt(tx, vault, workspaceId, userId, text, said);

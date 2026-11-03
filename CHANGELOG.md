@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fixed: chat could break for good with "The model call failed" after one unlucky moment.** The `/logs` command found the cause: `messages.18: tool_use ids were found without tool_result blocks immediately after…`. The model needs the message right after a tool call to hold its results. A call and its results are saved together, but history is read back by id, and a message Danny writes on his own at the same instant (a morning brief, game alert, reminder, tip) can take an id in between. From then on every message sent the broken history and got a 400, forever.
+  - **The fix is on read, so existing broken chats are repaired too, with no migration and nothing deleted.** Before each turn the history is tidied (`brain/repair.ts`): each call's results go straight after it, a call that never got a result gets a plain "that step did not finish" one, and results whose call is gone are dropped. Healthy history comes back unchanged.
+  - Checked by reproducing it: with the fix off, the new test fails with the same two "has no result right after it" ids from the log; with it on, the person gets an answer and the model sees everything that was said. 454 tests pass.
+
 - **Owner slash commands in the chat, so there is much less need to SSH in.** Type `/` as the owner and a menu appears. They run on the server before anything reaches the model, cost nothing, are recorded in the audit log, and for anyone who isn't the owner "/status" is just a message.
   - **Looking:** `/status` (database, scheduler, version and updates waiting, spend today, people, errors in the last hour), `/errors [n]` (recent failures since start-up, newest first), `/logs` (the latest server log lines, health checks left out), `/doctor` (the full health check, only the things to look at), `/last` (what the last server action did), `/usage`, `/users`.
   - **Doing:** `/check`, `/backup`, `/invite name@example.com` run straight away; `/update confirm`, `/restart confirm` and `/fix confirm` need the word `confirm`. When the server finishes, the result is posted back into the chat.
