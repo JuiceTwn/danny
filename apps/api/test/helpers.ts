@@ -52,17 +52,26 @@ export type Client = ReturnType<typeof client>;
 export function client(ctx: Ctx, cookie = "") {
   const self = {
     cookie,
+    /** Any other cookies the app set (like the kept-aside owner session while previewing). */
+    others: {} as Record<string, string>,
     async req(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body?: unknown, headers: Record<string, string> = {}) {
       const res = await ctx.app.inject({
         method,
         url,
         remoteAddress: ip(),
-        headers: { origin: ORIGIN, ...(self.cookie ? { cookie: self.cookie } : {}), ...headers },
+        headers: { origin: ORIGIN, ...(self.cookie || Object.keys(self.others).length ? { cookie: [self.cookie, ...Object.entries(self.others).map(([k, v]) => `${k}=${v}`)].filter(Boolean).join('; ') } : {}), ...headers },
         ...(body === undefined ? {} : { payload: body as object }),
       });
       const set = res.headers["set-cookie"];
-      const first = Array.isArray(set) ? set[0] : set;
-      if (first?.startsWith("danny_session=")) self.cookie = first.split(";")[0]!;
+      for (const line of Array.isArray(set) ? set : set ? [set] : []) {
+        const [pair = ""] = line.split(";");
+        const eq = pair.indexOf("=");
+        const name = pair.slice(0, eq);
+        const value = pair.slice(eq + 1);
+        if (name === "danny_session") self.cookie = value ? pair : "";
+        else if (value) self.others[name] = value;
+        else delete self.others[name];
+      }
       return { status: res.statusCode, body: (res.headers["content-type"]?.toString().includes("json") ? res.json() : null) as any, headers: res.headers, raw: res };
     },
     get: (url: string) => self.req("GET", url),

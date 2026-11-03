@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -44,6 +45,8 @@ export const users = pgTable(
     quietEnd: integer("quiet_end").notNull().default(7),
     units: text("units").notNull().default("metric"), // metric | imperial, for weather
     learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
+    // Set only on the throwaway account the owner uses to see Danny as a brand-new person. Points at that owner; deleted when they go back.
+    previewOf: uuid("preview_of").references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
     tips: boolean("tips").notNull().default(true), // Danny now and then mentions something he can do that they have not tried ("btw I can also...")
     goodNews: boolean("good_news").notNull().default(false), // opt-in: one uplifting story in the briefing
     newsItems: integer("news_items").notNull().default(3), // how many news items the briefing carries; 0 means none
@@ -55,7 +58,7 @@ export const users = pgTable(
     lastTidiedAt: timestamp("last_tidied_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("users_email_uq").on(t.email)],
+  (t) => [uniqueIndex("users_email_uq").on(t.email), uniqueIndex("users_preview_uq").on(t.previewOf)],
 );
 
 // A workspace is the tenant. Every user gets a personal one; teams can share one later.

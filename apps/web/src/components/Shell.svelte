@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, signOut } from "../lib/store.svelte";
+  import { app, signOut, stopPreview } from "../lib/store.svelte";
   import { go, router, type Route } from "../lib/router.svelte";
   import Logo from "./Logo.svelte";
   import StatusBar from "./StatusBar.svelte";
@@ -21,9 +21,28 @@
     ...(app.me?.isOwner ? [{ id: "owner" as Route, label: "Owner" }] : []),
   ]);
   const titles: Record<Route, string> = { chat: "Chat", tasks: "Tasks", waiting: "Waiting on you", apps: "Apps", memory: "Memory", settings: "Settings", owner: "Owner" };
+
+  let leaving = $state(false);
+  async function leave(then: "owner" | "again") {
+    leaving = true;
+    try {
+      await stopPreview(then);
+    } catch {
+      leaving = false;
+    }
+  }
 </script>
 
-<div class="app">
+<div class="app" class:previewing={app.me?.preview}>
+  {#if app.me?.preview}
+    <div class="previewbar" role="status">
+      <span>Previewing a brand-new account. Notifications are off here.</span>
+      <span class="actions">
+        <button class="pbtn" disabled={leaving} onclick={() => leave("again")}>Start over</button>
+        <button class="pbtn go" disabled={leaving} onclick={() => leave("owner")}>Back to my account</button>
+      </span>
+    </div>
+  {/if}
   <nav class="rail" aria-label="Main">
     <div class="brand"><Logo size={30} /><span class="display">Danny</span></div>
     <ul>
@@ -39,7 +58,7 @@
     <div class="foot">
       <StatusBar />
       <p class="mono who">{app.me?.user.email}</p>
-      <button class="link" onclick={signOut}>Sign out</button>
+      {#if !app.me?.preview}<button class="link" onclick={signOut}>Sign out</button>{/if}
     </div>
   </nav>
 
@@ -93,11 +112,18 @@
   .brand.small { display: none; padding: 0; }
   .topstatus { display: none; }
   .content { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .previewbar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 16px; background: var(--run); color: var(--graphite); font: 600 .8125rem/1.3 var(--mono); }
+  .previewbar .actions { display: flex; gap: 8px; }
+  .pbtn { min-height: 36px; padding: 0 12px; background: transparent; color: var(--graphite); border: 2px solid var(--graphite); font: inherit; cursor: pointer; }
+  .pbtn.go { background: var(--graphite); color: var(--paper); }
+  .app.previewing { grid-template-rows: auto minmax(0, 1fr); }
   .offline { margin: 0; padding: 8px 24px; background: var(--need); color: var(--ink); font: 500 .8125rem/1.3 var(--mono); text-transform: uppercase; letter-spacing: .04em; }
   .tabbar { display: none; }
 
   @media (max-width: 859px) {
     .app { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+    .app.previewing { grid-template-rows: auto minmax(0, 1fr) auto; }
+    .previewbar { padding-top: max(8px, var(--safe-top)); }
     .rail { display: none; }
     .main { padding-top: var(--safe-top); }
     .top { padding: 10px 16px; padding-left: max(16px, var(--safe-left)); padding-right: max(16px, var(--safe-right)); min-height: 56px; }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Owner: see Danny as a brand-new person, and come back in one tap.** Owner tab, "See Danny as a new person", **Start from scratch**.
+  - It signs you in, on this device, to a throwaway account made exactly the way a real signup is made (same defaults, same welcome, an empty workspace), so you see the real first-run: the welcome, the setup chat, the suggestions. A bar across the top says you're previewing, with **Back to my account** and **Start over**.
+  - **Going back is clean.** Your own session was kept aside in a second httpOnly cookie, so Back needs no password and your account was never touched. The throwaway account and everything in it is deleted; starting again always begins from scratch, and there is only ever one. If your kept-aside session is gone or doesn't match, it signs you out instead of guessing.
+  - **Safe by construction.** The preview account has no usable password, is not an owner (no owner tools, nested previews refused), and can't register push notifications, so previewing on your own phone never takes your real notifications from your real account. It expires after 12 hours if you forget. Start and stop are recorded in your audit log.
+  - Migration 0028: `preview_of` on `users` (one per owner, deleted with it). 391 tests pass against a real Postgres, including that nobody but the owner can start one and that a stranger's cookie can't be used as the way back.
+
 - **Simpler start: things are already on, setup happens by chatting, and Danny mentions what else he can do.**
   - **New accounts start with the morning brief (07:30) and event heads-ups already on.** Existing accounts are untouched. The brief stays quiet until there is something to say (a task, goal, topic, team, city, calendar, email or note), so nobody gets an empty "good morning" and nothing is spent on one; the skip is recorded as `briefing.skip` (reason `empty`). The wrap-up, push notifications and Google stay opt-in because they need a choice or a permission.
   - **A welcome in the chat** with two buttons ("Set up my morning brief", "What can you do?"). Setup is one message: Danny asks for a city and what they want in the brief, then does it with tools. No Settings tour.

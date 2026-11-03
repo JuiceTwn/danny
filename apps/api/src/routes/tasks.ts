@@ -95,6 +95,9 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
   app.post("/v1/push/subscribe", async (req, reply) => {
     const { workspaceId, userId } = req.auth!;
     if (!push.publicKey) return reply.code(503).send({ error: "push_not_configured" });
+    // The owner looking at Danny as a new person is on their own phone or laptop. Subscribing here would take their real notifications away from their real account.
+    const [me] = await db.select({ preview: users.previewOf }).from(users).where(eq(users.id, userId));
+    if (me?.preview) return reply.code(403).send({ error: "preview_mode", message: "Notifications stay off while you're previewing, so your own are left alone." });
     const sub = z
       .object({ endpoint: z.url().max(1000), keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }) })
       .parse(req.body);

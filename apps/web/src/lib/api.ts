@@ -89,7 +89,7 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
   }
 }
 
-export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean; goodNews: boolean; newsItems: number; tips: boolean }; workspaceId: string; role: string; isOwner: boolean; features?: { miniApps: boolean } };
+export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean; goodNews: boolean; newsItems: number; tips: boolean }; workspaceId: string; role: string; isOwner: boolean; preview?: boolean; features?: { miniApps: boolean } };
 // Everyone gets the usage percentage. The dollar fields, and the right to change the cap, belong to the server owner only.
 export type Settings = {
   usedPercent: number;

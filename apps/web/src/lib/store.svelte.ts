@@ -72,6 +72,21 @@ export async function refresh() {
   }
 }
 
+/** Owner only: sign in as a brand-new account made from scratch, to see exactly what a new person sees. */
+export async function startPreview() {
+  await api("POST", "/v1/preview/start");
+  location.hash = "#/chat";
+  location.reload();
+}
+
+/** Back to the owner's own account. The preview account and everything in it is deleted. */
+export async function stopPreview(then: "owner" | "again" = "owner") {
+  await api("POST", "/v1/preview/stop");
+  if (then === "again") await api("POST", "/v1/preview/start");
+  location.hash = then === "again" ? "#/chat" : "#/owner";
+  location.reload();
+}
+
 export async function signOut() {
   await api("POST", "/v1/auth/logout").catch(() => {});
   app.me = null;

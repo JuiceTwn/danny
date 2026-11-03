@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { api, ApiError } from "../lib/api";
-  import { refresh } from "../lib/store.svelte";
+  import { refresh, startPreview } from "../lib/store.svelte";
   import { fmtDay, usd } from "../lib/router.svelte";
 
   type Req = { id: string; email: string; status: string; createdAt: string };
@@ -62,6 +62,18 @@
   }
   onDestroy(() => clearTimeout(timer));
 
+
+  let previewBusy = $state(false);
+  async function start() {
+    previewBusy = true;
+    error = "";
+    try {
+      await startPreview();
+    } catch {
+      error = "Couldn't start the preview. Try again.";
+      previewBusy = false;
+    }
+  }
 
   // API keys. One box per key the server knows about, so a feature that needs a new key shows up here after the next update.
   type KeyRow = { id: string; label: string; needed: "required" | "optional"; why: string; steps: string[]; url: string; source: "none" | "app" | "env" };
@@ -160,6 +172,12 @@
 <div class="page">
   <div class="col">
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+
+    <section>
+      <h2 class="display">See Danny as a new person</h2>
+      <p class="muted">Signs you in to a brand-new account made exactly the way a real signup is: same defaults, same welcome, nothing in it. Poke around, try the setup, then tap "Back to my account" in the bar at the top. The test account and everything in it is deleted when you go back, and your own account is never touched.</p>
+      <button class="btn primary wide" disabled={previewBusy} onclick={start}>{previewBusy ? "Setting it up" : "Start from scratch"}</button>
+    </section>
 
     <section class="keys">
       <h2 class="display">API keys</h2>

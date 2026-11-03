@@ -40,9 +40,11 @@ export async function loadSession({ db }: Deps, req: FastifyRequest): Promise<Au
   return { sessionId: row.sessionId, userId: row.userId, workspaceId: row.workspaceId, isOwner: row.isOwner, role: row.role };
 }
 
-async function startSession({ db, config }: Deps, reply: FastifyReply, userId: string, workspaceId: string) {
+export const OWNER_RETURN_COOKIE = "danny_owner";
+
+export async function startSession({ db, config }: Deps, reply: FastifyReply, userId: string, workspaceId: string, lifetimeMs = config.sessionDays * 86_400_000) {
   const token = newToken();
-  const expiresAt = new Date(Date.now() + config.sessionDays * 86_400_000);
+  const expiresAt = new Date(Date.now() + lifetimeMs);
   await db.insert(sessions).values({ userId, workspaceId, tokenHash: sha256(token), expiresAt });
   reply.setCookie(COOKIE, token, {
     httpOnly: true,
@@ -107,14 +109,15 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
     const token = req.cookies[COOKIE];
     if (token) await db.delete(sessions).where(eq(sessions.tokenHash, sha256(token)));
     reply.clearCookie(COOKIE, { path: "/" });
+    reply.clearCookie(OWNER_RETURN_COOKIE, { path: "/" });
     return { ok: true };
   });
 
   app.get("/v1/me", async (req, reply) => {
     const auth = await loadSession(deps, req);
     if (!auth) return reply.code(401).send({ error: "unauthorized" });
-    const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, ...prefColumns }).from(users).where(eq(users.id, auth.userId));
-    const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips, ...rest } = u!;
-    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner, features: { miniApps: deps.config.miniApps === "all" || (deps.config.miniApps === "owner" && auth.isOwner) } };
+    const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, previewOf: users.previewOf, ...prefColumns }).from(users).where(eq(users.id, auth.userId));
+    const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips, previewOf, ...rest } = u!;
+    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner, preview: previewOf !== null, features: { miniApps: deps.config.miniApps === "all" || (deps.config.miniApps === "owner" && auth.isOwner) } };
   });
 };
