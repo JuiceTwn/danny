@@ -89,7 +89,7 @@ export async function* chatStream(message: string, signal: AbortSignal): AsyncGe
   }
 }
 
-export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean }; workspaceId: string; role: string; isOwner: boolean; features?: { miniApps: boolean } };
+export type Me = { user: { id: string; email: string; name: string; timezone: string; briefingEnabled: boolean; briefingTime: string; wrapupEnabled: boolean; wrapupTime: string; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean; goodNews: boolean; newsItems: number; tips: boolean }; workspaceId: string; role: string; isOwner: boolean; preview?: boolean; features?: { miniApps: boolean } };
 // Everyone gets the usage percentage. The dollar fields, and the right to change the cap, belong to the server owner only.
 export type Settings = {
   usedPercent: number;
@@ -127,6 +127,8 @@ export type Connector = {
 };
 export type GoogleSetup = { configured: boolean; source: "env" | "app" | "none"; redirectUri: string; scopes: string[] };
 export type Interest = { id: string; topic: string };
+export type FollowedTeam = { id: string; league: "nhl" | "mlb"; code: string; name: string; fullName: string; leagueName: string; notify: boolean };
+export type CatalogTeam = { league: "nhl" | "mlb"; leagueName: string; code: string; name: string; fullName: string };
 export type StyleNote = { id: string; kind: "said" | "observed"; note: string };
 export type Style = { instruction: string | null; location: string | null; notes: StyleNote[] };
 export type Task = { id: string; title: string; status: string; dueAt: string | null; remindAt: string | null; repeat: { every: number; unit: "day" | "week" | "month" | "year" } | null; firstStep?: string | null; snoozeCount?: number; createdAt: string };

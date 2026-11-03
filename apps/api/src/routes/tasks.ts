@@ -14,7 +14,7 @@ const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${St
 const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, 24 hour");
 
-type PrefRow = { briefingEnabled: boolean; briefingMinute: number; wrapupEnabled: boolean; wrapupMinute: number; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean };
+type PrefRow = { briefingEnabled: boolean; briefingMinute: number; wrapupEnabled: boolean; wrapupMinute: number; voice: string; quietStart: number; quietEnd: number; units: string; learnEnabled: boolean; autoMemory: boolean; adhdMode: boolean; eventPrep: boolean; goodNews: boolean; newsItems: number; tips: boolean };
 export const prefsView = (u: PrefRow) => ({
   briefingEnabled: u.briefingEnabled,
   briefingTime: hhmm(u.briefingMinute),
@@ -28,8 +28,11 @@ export const prefsView = (u: PrefRow) => ({
   autoMemory: u.autoMemory,
   adhdMode: u.adhdMode,
   eventPrep: u.eventPrep,
+  goodNews: u.goodNews,
+  newsItems: u.newsItems,
+  tips: u.tips,
 });
-export const prefColumns = { briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute, wrapupEnabled: users.wrapupEnabled, wrapupMinute: users.wrapupMinute, voice: users.voice, quietStart: users.quietStart, quietEnd: users.quietEnd, units: users.units, learnEnabled: users.learnEnabled, autoMemory: users.autoMemory, adhdMode: users.adhdMode, eventPrep: users.eventPrep };
+export const prefColumns = { briefingEnabled: users.briefingEnabled, briefingMinute: users.briefingMinute, wrapupEnabled: users.wrapupEnabled, wrapupMinute: users.wrapupMinute, voice: users.voice, quietStart: users.quietStart, quietEnd: users.quietEnd, units: users.units, learnEnabled: users.learnEnabled, autoMemory: users.autoMemory, adhdMode: users.adhdMode, eventPrep: users.eventPrep, goodNews: users.goodNews, newsItems: users.newsItems, tips: users.tips };
 
 const when = z.iso.datetime({ offset: true });
 
@@ -92,6 +95,9 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
   app.post("/v1/push/subscribe", async (req, reply) => {
     const { workspaceId, userId } = req.auth!;
     if (!push.publicKey) return reply.code(503).send({ error: "push_not_configured" });
+    // The owner looking at Danny as a new person is on their own phone or laptop. Subscribing here would take their real notifications away from their real account.
+    const [me] = await db.select({ preview: users.previewOf }).from(users).where(eq(users.id, userId));
+    if (me?.preview) return reply.code(403).send({ error: "preview_mode", message: "Notifications stay off while you're previewing, so your own are left alone." });
     const sub = z
       .object({ endpoint: z.url().max(1000), keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }) })
       .parse(req.body);
@@ -134,6 +140,9 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
         autoMemory: z.boolean().optional(),
         adhdMode: z.boolean().optional(),
         eventPrep: z.boolean().optional(),
+        goodNews: z.boolean().optional(),
+        newsItems: z.number().int().min(0).max(5).optional(),
+        tips: z.boolean().optional(),
       })
       .parse(req.body);
     if (body.timezone !== undefined && !isValidTimezone(body.timezone)) return reply.code(400).send({ error: "invalid_request", message: "Unknown timezone." });
@@ -151,6 +160,9 @@ export const taskRoutes: FastifyPluginAsync<Deps> = async (app, { db, vault, pus
     if (body.autoMemory !== undefined) set.autoMemory = body.autoMemory;
     if (body.adhdMode !== undefined) set.adhdMode = body.adhdMode;
     if (body.eventPrep !== undefined) set.eventPrep = body.eventPrep;
+    if (body.goodNews !== undefined) set.goodNews = body.goodNews;
+    if (body.newsItems !== undefined) set.newsItems = body.newsItems;
+    if (body.tips !== undefined) set.tips = body.tips;
     if (Object.keys(set).length) {
       await db.update(users).set(set).where(eq(users.id, userId));
       const { timezone: _tz, ...prefs } = body;

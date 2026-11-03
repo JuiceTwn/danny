@@ -145,6 +145,7 @@ describe("inbox to actions", () => {
 
     // Gmail down: the briefing still arrives, with no email card.
     const v = await person("Ib4");
+    await v.c.post("/v1/tasks", { title: "Water the plants" }); // a brief with nothing to say is not sent
     await v.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
     fake.invalidGrant = true;
     fake.expireAccessTokens();

@@ -402,6 +402,7 @@ describe("interests and voice", () => {
     const sys = chatCalls.at(-1)!.system;
     expect(sys).toContain("friendly and encouraging");
     expect(sys).not.toContain("shop foreman");
+    await u.c.post("/v1/tasks", { title: "Water the plants" }); // a brief with nothing to say is not sent
     await u.c.patch("/v1/profile", { briefingEnabled: true, briefingTime: "07:30" });
     searches.length = 0;
     await runDueBriefings(deps(), new Date("2027-06-02T13:00:00Z"));

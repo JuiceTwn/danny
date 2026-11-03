@@ -9,7 +9,7 @@ import { Vault } from "../src/lib/vault.js";
 import { createRegistry } from "../src/tools/builtin.js";
 import { loadConfig } from "../src/config.js";
 import { createDb } from "../src/db/client.js";
-import { memberships, users, workspaces } from "../src/db/schema.js";
+import { conversations, memberships, users, workspaces } from "../src/db/schema.js";
 import { hashPassword } from "../src/lib/crypto.js";
 import { APP_URL, OWNER_URL } from "./env.js";
 
@@ -52,17 +52,26 @@ export type Client = ReturnType<typeof client>;
 export function client(ctx: Ctx, cookie = "") {
   const self = {
     cookie,
+    /** Any other cookies the app set (like the kept-aside owner session while previewing). */
+    others: {} as Record<string, string>,
     async req(method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body?: unknown, headers: Record<string, string> = {}) {
       const res = await ctx.app.inject({
         method,
         url,
         remoteAddress: ip(),
-        headers: { origin: ORIGIN, ...(self.cookie ? { cookie: self.cookie } : {}), ...headers },
+        headers: { origin: ORIGIN, ...(self.cookie || Object.keys(self.others).length ? { cookie: [self.cookie, ...Object.entries(self.others).map(([k, v]) => `${k}=${v}`)].filter(Boolean).join('; ') } : {}), ...headers },
         ...(body === undefined ? {} : { payload: body as object }),
       });
       const set = res.headers["set-cookie"];
-      const first = Array.isArray(set) ? set[0] : set;
-      if (first?.startsWith("danny_session=")) self.cookie = first.split(";")[0]!;
+      for (const line of Array.isArray(set) ? set : set ? [set] : []) {
+        const [pair = ""] = line.split(";");
+        const eq = pair.indexOf("=");
+        const name = pair.slice(0, eq);
+        const value = pair.slice(eq + 1);
+        if (name === "danny_session") self.cookie = value ? pair : "";
+        else if (value) self.others[name] = value;
+        else delete self.others[name];
+      }
       return { status: res.statusCode, body: (res.headers["content-type"]?.toString().includes("json") ? res.json() : null) as any, headers: res.headers, raw: res };
     },
     get: (url: string) => self.req("GET", url),
@@ -89,15 +98,22 @@ export async function seedOwner(ctx: Ctx, email = uniqueEmail("owner")) {
 }
 
 /** Full real path: owner invites, new user accepts. Returns a signed-in client. */
-export async function signUp(ctx: Ctx, owner: Client, name = "Test") {
-  const email = uniqueEmail(name.toLowerCase());
+export async function signUp(ctx: Ctx, owner: Client, name = "Test", opts: { fresh?: boolean } = {}) {
+  const email = uniqueEmail(name.toLowerCase().replace(/\s+/g, ""));
   const inv = await owner.post("/v1/admin/invites", { email });
   const token = new URL(inv.body.inviteUrl).searchParams.get("token");
   const c = client(ctx);
   const res = await c.post("/v1/auth/accept-invite", { token, password: PASSWORD, name });
   if (res.status !== 201) throw new Error(`signup failed: ${JSON.stringify(res.body)}`);
   const me = await c.get("/v1/me");
-  return { c, email, workspaceId: me.body.workspaceId as string, userId: me.body.user.id as string };
+  const out = { c, email, workspaceId: me.body.workspaceId as string, userId: me.body.user.id as string };
+  // A real new account starts with the morning brief and event heads-ups on, and a welcome in the chat. Most tests are about one feature at a time and
+  // switch on what they need, so by default they start from a bare account; pass { fresh: true } to get exactly what a new person gets.
+  if (!opts.fresh) {
+    await ctx.owner.db.update(users).set({ briefingEnabled: false, eventPrep: false }).where(eq(users.id, out.userId));
+    await ctx.owner.db.delete(conversations).where(eq(conversations.userId, out.userId));
+  }
+  return out;
 }
 
 export async function workspaceOf(ctx: Ctx, userId: string) {

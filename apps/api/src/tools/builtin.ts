@@ -12,6 +12,8 @@ import { githubTools } from "./github.js";
 import { weatherTools } from "./weather.js";
 import { styleTools } from "./style.js";
 import { interestTools } from "./interests.js";
+import { teamTools } from "./teams.js";
+import { settingsTools } from "./settings.js";
 import { goalTools } from "./goals.js";
 import { taskTools } from "./tasks.js";
 
@@ -24,7 +26,7 @@ export const remember = defineTool({
     "Save one durable fact about the user's life or work that you will want next week: a preference, a person, a rate, how they like to work. " +
     "Write it as a short fragment, under 12 words, with no 'User' or 'The user' ('Prefers texts to calls', not 'The user said they prefer to be texted'). " +
     "Set `subject` for a person or place ('Marlene'). If it will stop being true, set `expires_on` ('Moving to Toronto in March' ends 2027-03-31). " +
-    "Do NOT save what has its own home: things to do (add_task), things they are working toward (add_goal), topics they follow (add_interest), how they like to be helped (learn_preference). " +
+    "Do NOT save what has its own home: things to do (add_task), things they are working toward (add_goal), topics they follow (add_interest), sports teams they follow (follow_team), how they like to be helped (learn_preference). " +
     "If it corrects or updates a note you already hold, pass that note's id as `replaces` instead of adding a second one. Never save passwords or card numbers.",
   kind: "internal",
   input: z.object({
@@ -90,6 +92,6 @@ export const requestApproval = defineTool({
 
 export function createRegistry() {
   const r = new ToolRegistry().register(remember).register(requestApproval).register(recallTool).register(forgetMemoryTool);
-  for (const t of [...taskTools, ...goalTools, ...interestTools, ...styleTools, ...weatherTools, ...githubTools, ...cardTools, ...gmailTools, ...calendarTools, ...inboxTools, ...waitingTools, ...appTools]) r.register(t);
+  for (const t of [...taskTools, ...goalTools, ...interestTools, ...teamTools, ...settingsTools, ...styleTools, ...weatherTools, ...githubTools, ...cardTools, ...gmailTools, ...calendarTools, ...inboxTools, ...waitingTools, ...appTools]) r.register(t);
   return r;
 }

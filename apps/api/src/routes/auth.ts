@@ -1,4 +1,5 @@
 import { prefColumns, prefsView } from "./tasks.js";
+import { NEW_ACCOUNT_DEFAULTS, welcome } from "../lib/onboarding.js";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -39,9 +40,11 @@ export async function loadSession({ db }: Deps, req: FastifyRequest): Promise<Au
   return { sessionId: row.sessionId, userId: row.userId, workspaceId: row.workspaceId, isOwner: row.isOwner, role: row.role };
 }
 
-async function startSession({ db, config }: Deps, reply: FastifyReply, userId: string, workspaceId: string) {
+export const OWNER_RETURN_COOKIE = "danny_owner";
+
+export async function startSession({ db, config }: Deps, reply: FastifyReply, userId: string, workspaceId: string, lifetimeMs = config.sessionDays * 86_400_000) {
   const token = newToken();
-  const expiresAt = new Date(Date.now() + config.sessionDays * 86_400_000);
+  const expiresAt = new Date(Date.now() + lifetimeMs);
   await db.insert(sessions).values({ userId, workspaceId, tokenHash: sha256(token), expiresAt });
   reply.setCookie(COOKIE, token, {
     httpOnly: true,
@@ -75,7 +78,7 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
         .where(and(eq(invites.id, invite.id), isNull(invites.acceptedAt)))
         .returning({ id: invites.id });
       if (claimed.length === 0) throw Object.assign(new Error("invite_invalid_or_expired"), { statusCode: 400 });
-      const [u] = await tx.insert(users).values({ email: invite.email, name: body.name, passwordHash }).returning({ id: users.id });
+      const [u] = await tx.insert(users).values({ email: invite.email, name: body.name, passwordHash, ...NEW_ACCOUNT_DEFAULTS }).returning({ id: users.id });
       const [w] = await tx
         .insert(workspaces)
         .values({ name: body.name ? `${body.name}'s Danny` : "My Danny", dailyCapMicros: deps.config.defaultDailyCapMicros })
@@ -85,6 +88,7 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
       return { userId: u!.id, workspaceId: w!.id };
     });
     await withTenant(db, workspaceId, (tx) => tx.insert(auditLog).values({ workspaceId, userId, action: "account.created" }));
+    await welcome(db, deps.vault, workspaceId, userId, body.name.split(" ")[0] ?? "");
     await startSession(deps, reply, userId, workspaceId);
     return reply.code(201).send({ ok: true });
   });
@@ -105,14 +109,15 @@ export const authRoutes: FastifyPluginAsync<Deps> = async (app, deps) => {
     const token = req.cookies[COOKIE];
     if (token) await db.delete(sessions).where(eq(sessions.tokenHash, sha256(token)));
     reply.clearCookie(COOKIE, { path: "/" });
+    reply.clearCookie(OWNER_RETURN_COOKIE, { path: "/" });
     return { ok: true };
   });
 
   app.get("/v1/me", async (req, reply) => {
     const auth = await loadSession(deps, req);
     if (!auth) return reply.code(401).send({ error: "unauthorized" });
-    const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, ...prefColumns }).from(users).where(eq(users.id, auth.userId));
-    const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, ...rest } = u!;
-    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner, features: { miniApps: deps.config.miniApps === "all" || (deps.config.miniApps === "owner" && auth.isOwner) } };
+    const [u] = await db.select({ id: users.id, email: users.email, name: users.name, timezone: users.timezone, previewOf: users.previewOf, ...prefColumns }).from(users).where(eq(users.id, auth.userId));
+    const { briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips, previewOf, ...rest } = u!;
+    return { user: { ...rest, ...prefsView({ briefingEnabled, briefingMinute, wrapupEnabled, wrapupMinute, voice, quietStart, quietEnd, units, learnEnabled, autoMemory, adhdMode, eventPrep, goodNews, newsItems, tips }) }, workspaceId: auth.workspaceId, role: auth.role, isOwner: auth.isOwner, preview: previewOf !== null, features: { miniApps: deps.config.miniApps === "all" || (deps.config.miniApps === "owner" && auth.isOwner) } };
   });
 };

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -44,6 +45,11 @@ export const users = pgTable(
     quietEnd: integer("quiet_end").notNull().default(7),
     units: text("units").notNull().default("metric"), // metric | imperial, for weather
     learnEnabled: boolean("learn_enabled").notNull().default(true), // let Danny work out how you like to be helped
+    // Set only on the throwaway account the owner uses to see Danny as a brand-new person. Points at that owner; deleted when they go back.
+    previewOf: uuid("preview_of").references((): AnyPgColumn => users.id, { onDelete: "cascade" }),
+    tips: boolean("tips").notNull().default(true), // Danny now and then mentions something he can do that they have not tried ("btw I can also...")
+    goodNews: boolean("good_news").notNull().default(false), // opt-in: one uplifting story in the briefing
+    newsItems: integer("news_items").notNull().default(3), // how many news items the briefing carries; 0 means none
     eventPrep: boolean("event_prep").notNull().default(false), // opt-in: a heads-up before calendar events (where, who, join link, last email)
     prepCheckedAt: timestamp("prep_checked_at", { withTimezone: true }), // last time the calendar was looked at for this, so it is not asked every half minute
     adhdMode: boolean("adhd_mode").notNull().default(false), // opt-in: Danny breaks things down, offers one thing at a time and plans snoozes with you
@@ -52,7 +58,7 @@ export const users = pgTable(
     lastTidiedAt: timestamp("last_tidied_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("users_email_uq").on(t.email)],
+  (t) => [uniqueIndex("users_email_uq").on(t.email), uniqueIndex("users_preview_uq").on(t.previewOf)],
 );
 
 // A workspace is the tenant. Every user gets a personal one; teams can share one later.
@@ -372,6 +378,49 @@ export const interests = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("interests_user_idx").on(t.workspaceId, t.userId)],
+);
+
+// Sports teams the user follows. The briefing gets last night's score and today's game from the league's own feed; with `notify` on, Danny also
+// says when a game is about to start and when it ends. The team (league, code, name) is encrypted like any other preference.
+export const followedTeams = pgTable(
+  "followed_teams",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    teamEnc: bytea("team_enc").notNull(), // encrypted JSON: { league, code, name }
+    notify: boolean("notify").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [index("followed_teams_user_idx").on(t.workspaceId, t.userId)],
+);
+
+// Which "btw, I can also do this" suggestions a person has already been shown, so each is said once.
+export const tipsSent = pgTable(
+  "tips_sent",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("tips_sent_uq").on(t.userId, t.key)],
+);
+
+// Which game alerts have gone out, so a game gets one heads-up and one final score however often the scheduler looks.
+export const gameAlerts = pgTable(
+  "game_alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    teamId: uuid("team_id").notNull().references(() => followedTeams.id, { onDelete: "cascade" }),
+    gameId: text("game_id").notNull(),
+    kind: text("kind").notNull(), // soon | final
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("game_alerts_uq").on(t.teamId, t.gameId, t.kind)],
 );
 
 // One row per browser or phone that agreed to notifications. The keys are encrypted like any other secret.
