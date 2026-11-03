@@ -1,3 +1,4 @@
+import { reportFailure } from "./model-error.js";
 import type { Config } from "../config.js";
 import { withTenant, type Db } from "../db/client.js";
 import type { ModelClient } from "../brain/model.js";
@@ -30,8 +31,9 @@ export async function budgetedSearch(
   let res;
   try {
     res = await model.search({ model: req.model ?? config.model, system: req.system ?? SEARCH_SYSTEM, prompt: req.prompt, maxSearches: req.maxSearches ?? 2, maxTokens: req.maxTokens ?? 1500 });
-  } catch {
-    return { ok: false, reason: "The search failed. Nothing was charged." };
+  } catch (err) {
+    const f = reportFailure("web search", err, { model: req.model ?? config.model });
+    return { ok: false, reason: `The search failed. ${f.hint} Nothing was charged.` };
   }
   await tenant((tx) =>
     recordSpend(tx, {
@@ -62,8 +64,9 @@ export async function budgetedAnswer(
   let res;
   try {
     res = await model.complete({ model: req.model ?? config.model, system: req.system, messages: [{ role: "user", content: req.prompt }], tools: [], maxTokens: req.maxTokens ?? 700 }, () => {});
-  } catch {
-    return { ok: false, reason: "The model call failed. Nothing was charged." };
+  } catch (err) {
+    const f = reportFailure("model call", err, { model: req.model ?? config.model });
+    return { ok: false, reason: `The model call failed. ${f.hint} Nothing was charged.` };
   }
   await tenant((tx) =>
     recordSpend(tx, {
