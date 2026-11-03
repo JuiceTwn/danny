@@ -21,6 +21,7 @@ shift   # compose
 case "$1" in
   build) [ -z "${FAKE_BUILD_FAIL:-}" ] || exit 1 ;;
   ps) printf 'db|running|healthy\napi|running|healthy\n' ;;
+  logs) printf 'api-1  | {"level":30,"time":1793733462114,"msg":"incoming request","req":{"url":"/readyz"}}\napi-1  | {"level":30,"time":1793733462118,"res":{"statusCode":200},"msg":"request completed"}\napi-1  | {"level":50,"time":1793733500000,"where":"chat model call","msg":"chat model call failed: auth (401): invalid x-api-key"}\napi-1  | {"level":30,"time":1793733501000,"res":{"statusCode":500},"msg":"request completed"}\n' ;;
   exec)
     case "$*" in
       *pg_dump*)
@@ -217,7 +218,26 @@ publish v5; echo dirty >> "$G/server/VERSION"
 check "a failing update is reported as failed, with the reason in plain words" test "$(pj "$S_OUT/last.json" 'd["state"]')" = failed && pj "$S_OUT/last.json" 'd["summary"]' | grep -q "local changes"
 gs checkout -q -- VERSION
 
-# What the app writes is untrusted: only the three exact names count, and what is inside is never read.
+# The owner's other actions: the doctor's report, the recent log, repairs and a restart.
+: > "$FAKE_LOG"; ask doctor; FAKE_HEALTHY=1 "$O"
+check "doctor: says ok (a finding is its report, not a failure) and writes the report for the app" test "$(pj "$S_OUT/last.json" 'd["state"]+" "+d["action"]')" = "ok doctor" -a -s "$S_OUT/doctor.txt" && grep -q "Danny doctor" "$S_OUT/doctor.txt"
+check "doctor: the report has no terminal colour codes" bash -c "! grep -q $'\\x1b' '$S_OUT/doctor.txt'"
+check "doctor: does not repair anything (no restart, no up)" test "$(grep -c -E 'restart|up -d' "$FAKE_LOG")" -eq 0
+
+: > "$FAKE_LOG"; ask logs; FAKE_HEALTHY=1 "$O"
+check "logs: keeps the error and the 500, drops the health checks and the 200s" grep -q "auth (401)" "$S_OUT/logs.txt" && grep -q '"statusCode":500' "$S_OUT/logs.txt" && ! grep -q readyz "$S_OUT/logs.txt" && ! grep -q '"statusCode":200' "$S_OUT/logs.txt"
+check "logs: asks Docker only for the api's logs" test "$(grep -c 'compose logs' "$FAKE_LOG" || true)" -ge 0 && grep -q "logs --no-color --tail 800 api" "$FAKE_LOG"
+
+: > "$FAKE_LOG"; ask restart; FAKE_HEALTHY=1 "$O"
+check "restart: restarts only the api" test "$(pj "$S_OUT/last.json" 'd["state"]+" "+d["action"]')" = "ok restart" && grep -q "restart api" "$FAKE_LOG"
+
+: > "$FAKE_LOG"; ask fix; FAKE_HEALTHY=1 "$O"
+check "fix: runs the doctor's safe repairs and says ok" test "$(pj "$S_OUT/last.json" 'd["action"]')" = fix -a -s "$S_OUT/doctor.txt"
+
+: > "$FAKE_LOG"; ask logs; ask doctor; ask backup; FAKE_HEALTHY=1 "$O"
+check "several requests at once all run, backup before the reports" test -z "$(ls -A "$OPS/requests")" -a -s "$S_OUT/logs.txt" -a -s "$S_OUT/doctor.txt" && grep -q pg_dump "$FAKE_LOG"
+
+# What the app writes is untrusted: only the exact names count, and what is inside is never read.
 : > "$FAKE_LOG"
 echo '; touch /tmp/ops-pwned' > "$OPS/requests/check"
 : > "$OPS/requests/restore"; : > "$OPS/requests/update; id"; mkdir -p "$OPS/requests/backup.d"; ln -s /etc/passwd "$OPS/requests/backup"

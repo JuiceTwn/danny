@@ -32,7 +32,26 @@
     }
   }
 
-  const starters = ["Set up my morning brief", "Remember that Marlene prefers texts, not calls", "What can you do?"];
+  const starters = $derived(app.me?.isOwner ? ["/status", "Set up my morning brief", "What can you do?"] : ["Set up my morning brief", "Remember that Marlene prefers texts, not calls", "What can you do?"]);
+
+  // The owner's slash commands (/status, /errors, /backup...). Typing a slash shows what is available; tapping one fills it in.
+  type Cmd = { name: string; usage: string; help: string };
+  let cmds = $state<Cmd[]>([]);
+  onMount(async () => {
+    if (!app.me?.isOwner) return;
+    try {
+      cmds = (await api<{ items: Cmd[] }>("GET", "/v1/admin/commands")).items;
+    } catch {
+      /* no menu, the commands still work */
+    }
+  });
+  const menu = $derived(app.me?.isOwner && /^\/[a-z]*$/i.test(input.trim()) ? cmds.filter((c) => c.name.startsWith(input.trim().slice(1).toLowerCase())) : []);
+  async function pickCommand(c: Cmd) {
+    input = c.usage.includes(" ") ? `/${c.name} ` : `/${c.name}`;
+    await tick();
+    grow();
+    boxEl?.focus();
+  }
 
   const push = (kind: Row["kind"], text: string, extra: Partial<Row> = {}) => {
     const row: Row = { id: nextId++, kind, text, at: new Date().toISOString(), ...extra };
@@ -283,6 +302,13 @@
   </div>
 
   <form class="composer" onsubmit={(e) => { e.preventDefault(); void send(input); }}>
+    {#if menu.length}
+      <ul class="cmdmenu col" role="listbox" aria-label="Owner commands">
+        {#each menu as c (c.name)}
+          <li role="option" aria-selected="false"><button type="button" onclick={() => pickCommand(c)}><span class="mono">{c.usage}</span><span>{c.help}</span></button></li>
+        {/each}
+      </ul>
+    {/if}
     <div class="col bar">
       <label class="sr" for="msg">Message to Danny</label>
       <textarea
@@ -346,6 +372,12 @@
   .chip { min-height: 44px; padding: 8px 14px; text-align: left; background: var(--panel); border: 1px solid var(--line); color: var(--paper); }
   .chip:hover { border-color: var(--run); }
 
+  .cmdmenu { display: flex; flex-direction: column; max-height: 38vh; overflow-y: auto; margin-bottom: 8px; border: 1px solid var(--line); background: var(--panel); }
+  .cmdmenu button { width: 100%; min-height: 44px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 8px 14px; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); color: var(--paper); cursor: pointer; }
+  .cmdmenu li:first-child button { border-top: 0; }
+  .cmdmenu button .mono { color: var(--run); text-transform: none; }
+  .cmdmenu button span:last-child { color: var(--muted); font-size: .875rem; }
+  .cmdmenu button:hover, .cmdmenu button:focus-visible { background: var(--graphite); }
   .composer { border-top: 1px solid var(--line); background: var(--graphite); padding: 12px 24px; }
   .bar { display: flex; gap: 10px; align-items: flex-end; }
   textarea { flex: 1; min-width: 0; resize: none; min-height: 48px; max-height: 168px; padding: 11px 14px; background: var(--panel); border: 2px solid var(--line); color: var(--paper); line-height: 1.4; }

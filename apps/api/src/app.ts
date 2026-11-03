@@ -1,3 +1,5 @@
+import { setErrorSink } from "./lib/model-error.js";
+import { recordError } from "./lib/error-ring.js";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -59,6 +61,14 @@ export async function buildApp(deps: Deps) {
     trustProxy: config.trustProxy,
     bodyLimit: 256 * 1024,
   });
+  // Failures in model calls, web search and tools are logged with their cause through the app's own logger.
+  setErrorSink((o, m) => {
+    app.log.error(o, m);
+    recordError(String(o.where ?? "error"), m);
+  });
+  // Server errors (a 500 from any route) also go in the owner's /errors list.
+  app.addHook("onError", async (req, _reply, err) => recordError(`${req.method} ${req.url.split("?")[0]}`, err.message));
+  app.addHook("onClose", async () => setErrorSink(null));
 
   await app.register(helmet, {
     // No inline scripts, no outside hosts. The app talks only to its own origin.

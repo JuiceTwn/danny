@@ -1,3 +1,4 @@
+import { reportFailure } from "../model-error.js";
 import type { Deps } from "../../app.js";
 import { runTurn } from "../../brain/run.js";
 import { withTenant } from "../../db/client.js";
@@ -202,7 +203,8 @@ export class CallSession {
       );
       if (!isStopped()) speak(true);
       await this.pump;
-    } catch {
+    } catch (err) {
+      reportFailure("call turn", err);
       if (!isStopped()) this.send({ type: "error", code: "model_failed", message: "Something broke on my side. Try again." });
     } finally {
       release();

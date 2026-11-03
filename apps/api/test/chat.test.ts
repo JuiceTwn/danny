@@ -3,6 +3,7 @@ import { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ModelClient, ModelRequest, ModelResult } from "../src/brain/model.js";
 import { approvals, memory, spendLedger, workspaces } from "../src/db/schema.js";
+import { setErrorSink } from "../src/lib/model-error.js";
 import { createRegistry } from "../src/tools/builtin.js";
 import { defineTool } from "../src/tools/registry.js";
 import { ORIGIN, seedOwner, setupApp, signUp, type Client, type Ctx } from "./helpers.js";
@@ -164,6 +165,23 @@ describe("chat", () => {
     const r = await chat(u.c, "hi");
     expect(r.events).toEqual([{ type: "error", code: "model_failed", message: expect.any(String) }]);
     expect(await ctx.owner.db.select().from(spendLedger).where(eq(spendLedger.userId, u.userId))).toHaveLength(0);
+  });
+
+  it("says why the model call failed, and logs the cause without leaking the key", async () => {
+    const logged: { o: Record<string, unknown>; m: string }[] = [];
+    setErrorSink((o, m) => logged.push({ o, m }));
+    try {
+      const u = await signUp(ctx, owner, "Why");
+      script = scripted([async () => { throw Object.assign(new Error("401 invalid x-api-key sk-ant-api03-SECRETSECRET123"), { status: 401 }); }]);
+      const r = await chat(u.c, "hi");
+      expect(r.events).toHaveLength(1);
+      expect(r.events[0]).toMatchObject({ type: "error", code: "model_failed" });
+      expect((r.events[0] as { message: string }).message).toContain("rejected the server's API key");
+      expect(logged[0]!.o).toMatchObject({ where: "chat model call", kind: "auth", status: 401 });
+      expect(JSON.stringify([r.events, logged])).not.toContain("SECRETSECRET123");
+    } finally {
+      setErrorSink(null);
+    }
   });
 
   it("refuses a second message while one is still running", async () => {
