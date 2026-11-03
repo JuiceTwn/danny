@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Reminders that happen more than once: several times a day, on chosen weekdays, with an end date.**
+  - **Several times a day.** "Remind me to take my pills at 8, 2 and 8" is one task that repeats daily at 8:00 AM, 2:00 PM and 8:00 PM (up to 8 times, on your own clock; 8am stays 8am when the clocks change). No start date needed: the first one is the next of those times. Finishing one lines up the next time that day, then the first one of the next repeat day.
+  - **Chosen weekdays.** "Gym Monday, Wednesday and Friday at 7" or "every other Tuesday and Thursday". Every N days or weeks works with times too.
+  - **An end date.** "For the next two weeks", a course of antibiotics, a trial: the repeat stops on that date and the last one finishes the task ("That was the last one"). Plain daily, weekly, monthly and yearly repeats can end too.
+  - **An ignored reminder never costs the next one.** For a task with several times a day, if you ignore the 8am one, or its nudges run out, the 2pm one is still lined up and fires; if the next time arrives while nudges are still coming, it takes over. Other repeating tasks still wait to be finished, as before.
+  - Shown plainly in the app, in the list and in chat ("every Mon, Wed and Fri at 7:00 AM until Jan 1, 2099"). `add_task` gains `repeat_times`, `repeat_days` and `repeat_until`; the tasks API takes `repeat: { every, unit, times, days, until }`.
+  - Migration 0030: `repeat_times`, `repeat_days` and `repeat_until` on tasks. 424 tests pass against a real Postgres, including daylight saving, every-other-week and end-date edges. Not tested: how the model phrases a confirmation for a real request, which needs a live key. Not included: "every 2 hours" as such; say the times you want instead.
+
 - **Goals now have a plan: milestones, a target date, and the tasks that serve them.**
   - **Milestones.** A goal can have up to 12 ordered steps (short outcomes like "Venue booked"), each with an optional date. Say "I'm planning a wedding for September" and Danny saves the goal with a target date and 3 to 6 milestones and reads them back; "how do I get there?" or "how's the wedding going?" gets an honest answer from the plan (next step, days left, anything overdue, whether any tasks are moving it). Tools: `add_goal` (now with `target_date` and `milestones`), `add_milestones`, `update_milestone` (tick, reopen, rename, re-date, remove), `update_goal` (move or clear the date), `list_goals` (shows it all).
   - **Tasks linked to goals.** `add_task` takes `goal_id` and `milestone_id`, and `link_task` ties an existing task to a goal or unties it. Danny offers to turn the *next* milestone into two or three tasks, never all of them at once. Linked tasks show "For: goal" in the Tasks tab and in `list_tasks`.
